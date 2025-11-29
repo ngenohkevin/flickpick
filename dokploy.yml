@@ -1,0 +1,60 @@
+# ==========================================================================
+# FlickPick Dokploy Configuration
+# Deploy to VPS with Dokploy
+# ==========================================================================
+
+# Application name
+name: flickpick
+
+# Build configuration
+build:
+  # Use Dockerfile for building
+  type: dockerfile
+  dockerfile: Dockerfile
+  context: .
+
+# Runtime configuration
+runtime:
+  # Port the application listens on
+  port: 3000
+
+  # Health check endpoint
+  healthcheck:
+    path: /
+    interval: 30s
+    timeout: 10s
+    retries: 3
+
+# Environment variables (set these in Dokploy dashboard)
+# Required:
+#   - TMDB_API_KEY
+#   - TMDB_ACCESS_TOKEN
+#   - GEMINI_API_KEY
+#   - REDIS_URL (if using external Redis)
+#   - NEXT_PUBLIC_SITE_URL
+
+# Resources (adjust based on VPS specs)
+resources:
+  memory: 512M
+  cpu: 0.5
+
+# Scaling (optional)
+replicas: 1
+
+# Domain configuration (set in Dokploy dashboard)
+# domains:
+#   - flickpick.site
+#   - www.flickpick.site
+
+# SSL (handled by Dokploy with Let's Encrypt)
+ssl: true
+
+# Restart policy
+restart: unless-stopped
+
+# Logging
+logging:
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"

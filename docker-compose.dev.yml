@@ -1,0 +1,82 @@
+# ==========================================================================
+# FlickPick Docker Compose - Development
+# Use this for local development with hot-reloading
+# Run: docker-compose -f docker-compose.dev.yml up
+# ==========================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Next.js Application (Development Mode)
+  # --------------------------------------------------------------------------
+  app:
+    image: node:20-alpine
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - TMDB_ACCESS_TOKEN=${TMDB_ACCESS_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NEXT_PUBLIC_SITE_URL=http://localhost:3000
+      - WATCHPACK_POLLING=true
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - flickpick-network
+
+  # --------------------------------------------------------------------------
+  # Redis (Caching & Rate Limiting)
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flickpick-network
+
+  # --------------------------------------------------------------------------
+  # Redis Commander (Optional - GUI for Redis)
+  # Access at http://localhost:8081
+  # --------------------------------------------------------------------------
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - flickpick-network
+    profiles:
+      - debug
+
+# --------------------------------------------------------------------------
+# Volumes
+# --------------------------------------------------------------------------
+volumes:
+  redis_data:
+    driver: local
+
+# --------------------------------------------------------------------------
+# Networks
+# --------------------------------------------------------------------------
+networks:
+  flickpick-network:
+    driver: bridge

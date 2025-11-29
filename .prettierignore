@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+dist
+build
+coverage
+*.min.js
+package-lock.json
