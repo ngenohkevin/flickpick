@@ -10,7 +10,7 @@ import {
   getContentReleaseDate,
   getContentType,
   extractYear,
-  isWithinDays,
+  isWithinHours,
   cn,
 } from '@/lib/utils';
 import type { Content } from '@/types';
@@ -47,7 +47,7 @@ export function ContentCard({
   const releaseDate = getContentReleaseDate(content);
   const year = extractYear(releaseDate);
   const contentType = getContentType(content);
-  const isNew = showNewBadge && isWithinDays(releaseDate, 7);
+  const isNew = showNewBadge && isWithinHours(releaseDate, 48);
 
   // Build the detail page URL
   const detailUrl =

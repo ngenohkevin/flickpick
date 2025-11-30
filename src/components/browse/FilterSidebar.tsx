@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
-import { MOVIE_GENRES, TV_GENRES } from '@/lib/constants';
+import { MOVIE_GENRES, TV_GENRES, LANGUAGES, STREAMING_PROVIDERS, TMDB_IMAGE_BASE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 // ==========================================================================
@@ -14,6 +15,7 @@ export interface FilterState {
   yearFrom: number | null;
   yearTo: number | null;
   ratingMin: number | null;
+  language: string | null;
   provider: string | null;
 }
 
@@ -76,11 +78,21 @@ export function FilterSidebar({
     onFilterChange({ ...filters, ratingMin: numValue });
   };
 
+  const handleLanguageChange = (value: string) => {
+    onFilterChange({ ...filters, language: value || null });
+  };
+
+  const handleProviderChange = (providerId: string) => {
+    const newProvider = filters.provider === providerId ? null : providerId;
+    onFilterChange({ ...filters, provider: newProvider });
+  };
+
   const hasActiveFilters =
     filters.genres.length > 0 ||
     filters.yearFrom !== null ||
     filters.yearTo !== null ||
     filters.ratingMin !== null ||
+    filters.language !== null ||
     filters.provider !== null;
 
   const currentYear = new Date().getFullYear();
@@ -205,6 +217,67 @@ export function FilterSidebar({
         </div>
       </FilterSection>
 
+      {/* Language Filter */}
+      <FilterSection
+        title="Language"
+        isExpanded={expandedSections.has('language')}
+        onToggle={() => toggleSection('language')}
+        count={filters.language ? 1 : 0}
+      >
+        <select
+          value={filters.language ?? ''}
+          onChange={(e) => handleLanguageChange(e.target.value)}
+          className="w-full rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+        >
+          <option value="">All Languages</option>
+          {Object.entries(LANGUAGES).map(([code, name]) => (
+            <option key={code} value={code}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </FilterSection>
+
+      {/* Streaming Provider Filter */}
+      <FilterSection
+        title="Streaming Service"
+        isExpanded={expandedSections.has('provider')}
+        onToggle={() => toggleSection('provider')}
+        count={filters.provider ? 1 : 0}
+      >
+        <div className="grid grid-cols-2 gap-2">
+          {STREAMING_PROVIDERS.map((provider) => {
+            const isSelected = filters.provider === String(provider.id);
+            return (
+              <button
+                key={provider.id}
+                onClick={() => handleProviderChange(String(provider.id))}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors',
+                  isSelected
+                    ? 'border-accent-primary bg-accent-primary/10'
+                    : 'border-border-default bg-bg-tertiary hover:border-border-strong'
+                )}
+              >
+                <Image
+                  src={`${TMDB_IMAGE_BASE_URL}/w45${provider.logo}`}
+                  alt={provider.name}
+                  width={24}
+                  height={24}
+                  className="rounded"
+                />
+                <span className={cn(
+                  'text-xs font-medium truncate',
+                  isSelected ? 'text-accent-primary' : 'text-text-secondary'
+                )}>
+                  {provider.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </FilterSection>
+
       {/* Active Filters Summary */}
       {hasActiveFilters && (
         <div className="rounded-lg bg-bg-tertiary p-3">
@@ -240,6 +313,28 @@ export function FilterSidebar({
                 {filters.ratingMin}+ rating
                 <button
                   onClick={() => handleRatingChange('')}
+                  className="hover:text-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.language && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent-primary/20 px-2 py-0.5 text-xs text-accent-primary">
+                {LANGUAGES[filters.language]}
+                <button
+                  onClick={() => handleLanguageChange('')}
+                  className="hover:text-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.provider && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent-primary/20 px-2 py-0.5 text-xs text-accent-primary">
+                {STREAMING_PROVIDERS.find(p => String(p.id) === filters.provider)?.name}
+                <button
+                  onClick={() => handleProviderChange(filters.provider!)}
                   className="hover:text-white"
                 >
                   <X className="h-3 w-3" />
@@ -306,5 +401,6 @@ export const defaultFilters: FilterState = {
   yearFrom: null,
   yearTo: null,
   ratingMin: null,
+  language: null,
   provider: null,
 };

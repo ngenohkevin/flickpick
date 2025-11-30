@@ -321,6 +321,50 @@ export const PROFILE_SIZES = {
 export const ANIMATION_GENRE_ID = 16;
 
 // ==========================================================================
+// Languages (ISO 639-1 codes)
+// ==========================================================================
+
+export const LANGUAGES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  pt: 'Portuguese',
+  ja: 'Japanese',
+  ko: 'Korean',
+  zh: 'Chinese',
+  hi: 'Hindi',
+  ru: 'Russian',
+  ar: 'Arabic',
+  th: 'Thai',
+  tr: 'Turkish',
+  pl: 'Polish',
+  nl: 'Dutch',
+  sv: 'Swedish',
+  da: 'Danish',
+  no: 'Norwegian',
+  fi: 'Finnish',
+};
+
+// ==========================================================================
+// Streaming Providers (TMDB Provider IDs)
+// ==========================================================================
+
+export const STREAMING_PROVIDERS: { id: number; name: string; logo: string }[] = [
+  { id: 8, name: 'Netflix', logo: '/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
+  { id: 9, name: 'Amazon Prime Video', logo: '/emthp39XA2YScoYL1p0sdbAH2WA.jpg' },
+  { id: 337, name: 'Disney+', logo: '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg' },
+  { id: 1899, name: 'Max', logo: '/6Q3ZYUNA9Hsgj6iWnVsw2gR5V6z.jpg' },
+  { id: 15, name: 'Hulu', logo: '/zxrVdFjIjLqkfnwyghnfywTn3Lh.jpg' },
+  { id: 386, name: 'Peacock', logo: '/8VCV78prwd9QzZnEm0ReO6bERDa.jpg' },
+  { id: 531, name: 'Paramount+', logo: '/xbhHHa1YgtpwhC8lb1NQ3ACVcLd.jpg' },
+  { id: 350, name: 'Apple TV+', logo: '/6uhKBfmtzFqOcLousHwZuzcrScK.jpg' },
+  { id: 283, name: 'Crunchyroll', logo: '/8Gt1iClBlzTeQs8WQm8rRwbNBNz.jpg' },
+  { id: 2, name: 'Apple TV', logo: '/peURlLlr8jggOwK53fJ5wdQl05y.jpg' },
+];
+
+// ==========================================================================
 // Default Values
 // ==========================================================================
 

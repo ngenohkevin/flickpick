@@ -37,6 +37,7 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       yearFrom: searchParams.get('year_from') ? parseInt(searchParams.get('year_from')!, 10) : null,
       yearTo: searchParams.get('year_to') ? parseInt(searchParams.get('year_to')!, 10) : null,
       ratingMin: searchParams.get('rating_min') ? parseFloat(searchParams.get('rating_min')!) : null,
+      language: searchParams.get('language') ?? null,
       provider: searchParams.get('provider') ?? null,
     };
   }, [searchParams]);
@@ -77,6 +78,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       if (filters.ratingMin) {
         params.set('rating_min', String(filters.ratingMin));
       }
+      if (filters.language) {
+        params.set('language', filters.language);
+      }
       if (filters.provider) {
         params.set('provider', filters.provider);
       }
@@ -105,6 +109,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       }
       if (newFilters.ratingMin) {
         params.set('rating_min', String(newFilters.ratingMin));
+      }
+      if (newFilters.language) {
+        params.set('language', newFilters.language);
       }
       if (newFilters.provider) {
         params.set('provider', newFilters.provider);
