@@ -26,13 +26,26 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Build arguments for environment variables
+# NEXT_PUBLIC_* vars must be available at build time for Next.js
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_AD_PROVIDER=placeholder
+ARG TMDB_API_KEY
+ARG TMDB_ACCESS_TOKEN
+ARG GEMINI_API_KEY
 
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_AD_PROVIDER=$NEXT_PUBLIC_AD_PROVIDER
+ENV TMDB_API_KEY=$TMDB_API_KEY
+ENV TMDB_ACCESS_TOKEN=$TMDB_ACCESS_TOKEN
+ENV GEMINI_API_KEY=$GEMINI_API_KEY
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
 # Build the application
 RUN npm run build
