@@ -84,9 +84,9 @@ USER nextjs
 # Expose the port
 EXPOSE 3000
 
-# Health check
+# Health check (use 127.0.0.1 instead of localhost to avoid IPv6 issues)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1
 
 # Start the application
 CMD ["node", "server.js"]
