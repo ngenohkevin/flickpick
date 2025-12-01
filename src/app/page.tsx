@@ -7,6 +7,7 @@ import {
   toTVShow,
 } from '@/lib/tmdb';
 import { HeroSpotlight, ContentRow } from '@/components/content';
+import { CategoryGrid } from '@/components/browse';
 import { GENRE_PILLS } from '@/lib/constants';
 import type { Content } from '@/types';
 
@@ -101,6 +102,14 @@ export default async function HomePage() {
           href="/tv"
           showTypeBadge={false}
         />
+
+        {/* Browse by Category */}
+        <section>
+          <h2 className="mb-6 text-xl font-semibold text-text-primary sm:text-2xl">
+            Browse by Category
+          </h2>
+          <CategoryGrid />
+        </section>
 
         {/* Browse by Genre */}
         <section>
