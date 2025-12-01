@@ -60,23 +60,34 @@ const categoryFetchers: Record<string, CategoryFetcher> = {
     const thirtyDaysAgo = new Date(today);
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
-    if (type === 'movie' || type === 'all') {
-      return discoverMovies({
-        page,
-        sort_by: 'primary_release_date.desc',
-        'primary_release_date.lte': today.toISOString().split('T')[0],
-        'primary_release_date.gte': thirtyDaysAgo.toISOString().split('T')[0],
-        'vote_count.gte': 10,
-      });
-    }
-    // TV new releases
-    return discoverTVShows({
+    const movieParams = {
       page,
-      sort_by: 'first_air_date.desc',
+      sort_by: 'primary_release_date.desc' as const,
+      'primary_release_date.lte': today.toISOString().split('T')[0],
+      'primary_release_date.gte': thirtyDaysAgo.toISOString().split('T')[0],
+      'vote_count.gte': 10,
+    };
+
+    const tvParams = {
+      page,
+      sort_by: 'first_air_date.desc' as const,
       'first_air_date.lte': today.toISOString().split('T')[0],
       'first_air_date.gte': thirtyDaysAgo.toISOString().split('T')[0],
       'vote_count.gte': 10,
-    });
+    };
+
+    if (type === 'movie') {
+      return discoverMovies(movieParams);
+    }
+    if (type === 'tv') {
+      return discoverTVShows(tvParams);
+    }
+    // Merge both for 'all'
+    const [movies, tv] = await Promise.all([
+      discoverMovies(movieParams),
+      discoverTVShows(tvParams),
+    ]);
+    return mergeResults(movies, tv, page);
   },
 
   'top-rated': async (page, type) => {
@@ -120,21 +131,33 @@ const categoryFetchers: Record<string, CategoryFetcher> = {
   'award-winners': async (page, type) => {
     // Use keywords for Oscar/Emmy winners - this is approximate
     // TMDB keyword IDs for awards: 270 (oscar winner), 271 (oscar nominee)
-    if (type === 'movie' || type === 'all') {
-      return discoverMovies({
-        page,
-        sort_by: 'vote_average.desc',
-        'vote_average.gte': 7.5,
-        'vote_count.gte': 1000,
-        with_keywords: '270|271', // Oscar related
-      });
-    }
-    return discoverTVShows({
+    const movieParams = {
       page,
-      sort_by: 'vote_average.desc',
+      sort_by: 'vote_average.desc' as const,
+      'vote_average.gte': 7.5,
+      'vote_count.gte': 1000,
+      with_keywords: '270|271', // Oscar related
+    };
+
+    const tvParams = {
+      page,
+      sort_by: 'vote_average.desc' as const,
       'vote_average.gte': 8,
       'vote_count.gte': 500,
-    });
+    };
+
+    if (type === 'movie') {
+      return discoverMovies(movieParams);
+    }
+    if (type === 'tv') {
+      return discoverTVShows(tvParams);
+    }
+    // Merge both for 'all'
+    const [movies, tv] = await Promise.all([
+      discoverMovies(movieParams),
+      discoverTVShows(tvParams),
+    ]);
+    return mergeResults(movies, tv, page);
   },
 
   classics: async (page, _type) => {

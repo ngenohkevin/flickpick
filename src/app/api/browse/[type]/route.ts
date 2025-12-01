@@ -79,46 +79,59 @@ export async function GET(
     const isMovieType = contentType === 'movie' || contentType === 'animation' || contentType === 'anime';
 
     // Build common filter params
+    // Note: For animation/anime, genres are passed separately to combine with animation genre
     const baseParams = {
       page,
-      ...(genres && { with_genres: genres }),
       ...(ratingMin && { 'vote_average.gte': parseFloat(ratingMin) }),
       ...(ratingMin && { 'vote_count.gte': 50 }), // Require minimum votes when filtering by rating
       ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
+    };
+
+    // For movie/tv types, include genres in baseParams
+    const baseParamsWithGenres = {
+      ...baseParams,
+      ...(genres && { with_genres: genres }),
     };
 
     let response;
 
     if (contentType === 'movie') {
       response = await discoverMovies({
-        ...baseParams,
+        ...baseParamsWithGenres,
         sort_by: sortMapping[sortBy].movie,
         ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
         ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
       });
     } else if (contentType === 'tv') {
       response = await discoverTVShows({
-        ...baseParams,
+        ...baseParamsWithGenres,
         sort_by: sortMapping[sortBy].tv,
         ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
         ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
       });
     } else if (contentType === 'animation') {
       // Animation: Split between movies and TV, then merge
+      // Pass user-selected genres as second parameter to combine with animation genre
       if (isMovieType) {
         const [movieResponse, tvResponse] = await Promise.all([
-          discoverAnimationMovies({
-            ...baseParams,
-            sort_by: sortMapping[sortBy].movie,
-            ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
-            ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
-          }),
-          discoverAnimationTVShows({
-            ...baseParams,
-            sort_by: sortMapping[sortBy].tv,
-            ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
-            ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
-          }),
+          discoverAnimationMovies(
+            {
+              ...baseParams,
+              sort_by: sortMapping[sortBy].movie,
+              ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
+              ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
+            },
+            genres
+          ),
+          discoverAnimationTVShows(
+            {
+              ...baseParams,
+              sort_by: sortMapping[sortBy].tv,
+              ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
+              ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
+            },
+            genres
+          ),
         ]);
 
         // Merge and sort results
@@ -144,19 +157,26 @@ export async function GET(
       }
     } else if (contentType === 'anime') {
       // Anime: Same approach - merge movies and TV
+      // Pass user-selected genres as second parameter to combine with animation genre
       const [movieResponse, tvResponse] = await Promise.all([
-        discoverAnimeMovies({
-          ...baseParams,
-          sort_by: sortMapping[sortBy].movie,
-          ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
-          ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
-        }),
-        discoverAnimeTVShows({
-          ...baseParams,
-          sort_by: sortMapping[sortBy].tv,
-          ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
-          ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
-        }),
+        discoverAnimeMovies(
+          {
+            ...baseParams,
+            sort_by: sortMapping[sortBy].movie,
+            ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
+            ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
+          },
+          genres
+        ),
+        discoverAnimeTVShows(
+          {
+            ...baseParams,
+            sort_by: sortMapping[sortBy].tv,
+            ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
+            ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
+          },
+          genres
+        ),
       ]);
 
       // Merge and sort results

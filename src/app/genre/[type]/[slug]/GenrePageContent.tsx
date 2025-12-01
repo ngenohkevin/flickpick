@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
-import { InfiniteContentGrid } from '@/components/content';
+import { ChevronRight, TrendingUp, Star } from 'lucide-react';
+import { InfiniteContentGrid, ContentRow } from '@/components/content';
 import { SortDropdown, type SortOption } from '@/components/browse';
 import { useWatchlist } from '@/stores/watchlist';
 import { MOVIE_GENRES, TV_GENRES, GENRE_SLUGS } from '@/lib/constants';
@@ -45,6 +45,11 @@ export function GenrePageContent({
   const [totalResults, setTotalResults] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // Trending and Top Rated content for featured sections
+  const [trendingItems, setTrendingItems] = useState<Content[]>([]);
+  const [topRatedItems, setTopRatedItems] = useState<Content[]>([]);
+  const [isFeaturedLoading, setIsFeaturedLoading] = useState(true);
 
   // Watchlist
   const watchlist = useWatchlist();
@@ -100,6 +105,36 @@ export function GenrePageContent({
     fetchContent(1, false);
   }, [fetchContent]);
 
+  // Fetch featured content (trending and top rated) - only once on mount
+  useEffect(() => {
+    async function fetchFeaturedContent() {
+      setIsFeaturedLoading(true);
+      try {
+        // Fetch trending (sorted by popularity) and top rated in parallel
+        const [trendingRes, topRatedRes] = await Promise.all([
+          fetch(`/api/genre/${type}/${genreId}?page=1&sort_by=popularity`),
+          fetch(`/api/genre/${type}/${genreId}?page=1&sort_by=rating`),
+        ]);
+
+        if (trendingRes.ok) {
+          const trendingData: GenreResponse = await trendingRes.json();
+          setTrendingItems(trendingData.results.slice(0, 10));
+        }
+
+        if (topRatedRes.ok) {
+          const topRatedData: GenreResponse = await topRatedRes.json();
+          setTopRatedItems(topRatedData.results.slice(0, 10));
+        }
+      } catch (error) {
+        console.error('Error fetching featured content:', error);
+      } finally {
+        setIsFeaturedLoading(false);
+      }
+    }
+
+    fetchFeaturedContent();
+  }, [genreId, type]);
+
   // Handle load more
   const handleLoadMore = () => {
     if (page < totalPages && !isLoadingMore) {
@@ -110,7 +145,6 @@ export function GenrePageContent({
   // Handle watchlist toggle
   const handleWatchlistToggle = (content: Content) => {
     const title = 'title' in content ? content.title : content.name;
-    const releaseDate = 'release_date' in content ? content.release_date : content.first_air_date;
 
     watchlist.toggleItem({
       id: content.id,
@@ -141,19 +175,16 @@ export function GenrePageContent({
             <span className="text-text-primary">{genreName}</span>
           </nav>
 
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-text-primary sm:text-4xl">
-                {genreName} {typeLabel}
-              </h1>
-              <p className="mt-2 max-w-2xl text-text-secondary">{description}</p>
-              {!isLoading && (
-                <p className="mt-2 text-sm text-text-tertiary">
-                  {totalResults.toLocaleString()} titles
-                </p>
-              )}
-            </div>
-            <SortDropdown value={sortBy} onChange={setSortBy} />
+          <div>
+            <h1 className="text-3xl font-bold text-text-primary sm:text-4xl">
+              {genreName} {typeLabel}
+            </h1>
+            <p className="mt-2 max-w-2xl text-text-secondary">{description}</p>
+            {!isLoading && (
+              <p className="mt-2 text-sm text-text-tertiary">
+                {totalResults.toLocaleString()} titles
+              </p>
+            )}
           </div>
 
           {/* Quick Genre Navigation */}
@@ -180,20 +211,71 @@ export function GenrePageContent({
         </div>
       </div>
 
-      {/* Content Grid */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <InfiniteContentGrid
-          items={items}
-          columns={6}
-          showTypeBadge={false}
-          isLoading={isLoading}
-          loadingCount={24}
-          hasMore={page < totalPages}
-          onLoadMore={handleLoadMore}
-          isLoadingMore={isLoadingMore}
-          watchlistIds={watchlistIds}
-          onWatchlistToggle={handleWatchlistToggle}
-        />
+      {/* Featured Sections */}
+      <div className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        {/* Trending in Genre */}
+        <section>
+          <div className="mb-4 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-accent-primary" />
+            <h2 className="text-xl font-semibold text-text-primary">
+              Trending in {genreName}
+            </h2>
+          </div>
+          <ContentRow
+            title=""
+            items={trendingItems}
+            showViewAll={false}
+            showTypeBadge={false}
+            isLoading={isFeaturedLoading}
+            loadingCount={6}
+            watchlistIds={watchlistIds}
+            onWatchlistToggle={handleWatchlistToggle}
+          />
+        </section>
+
+        {/* Top Rated in Genre */}
+        <section>
+          <div className="mb-4 flex items-center gap-2">
+            <Star className="h-5 w-5 text-warning" />
+            <h2 className="text-xl font-semibold text-text-primary">
+              Top Rated {genreName}
+            </h2>
+          </div>
+          <ContentRow
+            title=""
+            items={topRatedItems}
+            showViewAll={false}
+            showTypeBadge={false}
+            isLoading={isFeaturedLoading}
+            loadingCount={6}
+            watchlistIds={watchlistIds}
+            onWatchlistToggle={handleWatchlistToggle}
+          />
+        </section>
+      </div>
+
+      {/* Full Content Grid */}
+      <div className="border-t border-border-subtle">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-text-primary">
+              Browse All {genreName} {typeLabel}
+            </h2>
+            <SortDropdown value={sortBy} onChange={setSortBy} />
+          </div>
+          <InfiniteContentGrid
+            items={items}
+            columns={6}
+            showTypeBadge={false}
+            isLoading={isLoading}
+            loadingCount={24}
+            hasMore={page < totalPages}
+            onLoadMore={handleLoadMore}
+            isLoadingMore={isLoadingMore}
+            watchlistIds={watchlistIds}
+            onWatchlistToggle={handleWatchlistToggle}
+          />
+        </div>
       </div>
     </div>
   );
