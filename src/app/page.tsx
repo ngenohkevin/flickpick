@@ -3,27 +3,221 @@ import { Search, Sparkles } from 'lucide-react';
 import {
   getTrendingMovies,
   getTrendingTVShows,
+  getOnTheAirTVShows,
+  getAiringTodayTVShows,
+  getTVShowDetails,
+  getSeasonDetails,
+  discoverMovies,
+  discoverAnimeMovies,
+  discoverAnimeTVShows,
   toMovie,
   toTVShow,
+  toEpisode,
+  type TMDBTVShow,
 } from '@/lib/tmdb';
-import { HeroSpotlight, ContentRow } from '@/components/content';
+import {
+  HeroSpotlight,
+  ContentRow,
+  EpisodeProgressRow,
+  type TVShowWithEpisodeStatus,
+} from '@/components/content';
 import { CategoryGrid } from '@/components/browse';
+import { StreamingTabs } from '@/components/streaming';
 import { GENRE_PILLS } from '@/lib/constants';
-import type { Content } from '@/types';
+import type { Content, Movie, TVShow, EpisodeStatus } from '@/types';
 
 // Revalidate every hour
 export const revalidate = 3600;
 
+// ==========================================================================
+// Data Fetching Functions
+// ==========================================================================
+
+/**
+ * Get new movies from the last 7 days
+ */
+async function getNewMoviesThisWeek(): Promise<Movie[]> {
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  const response = await discoverMovies({
+    sort_by: 'primary_release_date.desc',
+    'primary_release_date.lte': today.toISOString().split('T')[0],
+    'primary_release_date.gte': sevenDaysAgo.toISOString().split('T')[0],
+    'vote_count.gte': 5, // Minimum votes for quality
+  });
+
+  return (response.results ?? []).slice(0, 12).map((m) => ({
+    ...toMovie(m),
+    media_type: 'movie' as const,
+  }));
+}
+
+/**
+ * Get popular anime (mix of movies and TV)
+ */
+async function getPopularAnime(): Promise<Content[]> {
+  const [animeMovies, animeTVShows] = await Promise.all([
+    discoverAnimeMovies({ sort_by: 'popularity.desc' }),
+    discoverAnimeTVShows({ sort_by: 'popularity.desc' }),
+  ]);
+
+  const movies = (animeMovies.results ?? []).slice(0, 6).map((m) => ({
+    ...toMovie(m),
+    media_type: 'movie' as const,
+  }));
+  const tvShows = (animeTVShows.results ?? []).slice(0, 6).map((s) => ({
+    ...toTVShow(s),
+    media_type: 'tv' as const,
+  }));
+
+  // Interleave movies and TV shows, sorted by popularity
+  return [...movies, ...tvShows]
+    .sort((a, b) => b.popularity - a.popularity)
+    .slice(0, 12);
+}
+
+/**
+ * Calculate episode status for a TV show
+ */
+async function getEpisodeStatusForShow(show: TMDBTVShow): Promise<EpisodeStatus> {
+  const now = new Date();
+  let total = 0;
+  let released = 0;
+
+  // Get the current/latest non-special season
+  const currentSeasonNumber =
+    show.seasons?.filter((s) => s.season_number > 0).slice(-1)[0]?.season_number ?? 1;
+
+  try {
+    const seasonDetails = await getSeasonDetails(show.id, currentSeasonNumber);
+    if (seasonDetails?.episodes) {
+      total = seasonDetails.episodes.length;
+      released = seasonDetails.episodes.filter((ep) => {
+        if (!ep.air_date) return false;
+        return new Date(ep.air_date) <= now;
+      }).length;
+    }
+  } catch {
+    // Use show-level data if season details fail
+    total = show.number_of_episodes ?? 0;
+    released = total;
+  }
+
+  const upcoming = total - released;
+  const nextEpisode = show.next_episode_to_air
+    ? toEpisode(show.next_episode_to_air)
+    : null;
+  const lastEpisode = show.last_episode_to_air
+    ? toEpisode(show.last_episode_to_air)
+    : null;
+
+  return {
+    total,
+    released,
+    upcoming,
+    nextEpisode,
+    lastEpisode,
+    isComplete: upcoming === 0 && total > 0,
+    isAiring: upcoming > 0 || show.status === 'Returning Series',
+  };
+}
+
+/**
+ * Get TV shows with episode tracking
+ */
+async function getTVShowsWithEpisodes(): Promise<TVShowWithEpisodeStatus[]> {
+  const [onTheAir, airingToday] = await Promise.all([
+    getOnTheAirTVShows(1),
+    getAiringTodayTVShows(1),
+  ]);
+
+  // Combine and deduplicate
+  const allShows = [...(onTheAir.results ?? []), ...(airingToday.results ?? [])];
+  const uniqueShowsMap = new Map<number, TMDBTVShow>();
+  allShows.forEach((show) => {
+    if (!uniqueShowsMap.has(show.id)) {
+      uniqueShowsMap.set(show.id, show);
+    }
+  });
+
+  // Process top 10 shows with episode status
+  const showsToProcess = Array.from(uniqueShowsMap.values())
+    .sort((a, b) => b.popularity - a.popularity)
+    .slice(0, 10);
+
+  const showsWithStatus = await Promise.all(
+    showsToProcess.map(async (show) => {
+      try {
+        const details = await getTVShowDetails(show.id);
+        const episodeStatus = await getEpisodeStatusForShow(details);
+        const tvShow = toTVShow(details) as TVShow;
+        const currentSeason =
+          details.seasons?.filter((s) => s.season_number > 0).slice(-1)[0]?.season_number ?? 1;
+
+        return {
+          ...tvShow,
+          episode_status: episodeStatus,
+          current_season: currentSeason,
+        } as TVShowWithEpisodeStatus;
+      } catch {
+        // Return basic show with estimated status if details fail
+        const basicShow = toTVShow(show) as TVShow;
+        return {
+          ...basicShow,
+          episode_status: {
+            total: show.number_of_episodes ?? 0,
+            released: show.number_of_episodes ?? 0,
+            upcoming: 0,
+            nextEpisode: null,
+            lastEpisode: null,
+            isComplete: false,
+            isAiring: true,
+          },
+          current_season: show.number_of_seasons ?? 1,
+        } as TVShowWithEpisodeStatus;
+      }
+    })
+  );
+
+  // Sort by next episode date (shows with upcoming episodes first)
+  return showsWithStatus.sort((a, b) => {
+    // Prioritize shows with upcoming episodes
+    if (a.episode_status.nextEpisode && b.episode_status.nextEpisode) {
+      return (
+        new Date(a.episode_status.nextEpisode.air_date!).getTime() -
+        new Date(b.episode_status.nextEpisode.air_date!).getTime()
+      );
+    }
+    if (a.episode_status.nextEpisode) return -1;
+    if (b.episode_status.nextEpisode) return 1;
+    return 0;
+  });
+}
+
+/**
+ * Get all homepage data
+ */
 async function getHomepageData() {
-  const [trendingMoviesRes, trendingTVRes] = await Promise.all([
+  const [
+    trendingMoviesRes,
+    trendingTVRes,
+    newMovies,
+    popularAnime,
+    tvShowsWithEpisodes,
+  ] = await Promise.all([
     getTrendingMovies('day', 1),
     getTrendingTVShows('day', 1),
+    getNewMoviesThisWeek(),
+    getPopularAnime(),
+    getTVShowsWithEpisodes(),
   ]);
 
   const trendingMovies = (trendingMoviesRes.results ?? []).slice(0, 12).map(toMovie);
   const trendingTV = (trendingTVRes.results ?? []).slice(0, 12).map(toTVShow);
 
-  // Get top items for hero (mix of movies and TV with backdrops)
+  // Get top items for hero (mix of trending movies and TV with backdrops)
   const heroItems: Content[] = [
     ...trendingMovies.slice(0, 3),
     ...trendingTV.slice(0, 2),
@@ -33,11 +227,25 @@ async function getHomepageData() {
     heroItems,
     trendingMovies,
     trendingTV,
+    newMovies,
+    popularAnime,
+    tvShowsWithEpisodes,
   };
 }
 
+// ==========================================================================
+// Homepage Component
+// ==========================================================================
+
 export default async function HomePage() {
-  const { heroItems, trendingMovies, trendingTV } = await getHomepageData();
+  const {
+    heroItems,
+    trendingMovies,
+    trendingTV,
+    newMovies,
+    popularAnime,
+    tvShowsWithEpisodes,
+  } = await getHomepageData();
 
   return (
     <div className="bg-bg-primary">
@@ -87,6 +295,25 @@ export default async function HomePage() {
           </div>
         </section>
 
+        {/* New Movies This Week */}
+        {newMovies.length > 0 && (
+          <ContentRow
+            title="New Movies This Week"
+            items={newMovies}
+            href="/new/movies"
+            showTypeBadge={false}
+          />
+        )}
+
+        {/* New TV Episodes */}
+        {tvShowsWithEpisodes.length > 0 && (
+          <EpisodeProgressRow
+            title="New TV Episodes"
+            shows={tvShowsWithEpisodes}
+            href="/new/shows"
+          />
+        )}
+
         {/* Trending Movies */}
         <ContentRow
           title="Trending Movies"
@@ -102,6 +329,19 @@ export default async function HomePage() {
           href="/tv"
           showTypeBadge={false}
         />
+
+        {/* Popular Anime */}
+        {popularAnime.length > 0 && (
+          <ContentRow
+            title="Popular Anime"
+            items={popularAnime}
+            href="/anime"
+            showTypeBadge={true}
+          />
+        )}
+
+        {/* Popular on Streaming */}
+        <StreamingTabs />
 
         {/* Browse by Category */}
         <section>

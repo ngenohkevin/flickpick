@@ -22,3 +22,10 @@ export { ContentHero, MiniHero } from './ContentHero';
 
 // Hero Spotlight (Homepage)
 export { HeroSpotlight } from './HeroSpotlight';
+
+// Episode Progress
+export {
+  EpisodeProgressCard,
+  EpisodeProgressRow,
+  type TVShowWithEpisodeStatus,
+} from './EpisodeProgressCard';
