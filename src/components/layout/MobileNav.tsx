@@ -28,7 +28,8 @@ const MOBILE_NAV_SECTIONS = [
     links: [
       { href: '/discover', label: 'AI Discovery', icon: Sparkles },
       { href: '/trending', label: 'Trending', icon: TrendingUp },
-      { href: '/new/movies', label: 'New Releases', icon: Calendar },
+      { href: '/new/movies', label: 'New Releases', icon: Film },
+      { href: '/calendar', label: 'Release Calendar', icon: Calendar },
     ],
   },
   {

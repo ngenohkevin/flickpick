@@ -22,7 +22,7 @@ export function getPosterUrl(
   path: string | null,
   size: keyof typeof POSTER_SIZES = 'medium'
 ): string {
-  if (!path) return '/placeholder-poster.png';
+  if (!path) return '/placeholder-poster.svg';
   return `${TMDB_IMAGE_BASE_URL}/${POSTER_SIZES[size]}${path}`;
 }
 
@@ -44,7 +44,7 @@ export function getProfileUrl(
   path: string | null,
   size: keyof typeof PROFILE_SIZES = 'medium'
 ): string {
-  if (!path) return '/placeholder-profile.png';
+  if (!path) return '/placeholder-profile.svg';
   return `${TMDB_IMAGE_BASE_URL}/${PROFILE_SIZES[size]}${path}`;
 }
 

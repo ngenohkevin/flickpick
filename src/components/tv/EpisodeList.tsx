@@ -97,6 +97,7 @@ function EpisodeRow({ episode }: EpisodeRowProps) {
                 src={getBackdropUrlWithSize(episode.still_path, 'w300') ?? ''}
                 alt={episode.name}
                 fill
+                sizes="64px"
                 className="object-cover"
               />
             </div>
@@ -219,6 +220,7 @@ export function EpisodeCard({ episode, className = '' }: EpisodeCardProps) {
             src={getBackdropUrlWithSize(episode.still_path, 'w500') ?? ''}
             alt={episode.name}
             fill
+            sizes="(min-width: 640px) 50vw, 100vw"
             className="object-cover"
           />
         ) : (

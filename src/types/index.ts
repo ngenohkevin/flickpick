@@ -278,3 +278,38 @@ export interface UserIntent {
   similar: string | null;
   keywords: string[];
 }
+
+// ==========================================================================
+// Calendar Types
+// ==========================================================================
+
+export interface CalendarReleaseItem {
+  id: number;
+  title: string;
+  type: 'movie' | 'tv';
+  content_type: ContentType;
+  poster_path: string | null;
+  episode?: {
+    season: number;
+    episode: number;
+    name: string;
+  };
+}
+
+export interface CalendarRelease {
+  date: string; // YYYY-MM-DD
+  items: CalendarReleaseItem[];
+}
+
+export interface CalendarResponse {
+  month: string; // YYYY-MM
+  releases: CalendarRelease[];
+}
+
+export interface CalendarDay {
+  date: Date;
+  dayNumber: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  releases: CalendarReleaseItem[];
+}

@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Search, Sun, Moon, Menu, X, Film, Tv, Sparkles, Heart } from 'lucide-react';
+import { Search, Sun, Moon, Menu, X, Film, Tv, Sparkles, Heart, CalendarDays } from 'lucide-react';
 import { usePreferences } from '@/stores/preferences';
 import { MobileNav } from './MobileNav';
 import { SearchBar, SearchOverlay } from '@/components/search';
@@ -20,7 +20,7 @@ const NAV_LINKS = [
   { href: '/movies', label: 'Movies', icon: Film },
   { href: '/tv', label: 'TV Shows', icon: Tv },
   { href: '/anime', label: 'Anime', icon: Sparkles },
-  { href: '/discover', label: 'Discover', icon: Sparkles },
+  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
 ] as const;
 
 // ==========================================================================
