@@ -64,7 +64,7 @@ export function ContentCard({
   return (
     <article
       className={cn(
-        'group relative overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary',
+        'group/card relative overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary',
         'transition-all duration-200 hover:border-border-default hover:shadow-lg hover:-translate-y-1',
         className
       )}
@@ -78,14 +78,14 @@ export function ContentCard({
             size="medium"
             priority={priority}
             fill
-            className="transition-transform duration-300 group-hover:scale-105"
+            className="transition-transform duration-300 group-hover/card:scale-105"
           />
 
           {/* Overlay on hover */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-200 group-hover/card:opacity-100" />
 
           {/* Quick Actions (visible on hover) */}
-          <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
             <button
               onClick={handleWatchlistClick}
               className={cn(
@@ -122,12 +122,12 @@ export function ContentCard({
         </div>
 
         {/* Content Info */}
-        <div className="p-3">
-          <h3 className="truncate text-sm font-semibold text-text-primary group-hover:text-accent-primary">
+        <div className="p-2">
+          <h3 className="truncate text-[13px] font-medium text-text-primary group-hover/card:text-accent-primary">
             {title}
           </h3>
           {showYear && year && (
-            <p className="mt-0.5 text-xs text-text-tertiary">{year}</p>
+            <p className="mt-0.5 text-[11px] text-text-tertiary">{year}</p>
           )}
         </div>
       </Link>
@@ -175,9 +175,9 @@ export function CompactContentCard({
       </div>
 
       <div className="min-w-0 flex-1">
-        <h4 className="truncate text-sm font-medium text-text-primary">{title}</h4>
+        <h4 className="truncate text-[13px] font-medium text-text-primary">{title}</h4>
         <div className="mt-0.5 flex items-center gap-2">
-          {year && <span className="text-xs text-text-tertiary">{year}</span>}
+          {year && <span className="text-[11px] text-text-tertiary">{year}</span>}
           {content.vote_average > 0 && (
             <ContentRating rating={content.vote_average} size="sm" variant="minimal" />
           )}

@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ContentCard } from './ContentCard';
 import { SkeletonRow } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import type { Content } from '@/types';
 
 // ==========================================================================
@@ -40,6 +41,52 @@ export function ContentRow({
   className = '',
 }: ContentRowProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  // Check scroll position and update button visibility
+  const updateScrollButtons = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    const maxScroll = scrollWidth - clientWidth;
+
+    // Only show scroll buttons if there's actual overflow
+    if (maxScroll <= 0) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+
+    // Account for padding offset caused by -mx-* and px-* classes (up to 32px at lg breakpoint)
+    const paddingOffset = 40;
+
+    // Left button: only show if we've scrolled past the initial padding
+    setCanScrollLeft(scrollLeft > paddingOffset);
+    // Right button: only show if we haven't reached the end
+    setCanScrollRight(scrollLeft < maxScroll - 5);
+  }, []);
+
+  // Initialize and listen for scroll/resize
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    // Use requestAnimationFrame to ensure DOM is painted before measuring
+    const rafId = requestAnimationFrame(() => {
+      updateScrollButtons();
+    });
+
+    container.addEventListener('scroll', updateScrollButtons);
+    window.addEventListener('resize', updateScrollButtons);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      container.removeEventListener('scroll', updateScrollButtons);
+      window.removeEventListener('resize', updateScrollButtons);
+    };
+  }, [updateScrollButtons, items]);
 
   const scroll = (direction: 'left' | 'right') => {
     const container = scrollContainerRef.current;
@@ -69,23 +116,35 @@ export function ContentRow({
         )}
       </div>
 
-      {/* Scrollable Container */}
-      <div className="group relative">
-        {/* Scroll Buttons (hidden on mobile) */}
-        <button
-          onClick={() => scroll('left')}
-          className="absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-bg-elevated shadow-lg text-text-primary opacity-0 transition-opacity hover:bg-bg-tertiary group-hover:opacity-100 md:flex"
-          aria-label="Scroll left"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <button
-          onClick={() => scroll('right')}
-          className="absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-bg-elevated shadow-lg text-text-primary opacity-0 transition-opacity hover:bg-bg-tertiary group-hover:opacity-100 md:flex"
-          aria-label="Scroll right"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
+      {/* Scrollable Container - using group/row to isolate from card hover */}
+      <div className="group/row relative">
+        {/* Scroll Buttons (hidden on mobile, only show when scrollable) */}
+        {canScrollLeft && (
+          <button
+            onClick={() => scroll('left')}
+            className={cn(
+              'absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center',
+              'rounded-full bg-bg-elevated shadow-lg text-text-primary',
+              'opacity-0 transition-opacity hover:bg-bg-tertiary group-hover/row:opacity-100 md:flex'
+            )}
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        )}
+        {canScrollRight && (
+          <button
+            onClick={() => scroll('right')}
+            className={cn(
+              'absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center',
+              'rounded-full bg-bg-elevated shadow-lg text-text-primary',
+              'opacity-0 transition-opacity hover:bg-bg-tertiary group-hover/row:opacity-100 md:flex'
+            )}
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        )}
 
         {/* Content */}
         {isLoading ? (
@@ -139,6 +198,51 @@ export function FeaturedContentRow({
   className = '',
 }: FeaturedContentRowProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  // Check scroll position and update button visibility
+  const updateScrollButtons = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const { scrollLeft, scrollWidth, clientWidth } = container;
+    const maxScroll = scrollWidth - clientWidth;
+
+    // Only show scroll buttons if there's actual overflow
+    if (maxScroll <= 0) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+
+    // Account for padding offset caused by -mx-* and px-* classes (up to 32px at lg breakpoint)
+    const paddingOffset = 40;
+
+    // Left button: only show if we've scrolled past the initial padding
+    setCanScrollLeft(scrollLeft > paddingOffset);
+    // Right button: only show if we haven't reached the end
+    setCanScrollRight(scrollLeft < maxScroll - 5);
+  }, []);
+
+  // Initialize and listen for scroll/resize
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const rafId = requestAnimationFrame(() => {
+      updateScrollButtons();
+    });
+
+    container.addEventListener('scroll', updateScrollButtons);
+    window.addEventListener('resize', updateScrollButtons);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      container.removeEventListener('scroll', updateScrollButtons);
+      window.removeEventListener('resize', updateScrollButtons);
+    };
+  }, [updateScrollButtons, items]);
 
   const scroll = (direction: 'left' | 'right') => {
     const container = scrollContainerRef.current;
@@ -168,22 +272,34 @@ export function FeaturedContentRow({
         )}
       </div>
 
-      {/* Scrollable Container */}
-      <div className="group relative">
-        <button
-          onClick={() => scroll('left')}
-          className="absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-bg-elevated shadow-lg text-text-primary opacity-0 transition-opacity hover:bg-bg-tertiary group-hover:opacity-100 md:flex"
-          aria-label="Scroll left"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <button
-          onClick={() => scroll('right')}
-          className="absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-bg-elevated shadow-lg text-text-primary opacity-0 transition-opacity hover:bg-bg-tertiary group-hover:opacity-100 md:flex"
-          aria-label="Scroll right"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
+      {/* Scrollable Container - using group/row to isolate from card hover */}
+      <div className="group/row relative">
+        {canScrollLeft && (
+          <button
+            onClick={() => scroll('left')}
+            className={cn(
+              'absolute -left-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center',
+              'rounded-full bg-bg-elevated shadow-lg text-text-primary',
+              'opacity-0 transition-opacity hover:bg-bg-tertiary group-hover/row:opacity-100 md:flex'
+            )}
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        )}
+        {canScrollRight && (
+          <button
+            onClick={() => scroll('right')}
+            className={cn(
+              'absolute -right-4 top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 items-center justify-center',
+              'rounded-full bg-bg-elevated shadow-lg text-text-primary',
+              'opacity-0 transition-opacity hover:bg-bg-tertiary group-hover/row:opacity-100 md:flex'
+            )}
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        )}
 
         {isLoading ? (
           <SkeletonRow count={4} />

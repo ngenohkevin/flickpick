@@ -91,11 +91,11 @@ export function TVShowCard({
         </div>
 
         {/* Content Info */}
-        <div className="p-3">
-          <h3 className="truncate text-sm font-semibold text-text-primary group-hover:text-accent-primary">
+        <div className="p-2">
+          <h3 className="truncate text-[13px] font-medium text-text-primary group-hover:text-accent-primary">
             {show.name}
           </h3>
-          <p className="mt-0.5 text-xs text-text-tertiary">
+          <p className="mt-0.5 text-[11px] text-text-tertiary">
             Season {show.current_season}
           </p>
 
@@ -159,8 +159,8 @@ export function CompactTVShowCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="font-semibold text-text-primary truncate">{show.name}</h3>
-            <p className="text-xs text-text-tertiary">Season {show.current_season}</p>
+            <h3 className="text-[13px] font-medium text-text-primary truncate">{show.name}</h3>
+            <p className="text-[11px] text-text-tertiary">Season {show.current_season}</p>
           </div>
           <EpisodeStatusBadge status={show.episode_status} showStatus={show.status} size="sm" />
         </div>

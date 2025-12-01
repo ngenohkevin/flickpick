@@ -237,22 +237,8 @@ h1, h2, h3, h4, h5, h6 {
   line-height: var(--leading-tight);
 }
 
-h1 {
-  font-size: var(--text-4xl);
-  letter-spacing: var(--tracking-tight);
-}
-
-h2 {
-  font-size: var(--text-3xl);
-}
-
-h3 {
-  font-size: var(--text-2xl);
-}
-
-h4 {
-  font-size: var(--text-xl);
-}
+/* Note: Font sizes are handled by Tailwind classes in components
+   to allow flexibility. Only set defaults for standalone headings. */
 
 p {
   color: var(--text-secondary);
