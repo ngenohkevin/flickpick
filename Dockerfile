@@ -4,7 +4,7 @@
 # ==========================================================================
 
 # --------------------------------------------------------------------------
-# Stage 1: Dependencies
+# Stage 1: Dependencies (all, including dev for build)
 # --------------------------------------------------------------------------
 FROM node:20-alpine AS deps
 
@@ -16,8 +16,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including dev for TypeScript/build tools)
+RUN npm ci
 
 # --------------------------------------------------------------------------
 # Stage 2: Builder
