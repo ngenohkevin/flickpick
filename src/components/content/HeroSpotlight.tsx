@@ -91,7 +91,7 @@ export function HeroSpotlight({
   return (
     <section
       className={cn(
-        'group relative h-[75vh] min-h-[500px] overflow-hidden md:h-[80vh] md:min-h-[600px]',
+        'group relative h-[50vh] min-h-[400px] overflow-hidden sm:h-[60vh] sm:min-h-[450px] md:h-[70vh] md:min-h-[550px]',
         className
       )}
     >
@@ -104,7 +104,7 @@ export function HeroSpotlight({
             fill
             priority
             className={cn(
-              'object-cover object-top transition-all duration-700',
+              'object-cover object-center transition-all duration-700',
               isTransitioning ? 'scale-105 opacity-80' : 'scale-100 opacity-100'
             )}
             sizes="100vw"
