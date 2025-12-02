@@ -7,6 +7,7 @@ import { SortDropdown, type SortOption } from './SortDropdown';
 import { MobileFilterSheet } from './MobileFilterSheet';
 import { InfiniteContentGrid } from '@/components/content';
 import { useWatchlist } from '@/stores/watchlist';
+import { cn } from '@/lib/utils';
 import type { Content, ContentType, PaginatedResponse, WatchlistItem } from '@/types';
 
 // ==========================================================================
@@ -216,10 +217,39 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
     (filters.ratingMin ? 1 : 0) +
     (filters.provider ? 1 : 0);
 
+  // Scroll-to-hide for page header (syncs with navigation bar)
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const scrollThreshold = 50;
+
+      if (currentScrollY < scrollThreshold) {
+        setIsHeaderHidden(false);
+      } else if (currentScrollY > lastScrollY && currentScrollY > scrollThreshold) {
+        setIsHeaderHidden(true);
+      } else if (currentScrollY < lastScrollY) {
+        setIsHeaderHidden(false);
+      }
+
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [lastScrollY]);
+
   return (
     <div className="min-h-screen bg-bg-primary">
-      {/* Header */}
-      <div className="border-b border-border-subtle bg-bg-primary/80 backdrop-blur-lg sticky top-16 z-30">
+      {/* Header - hides on scroll down */}
+      <div
+        className={cn(
+          'border-b border-border-subtle bg-bg-primary/80 backdrop-blur-lg sticky top-0 z-30 transition-transform duration-300',
+          isHeaderHidden && '-translate-y-full'
+        )}
+      >
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -243,7 +273,7 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
         <div className="flex gap-8">
           {/* Desktop Filter Sidebar */}
           <aside className="hidden w-64 flex-shrink-0 lg:block">
-            <div className="sticky top-36">
+            <div className={cn('sticky transition-all duration-300', isHeaderHidden ? 'top-4' : 'top-24')}>
               <FilterSidebar
                 filters={filters}
                 onFilterChange={handleFilterChange}
