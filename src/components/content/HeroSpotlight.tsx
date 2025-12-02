@@ -128,12 +128,12 @@ export function HeroSpotlight({
             {/* Badges */}
             <div
               className={cn(
-                'mb-3 flex flex-wrap items-center gap-2',
+                'mb-2 flex flex-wrap items-center gap-1.5 sm:mb-3 sm:gap-2',
                 'transition-all duration-500',
                 isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
               )}
             >
-              <span className="rounded-full bg-accent-primary/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+              <span className="rounded-full bg-accent-primary/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm sm:px-3 sm:py-1 sm:text-xs">
                 Featured
               </span>
               <ContentTypeBadge type={contentType} size="sm" />
@@ -141,7 +141,7 @@ export function HeroSpotlight({
                 <ContentRating rating={currentItem.vote_average} size="sm" />
               )}
               {year && (
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm sm:px-3 sm:py-1 sm:text-xs">
                   {year}
                 </span>
               )}
@@ -150,7 +150,7 @@ export function HeroSpotlight({
             {/* Title */}
             <h1
               className={cn(
-                'text-3xl font-bold leading-tight text-white drop-shadow-lg sm:text-4xl md:text-5xl lg:text-6xl',
+                'text-xl font-bold leading-tight text-white drop-shadow-lg sm:text-2xl md:text-3xl lg:text-4xl',
                 'transition-all duration-500 delay-75',
                 isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
               )}
@@ -172,39 +172,39 @@ export function HeroSpotlight({
             {/* Actions */}
             <div
               className={cn(
-                'mt-5 flex flex-wrap items-center gap-3',
+                'mt-4 flex flex-wrap items-center gap-2 sm:mt-5 sm:gap-3',
                 'transition-all duration-500 delay-150',
                 isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
               )}
             >
               <Link
                 href={detailUrl}
-                className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-lg transition-all hover:scale-105 hover:bg-gray-100 sm:px-6 sm:py-3 sm:text-base"
+                className="inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-black shadow-lg transition-all hover:scale-105 hover:bg-gray-100 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
               >
-                <Play className="h-4 w-4 fill-black sm:h-5 sm:w-5" />
+                <Play className="h-3.5 w-3.5 fill-black sm:h-5 sm:w-5" />
                 <span>Play Trailer</span>
               </Link>
 
               <Link
                 href={detailUrl}
-                className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-sm transition-all hover:scale-105 hover:bg-white/20 sm:px-6 sm:py-3 sm:text-base"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur-sm transition-all hover:scale-105 hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
               >
-                <Info className="h-4 w-4 sm:h-5 sm:w-5" />
+                <Info className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
                 <span>More Info</span>
               </Link>
 
               <button
                 onClick={handleWatchlistClick}
                 className={cn(
-                  'inline-flex items-center justify-center rounded-full border border-white/30 bg-white/10 p-2.5 text-white shadow-lg backdrop-blur-sm transition-all hover:scale-105 hover:bg-white/20 sm:p-3',
+                  'inline-flex items-center justify-center rounded-full border border-white/30 bg-white/10 p-2 text-white shadow-lg backdrop-blur-sm transition-all hover:scale-105 hover:bg-white/20 sm:p-3',
                   isInWatchlist && 'border-success/50 bg-success/20 text-success'
                 )}
                 aria-label={isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
               >
                 {isInWatchlist ? (
-                  <Check className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <Check className="h-4 w-4 sm:h-6 sm:w-6" />
                 ) : (
-                  <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <Plus className="h-4 w-4 sm:h-6 sm:w-6" />
                 )}
               </button>
             </div>
