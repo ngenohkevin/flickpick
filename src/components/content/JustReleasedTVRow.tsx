@@ -100,15 +100,9 @@ export function JustReleasedTVRow({
     <section className={className}>
       {/* Header */}
       <div className="mb-4 flex items-center justify-between sm:mb-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-semibold text-text-primary sm:text-2xl">
-            Just Released TV Shows
-          </h2>
-          <span className="flex items-center gap-1.5 rounded-full bg-badge-tv/20 px-2.5 py-1 text-xs font-medium text-badge-tv">
-            <Tv className="h-3 w-3" />
-            New Episodes
-          </span>
-        </div>
+        <h2 className="text-xl font-semibold text-text-primary sm:text-2xl">
+          Just Released TV Shows
+        </h2>
         <Link
           href="/new/shows"
           className="text-sm font-medium text-text-secondary hover:text-accent-primary transition-colors"
