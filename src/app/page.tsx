@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Search, Sparkles } from 'lucide-react';
+import { Search, Sparkles, Zap } from 'lucide-react';
 import {
   getTrendingMovies,
   getTrendingTVShows,
@@ -16,11 +16,16 @@ import {
   type TMDBTVShow,
 } from '@/lib/tmdb';
 import {
+  filterAvailableMovies,
+  type MovieWithAvailability,
+} from '@/lib/torrentio';
+import {
   HeroSpotlight,
   ContentRow,
   EpisodeProgressRow,
   type TVShowWithEpisodeStatus,
 } from '@/components/content';
+import { JustReleasedRow } from '@/components/content/JustReleasedRow';
 import { CategoryGrid } from '@/components/browse';
 import { StreamingTabs } from '@/components/streaming';
 import { GENRE_PILLS } from '@/lib/constants';
@@ -52,6 +57,66 @@ async function getNewMoviesThisWeek(): Promise<Movie[]> {
     ...toMovie(m),
     media_type: 'movie' as const,
   }));
+}
+
+/**
+ * Get "Just Released" movies - verified available via Torrentio
+ * These are movies that have actual digital releases available
+ */
+async function getJustReleasedMovies(): Promise<MovieWithAvailability[]> {
+  const today = new Date();
+  const ninetyDaysAgo = new Date(today);
+  ninetyDaysAgo.setDate(today.getDate() - 90);
+
+  // Get more candidate movies from multiple pages for better coverage
+  const [page1, page2, page3] = await Promise.all([
+    discoverMovies({
+      page: 1,
+      sort_by: 'popularity.desc',
+      'primary_release_date.lte': today.toISOString().split('T')[0],
+      'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
+      'vote_count.gte': 30,
+      'vote_average.gte': 5.0,
+    }),
+    discoverMovies({
+      page: 2,
+      sort_by: 'popularity.desc',
+      'primary_release_date.lte': today.toISOString().split('T')[0],
+      'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
+      'vote_count.gte': 30,
+      'vote_average.gte': 5.0,
+    }),
+    discoverMovies({
+      page: 3,
+      sort_by: 'popularity.desc',
+      'primary_release_date.lte': today.toISOString().split('T')[0],
+      'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
+      'vote_count.gte': 30,
+      'vote_average.gte': 5.0,
+    }),
+  ]);
+
+  // Combine all results (up to 60 candidates)
+  const allResults = [
+    ...(page1.results ?? []),
+    ...(page2.results ?? []),
+    ...(page3.results ?? []),
+  ];
+
+  const candidateMovies = allResults.slice(0, 60).map((m) => ({
+    ...toMovie(m),
+    media_type: 'movie' as const,
+  }));
+
+  // Filter to only those with Torrentio availability (WEB-DL, BluRay, etc.)
+  // Get up to 24 available movies for hero (10+) and row (20+)
+  try {
+    const availableMovies = await filterAvailableMovies(candidateMovies, 24);
+    return availableMovies;
+  } catch (error) {
+    console.error('Failed to fetch Torrentio availability:', error);
+    return [];
+  }
 }
 
 /**
@@ -204,12 +269,14 @@ async function getHomepageData() {
     trendingMoviesRes,
     trendingTVRes,
     newMovies,
+    justReleasedMovies,
     popularAnime,
     tvShowsWithEpisodes,
   ] = await Promise.all([
     getTrendingMovies('day', 1),
     getTrendingTVShows('day', 1),
     getNewMoviesThisWeek(),
+    getJustReleasedMovies(),
     getPopularAnime(),
     getTVShowsWithEpisodes(),
   ]);
@@ -217,17 +284,30 @@ async function getHomepageData() {
   const trendingMovies = (trendingMoviesRes.results ?? []).slice(0, 12).map(toMovie);
   const trendingTV = (trendingTVRes.results ?? []).slice(0, 12).map(toTVShow);
 
-  // Get top items for hero (mix of trending movies and TV with backdrops)
-  const heroItems: Content[] = [
-    ...trendingMovies.slice(0, 3),
-    ...trendingTV.slice(0, 2),
-  ].filter((item) => item.backdrop_path);
+  // For hero: prioritize just released (Torrentio-verified) movies, fallback to trending
+  // Show at least 10 slides in hero for better showcase
+  let heroItems: Content[];
+  const justReleasedWithBackdrops = justReleasedMovies.filter((item) => item.backdrop_path);
+
+  if (justReleasedWithBackdrops.length >= 5) {
+    // Use just released movies for hero (they're actually available to watch)
+    // Take up to 12 for good rotation
+    heroItems = justReleasedWithBackdrops.slice(0, 12) as Content[];
+  } else {
+    // Fallback to trending if not enough just released
+    heroItems = [
+      ...justReleasedWithBackdrops,
+      ...trendingMovies.filter((m) => m.backdrop_path).slice(0, 8),
+      ...trendingTV.filter((t) => t.backdrop_path).slice(0, 4),
+    ].slice(0, 12);
+  }
 
   return {
     heroItems,
     trendingMovies,
     trendingTV,
     newMovies,
+    justReleasedMovies,
     popularAnime,
     tvShowsWithEpisodes,
   };
@@ -243,6 +323,7 @@ export default async function HomePage() {
     trendingMovies,
     trendingTV,
     newMovies,
+    justReleasedMovies,
     popularAnime,
     tvShowsWithEpisodes,
   } = await getHomepageData();
@@ -294,6 +375,13 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
+        {/* Just Released - Torrentio Verified */}
+        {justReleasedMovies.length > 0 && (
+          <JustReleasedRow
+            movies={justReleasedMovies}
+          />
+        )}
 
         {/* New Movies This Week */}
         {newMovies.length > 0 && (
