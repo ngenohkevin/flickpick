@@ -19,7 +19,7 @@ import type { Content } from '@/types';
 
 // ==========================================================================
 // Hero Spotlight Component
-// Rotating featured content for the homepage
+// Redesigned with bottom-left info placement for better image visibility
 // ==========================================================================
 
 interface HeroSpotlightProps {
@@ -89,150 +89,174 @@ export function HeroSpotlight({
   };
 
   return (
-    <section className={cn('relative h-[60vh] min-h-[450px] overflow-hidden sm:h-[70vh] sm:min-h-[500px]', className)}>
-      {/* Backdrop Image */}
+    <section
+      className={cn(
+        'group relative h-[75vh] min-h-[500px] overflow-hidden md:h-[80vh] md:min-h-[600px]',
+        className
+      )}
+    >
+      {/* Backdrop Image - Full visibility */}
       <div className="absolute inset-0">
         {backdropUrl ? (
           <Image
             src={backdropUrl}
-            alt=""
+            alt={title}
             fill
             priority
             className={cn(
-              'object-cover transition-opacity duration-500',
-              isTransitioning ? 'opacity-80' : 'opacity-100'
+              'object-cover object-top transition-all duration-700',
+              isTransitioning ? 'scale-105 opacity-80' : 'scale-100 opacity-100'
             )}
             sizes="100vw"
           />
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-accent-primary/20 to-badge-anime/20" />
+          <div className="h-full w-full bg-gradient-to-br from-bg-secondary via-bg-tertiary to-bg-primary" />
         )}
 
-        {/* Gradient Overlays */}
-        <div className="gradient-overlay-left absolute inset-0" />
-        <div className="gradient-overlay-bottom absolute inset-0" />
+        {/* Subtle vignette effect for depth */}
+        <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-bg-primary/80 via-transparent to-transparent md:from-bg-primary/60" />
+        {/* Bottom gradient for content readability */}
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-bg-primary via-bg-primary/80 to-transparent" />
       </div>
 
-      {/* Content */}
-      <div className="container relative flex h-full items-end pb-16 sm:items-center sm:pb-0">
-        <div className="ml-0 max-w-2xl px-4 sm:ml-8 sm:px-0 lg:ml-16">
-          {/* Badge */}
-          <div className="mb-2 flex items-center gap-2 sm:mb-4 sm:gap-3">
-            <span className="rounded bg-accent-primary px-2 py-0.5 text-xs font-semibold text-white sm:px-3 sm:py-1 sm:text-sm">
-              Featured
-            </span>
-            <ContentTypeBadge type={contentType} size="sm" className="sm:text-sm" />
-          </div>
-
-          {/* Title */}
-          <h1
-            className={cn(
-              'text-2xl font-bold text-text-primary sm:text-4xl lg:text-5xl',
-              'transition-all duration-500',
-              isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
-            )}
-          >
-            {title}
-          </h1>
-
-          {/* Meta Info */}
-          <div className="mt-2 flex items-center gap-3 text-text-secondary sm:mt-4 sm:gap-4">
-            {currentItem.vote_average > 0 && (
-              <ContentRating rating={currentItem.vote_average} size="md" />
-            )}
-            {year && <span className="text-base sm:text-lg">{year}</span>}
-          </div>
-
-          {/* Overview */}
-          <p
-            className={cn(
-              'mt-3 max-w-xl text-sm text-text-secondary line-clamp-2 sm:mt-4 sm:text-base sm:line-clamp-3 lg:text-lg',
-              'transition-all duration-500 delay-100',
-              isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
-            )}
-          >
-            {currentItem.overview}
-          </p>
-
-          {/* Actions */}
-          <div
-            className={cn(
-              'mt-4 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4',
-              'transition-all duration-500 delay-200',
-              isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
-            )}
-          >
-            <Link
-              href={detailUrl}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-6 py-3 text-base font-medium shadow-sm transition-colors hover:bg-accent-hover hover:shadow-md sm:px-8 sm:py-4 sm:text-lg"
-            >
-              <Play className="h-4 w-4 fill-white text-white sm:h-5 sm:w-5" />
-              <span className="text-white">Play Trailer</span>
-            </Link>
-
-            <Link
-              href={detailUrl}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-border-default bg-bg-tertiary px-6 py-3 text-base font-medium transition-colors hover:bg-border-default sm:px-8 sm:py-4 sm:text-lg"
-            >
-              <Info className="h-4 w-4 text-text-primary sm:h-5 sm:w-5" />
-              <span className="text-text-primary">More Info</span>
-            </Link>
-
-            <button
-              onClick={handleWatchlistClick}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-transparent px-6 py-3 text-base font-medium transition-colors hover:bg-bg-tertiary sm:px-8 sm:py-4 sm:text-lg"
-            >
-              {isInWatchlist ? (
-                <Check className="h-4 w-4 text-success sm:h-5 sm:w-5" />
-              ) : (
-                <Plus className="h-4 w-4 text-text-secondary sm:h-5 sm:w-5" />
+      {/* Content - Bottom left positioning */}
+      <div className="container relative flex h-full flex-col justify-end pb-24 md:pb-16">
+        <div className="flex items-end gap-6 px-4 md:px-0">
+          {/* Info */}
+          <div className="max-w-2xl">
+            {/* Badges */}
+            <div
+              className={cn(
+                'mb-3 flex flex-wrap items-center gap-2',
+                'transition-all duration-500',
+                isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
               )}
-              <span className={isInWatchlist ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}>
-                {isInWatchlist ? 'In Watchlist' : 'Watchlist'}
+            >
+              <span className="rounded-full bg-accent-primary/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white backdrop-blur-sm">
+                Featured
               </span>
-            </button>
+              <ContentTypeBadge type={contentType} size="sm" />
+              {currentItem.vote_average > 0 && (
+                <ContentRating rating={currentItem.vote_average} size="sm" />
+              )}
+              {year && (
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                  {year}
+                </span>
+              )}
+            </div>
+
+            {/* Title */}
+            <h1
+              className={cn(
+                'text-3xl font-bold leading-tight text-white drop-shadow-lg sm:text-4xl md:text-5xl lg:text-6xl',
+                'transition-all duration-500 delay-75',
+                isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
+              )}
+            >
+              {title}
+            </h1>
+
+            {/* Overview - Hidden on small mobile, visible on larger screens */}
+            <p
+              className={cn(
+                'mt-3 hidden text-sm leading-relaxed text-gray-200 line-clamp-2 sm:block md:text-base md:line-clamp-3',
+                'max-w-xl transition-all duration-500 delay-100',
+                isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
+              )}
+            >
+              {currentItem.overview}
+            </p>
+
+            {/* Actions */}
+            <div
+              className={cn(
+                'mt-5 flex flex-wrap items-center gap-3',
+                'transition-all duration-500 delay-150',
+                isTransitioning ? 'translate-y-4 opacity-0' : 'translate-y-0 opacity-100'
+              )}
+            >
+              <Link
+                href={detailUrl}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-lg transition-all hover:scale-105 hover:bg-gray-100 sm:px-6 sm:py-3 sm:text-base"
+              >
+                <Play className="h-4 w-4 fill-black sm:h-5 sm:w-5" />
+                <span>Play Trailer</span>
+              </Link>
+
+              <Link
+                href={detailUrl}
+                className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white shadow-lg backdrop-blur-sm transition-all hover:scale-105 hover:bg-white/20 sm:px-6 sm:py-3 sm:text-base"
+              >
+                <Info className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span>More Info</span>
+              </Link>
+
+              <button
+                onClick={handleWatchlistClick}
+                className={cn(
+                  'inline-flex items-center justify-center rounded-full border border-white/30 bg-white/10 p-2.5 text-white shadow-lg backdrop-blur-sm transition-all hover:scale-105 hover:bg-white/20 sm:p-3',
+                  isInWatchlist && 'border-success/50 bg-success/20 text-success'
+                )}
+                aria-label={isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
+              >
+                {isInWatchlist ? (
+                  <Check className="h-5 w-5 sm:h-6 sm:w-6" />
+                ) : (
+                  <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Navigation Arrows (Desktop) */}
+      {/* Navigation Arrows */}
       {itemCount > 1 && (
         <>
           <button
             onClick={goToPrev}
-            className="absolute left-4 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100 md:flex lg:opacity-100"
+            className="absolute left-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white opacity-0 backdrop-blur-sm transition-all hover:bg-black/60 hover:scale-110 group-hover:opacity-100 md:left-4 md:h-12 md:w-12"
             aria-label="Previous"
           >
-            <ChevronLeft className="h-6 w-6" />
+            <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" />
           </button>
           <button
             onClick={goToNext}
-            className="absolute right-4 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity hover:bg-black/70 group-hover:opacity-100 md:flex lg:opacity-100"
+            className="absolute right-2 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white opacity-0 backdrop-blur-sm transition-all hover:bg-black/60 hover:scale-110 group-hover:opacity-100 md:right-4 md:h-12 md:w-12"
             aria-label="Next"
           >
-            <ChevronRight className="h-6 w-6" />
+            <ChevronRight className="h-5 w-5 md:h-6 md:w-6" />
           </button>
         </>
       )}
 
-      {/* Indicators */}
+      {/* Indicators - Moved to bottom right for cleaner look */}
       {itemCount > 1 && (
-        <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 gap-2 sm:bottom-8">
+        <div className="absolute bottom-6 right-4 z-10 flex items-center gap-1.5 md:bottom-8 md:right-8 md:gap-2">
           {items.map((_, index) => (
             <button
               key={index}
               onClick={() => goToSlide(index)}
               className={cn(
-                'h-1.5 rounded-full transition-all duration-300 sm:h-2',
+                'rounded-full transition-all duration-300',
                 index === currentIndex
-                  ? 'w-6 bg-accent-primary sm:w-8'
-                  : 'w-1.5 bg-white/50 hover:bg-white/70 sm:w-2'
+                  ? 'h-2 w-6 bg-white md:h-2.5 md:w-8'
+                  : 'h-2 w-2 bg-white/40 hover:bg-white/60 md:h-2.5 md:w-2.5'
               )}
               aria-label={`Go to slide ${index + 1}`}
             />
           ))}
         </div>
       )}
+
+      {/* Current slide counter - Optional elegant touch */}
+      <div className="absolute bottom-6 left-4 z-10 md:bottom-8 md:left-8">
+        <span className="text-xs font-medium text-white/60 md:text-sm">
+          {String(currentIndex + 1).padStart(2, '0')} / {String(itemCount).padStart(2, '0')}
+        </span>
+      </div>
     </section>
   );
 }
