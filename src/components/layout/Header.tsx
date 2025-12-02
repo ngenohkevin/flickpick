@@ -3,14 +3,16 @@
 // ==========================================================================
 // Header Component
 // Main navigation header with logo, nav links, search, and theme toggle
+// Auto-hides on scroll down on mobile for better content viewing
 // ==========================================================================
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Search, Sun, Moon, Menu, X, Film, Tv, Sparkles, Heart, CalendarDays } from 'lucide-react';
 import { usePreferences } from '@/stores/preferences';
 import { MobileNav } from './MobileNav';
 import { SearchBar, SearchOverlay } from '@/components/search';
+import { cn } from '@/lib/utils';
 
 // ==========================================================================
 // Navigation Links
@@ -30,15 +32,57 @@ const NAV_LINKS = [
 export function Header() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
   const { theme, setTheme } = usePreferences();
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
   };
 
+  // Handle scroll to hide/show header on mobile
+  const handleScroll = useCallback(() => {
+    const currentScrollY = window.scrollY;
+    const scrollThreshold = 50; // Minimum scroll before hiding
+
+    // Don't hide if mobile nav or search is open
+    if (mobileNavOpen || searchOpen) {
+      setIsHidden(false);
+      setLastScrollY(currentScrollY);
+      return;
+    }
+
+    // Don't hide at the top of the page
+    if (currentScrollY < scrollThreshold) {
+      setIsHidden(false);
+      setLastScrollY(currentScrollY);
+      return;
+    }
+
+    // Hide when scrolling down, show when scrolling up
+    if (currentScrollY > lastScrollY && currentScrollY > scrollThreshold) {
+      setIsHidden(true);
+    } else if (currentScrollY < lastScrollY) {
+      setIsHidden(false);
+    }
+
+    setLastScrollY(currentScrollY);
+  }, [lastScrollY, mobileNavOpen, searchOpen]);
+
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-lg">
+      <header
+        className={cn(
+          'sticky top-0 z-50 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-lg transition-transform duration-300',
+          // Hide header when scrolling down
+          isHidden && '-translate-y-full'
+        )}
+      >
         <nav className="container flex h-16 items-center justify-between gap-4">
           {/* Logo */}
           <Link
