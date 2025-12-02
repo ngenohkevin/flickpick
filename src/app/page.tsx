@@ -5,31 +5,28 @@ import {
   getTrendingTVShows,
   getOnTheAirTVShows,
   getAiringTodayTVShows,
-  getTVShowDetails,
-  getSeasonDetails,
   discoverMovies,
   discoverAnimeMovies,
   discoverAnimeTVShows,
   toMovie,
   toTVShow,
-  toEpisode,
   type TMDBTVShow,
 } from '@/lib/tmdb';
 import {
   filterAvailableMovies,
   type MovieWithAvailability,
 } from '@/lib/torrentio';
+import { tmdbFetch } from '@/lib/tmdb/client';
 import {
   HeroSpotlight,
   ContentRow,
-  EpisodeProgressRow,
-  type TVShowWithEpisodeStatus,
 } from '@/components/content';
 import { JustReleasedRow } from '@/components/content/JustReleasedRow';
+import { JustReleasedTVRow } from '@/components/content/JustReleasedTVRow';
 import { CategoryGrid } from '@/components/browse';
 import { StreamingTabs } from '@/components/streaming';
 import { GENRE_PILLS } from '@/lib/constants';
-import type { Content, Movie, TVShow, EpisodeStatus } from '@/types';
+import type { Content, Movie, TVShow } from '@/types';
 
 // Revalidate every hour
 export const revalidate = 3600;
@@ -62,61 +59,211 @@ async function getNewMoviesThisWeek(): Promise<Movie[]> {
 /**
  * Get "Just Released" movies - verified available via Torrentio
  * These are movies that have actual digital releases available
+ * OPTIMIZED: Reduced API calls and candidates for faster loading
  */
 async function getJustReleasedMovies(): Promise<MovieWithAvailability[]> {
   const today = new Date();
   const ninetyDaysAgo = new Date(today);
   ninetyDaysAgo.setDate(today.getDate() - 90);
 
-  // Get more candidate movies from multiple pages for better coverage
-  const [page1, page2, page3] = await Promise.all([
+  // Get candidate movies (reduced to 2 pages)
+  const [page1, page2] = await Promise.all([
     discoverMovies({
       page: 1,
       sort_by: 'popularity.desc',
       'primary_release_date.lte': today.toISOString().split('T')[0],
       'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
-      'vote_count.gte': 30,
-      'vote_average.gte': 5.0,
+      'vote_count.gte': 50,
+      'vote_average.gte': 5.5,
     }),
     discoverMovies({
       page: 2,
       sort_by: 'popularity.desc',
       'primary_release_date.lte': today.toISOString().split('T')[0],
       'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
-      'vote_count.gte': 30,
-      'vote_average.gte': 5.0,
-    }),
-    discoverMovies({
-      page: 3,
-      sort_by: 'popularity.desc',
-      'primary_release_date.lte': today.toISOString().split('T')[0],
-      'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
-      'vote_count.gte': 30,
-      'vote_average.gte': 5.0,
+      'vote_count.gte': 50,
+      'vote_average.gte': 5.5,
     }),
   ]);
 
-  // Combine all results (up to 60 candidates)
+  // Combine results (reduced to 40 candidates)
   const allResults = [
     ...(page1.results ?? []),
     ...(page2.results ?? []),
-    ...(page3.results ?? []),
   ];
 
-  const candidateMovies = allResults.slice(0, 60).map((m) => ({
+  const candidateMovies = allResults.slice(0, 40).map((m) => ({
     ...toMovie(m),
     media_type: 'movie' as const,
   }));
 
-  // Filter to only those with Torrentio availability (WEB-DL, BluRay, etc.)
-  // Get up to 24 available movies for hero (10+) and row (20+)
+  // Filter to only those with Torrentio availability
+  // Add timeout to prevent blocking the page
   try {
-    const availableMovies = await filterAvailableMovies(candidateMovies, 24);
+    const timeoutPromise = new Promise<MovieWithAvailability[]>((resolve) => {
+      setTimeout(() => resolve([]), 15000); // 15 second timeout
+    });
+    const availableMovies = await Promise.race([
+      filterAvailableMovies(candidateMovies, 20),
+      timeoutPromise,
+    ]);
     return availableMovies;
   } catch (error) {
     console.error('Failed to fetch Torrentio availability:', error);
     return [];
   }
+}
+
+// ==========================================================================
+// Just Released TV Shows Types (no Torrentio - raw TMDB data)
+// ==========================================================================
+
+interface JustReleasedTVShow extends TVShow {
+  latestEpisode?: {
+    season: number;
+    episode: number;
+    name: string;
+    airDate: string | null;
+  };
+  seasonProgress?: {
+    currentSeason: number;
+    releasedEpisodes: number;
+    totalEpisodes: number;
+    isComplete: boolean;
+    isNewShow: boolean;
+  };
+}
+
+interface TMDBTVShowDetails {
+  id: number;
+  last_episode_to_air?: {
+    id: number;
+    name: string;
+    episode_number: number;
+    season_number: number;
+    air_date: string | null;
+  } | null;
+  next_episode_to_air?: {
+    episode_number: number;
+    season_number: number;
+    air_date: string | null;
+  } | null;
+  seasons?: Array<{
+    season_number: number;
+    episode_count: number;
+  }>;
+}
+
+/**
+ * Get "Just Released" TV shows - directly from TMDB (no Torrentio)
+ * TV shows don't go through theaters, so when an episode airs it's immediately available
+ */
+async function getJustReleasedTVShows(): Promise<JustReleasedTVShow[]> {
+  // Get currently airing shows from multiple sources
+  const [onTheAir1, onTheAir2, airingToday, trending] = await Promise.all([
+    getOnTheAirTVShows(1),
+    getOnTheAirTVShows(2),
+    getAiringTodayTVShows(1),
+    getTrendingTVShows('week', 1),
+  ]);
+
+  // Combine and deduplicate, prioritizing airing today
+  const allShows = [
+    ...(airingToday.results ?? []),
+    ...(onTheAir1.results ?? []),
+    ...(onTheAir2.results ?? []),
+    ...(trending.results ?? []),
+  ];
+  const uniqueShowsMap = new Map<number, TMDBTVShow>();
+  allShows.forEach((show) => {
+    if (!uniqueShowsMap.has(show.id)) {
+      uniqueShowsMap.set(show.id, show);
+    }
+  });
+
+  // Filter and sort by popularity - get more candidates
+  const candidateShows = Array.from(uniqueShowsMap.values())
+    .filter((show) => show.vote_average >= 5.5 && show.vote_count >= 30)
+    .sort((a, b) => b.popularity - a.popularity)
+    .slice(0, 50); // More candidates
+
+  // Get details for each show (episode info) - in parallel batches
+  const now = new Date();
+  const cutoffDate = new Date(now);
+  cutoffDate.setDate(now.getDate() - 30); // Only shows with episodes in last 30 days
+
+  const showsWithDetails: JustReleasedTVShow[] = [];
+  const TARGET_SHOWS = 25; // Target number of shows
+
+  // Process in batches of 8 for faster loading
+  for (let i = 0; i < candidateShows.length && showsWithDetails.length < TARGET_SHOWS; i += 8) {
+    const batch = candidateShows.slice(i, i + 8);
+
+    const details = await Promise.all(
+      batch.map(async (show) => {
+        try {
+          const details = await tmdbFetch<TMDBTVShowDetails>(`/tv/${show.id}`);
+          return { show, details };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    for (const result of details) {
+      if (!result || showsWithDetails.length >= TARGET_SHOWS) continue;
+
+      const { show, details } = result;
+      const lastEpisode = details.last_episode_to_air;
+
+      // Skip if no episode data or episode is too old
+      if (!lastEpisode?.air_date) continue;
+
+      const airDate = new Date(lastEpisode.air_date);
+      if (airDate < cutoffDate) continue;
+
+      // Calculate season progress
+      let seasonProgress: JustReleasedTVShow['seasonProgress'];
+      if (lastEpisode && details.seasons) {
+        const currentSeason = details.seasons.find(
+          (s) => s.season_number === lastEpisode.season_number
+        );
+        if (currentSeason) {
+          const totalEpisodes = currentSeason.episode_count;
+          const releasedEpisodes = lastEpisode.episode_number;
+          const isComplete = releasedEpisodes >= totalEpisodes;
+          const isNewShow = lastEpisode.season_number === 1 && releasedEpisodes === 1;
+
+          seasonProgress = {
+            currentSeason: lastEpisode.season_number,
+            releasedEpisodes,
+            totalEpisodes,
+            isComplete,
+            isNewShow,
+          };
+        }
+      }
+
+      showsWithDetails.push({
+        ...toTVShow(show),
+        media_type: 'tv' as const,
+        latestEpisode: {
+          season: lastEpisode.season_number,
+          episode: lastEpisode.episode_number,
+          name: lastEpisode.name,
+          airDate: lastEpisode.air_date,
+        },
+        seasonProgress,
+      });
+    }
+  }
+
+  // Sort by air date (most recent first)
+  return showsWithDetails.sort((a, b) => {
+    const dateA = a.latestEpisode?.airDate ? new Date(a.latestEpisode.airDate).getTime() : 0;
+    const dateB = b.latestEpisode?.airDate ? new Date(b.latestEpisode.airDate).getTime() : 0;
+    return dateB - dateA;
+  });
 }
 
 /**
@@ -144,124 +291,6 @@ async function getPopularAnime(): Promise<Content[]> {
 }
 
 /**
- * Calculate episode status for a TV show
- */
-async function getEpisodeStatusForShow(show: TMDBTVShow): Promise<EpisodeStatus> {
-  const now = new Date();
-  let total = 0;
-  let released = 0;
-
-  // Get the current/latest non-special season
-  const currentSeasonNumber =
-    show.seasons?.filter((s) => s.season_number > 0).slice(-1)[0]?.season_number ?? 1;
-
-  try {
-    const seasonDetails = await getSeasonDetails(show.id, currentSeasonNumber);
-    if (seasonDetails?.episodes) {
-      total = seasonDetails.episodes.length;
-      released = seasonDetails.episodes.filter((ep) => {
-        if (!ep.air_date) return false;
-        return new Date(ep.air_date) <= now;
-      }).length;
-    }
-  } catch {
-    // Use show-level data if season details fail
-    total = show.number_of_episodes ?? 0;
-    released = total;
-  }
-
-  const upcoming = total - released;
-  const nextEpisode = show.next_episode_to_air
-    ? toEpisode(show.next_episode_to_air)
-    : null;
-  const lastEpisode = show.last_episode_to_air
-    ? toEpisode(show.last_episode_to_air)
-    : null;
-
-  return {
-    total,
-    released,
-    upcoming,
-    nextEpisode,
-    lastEpisode,
-    isComplete: upcoming === 0 && total > 0,
-    isAiring: upcoming > 0 || show.status === 'Returning Series',
-  };
-}
-
-/**
- * Get TV shows with episode tracking
- */
-async function getTVShowsWithEpisodes(): Promise<TVShowWithEpisodeStatus[]> {
-  const [onTheAir, airingToday] = await Promise.all([
-    getOnTheAirTVShows(1),
-    getAiringTodayTVShows(1),
-  ]);
-
-  // Combine and deduplicate
-  const allShows = [...(onTheAir.results ?? []), ...(airingToday.results ?? [])];
-  const uniqueShowsMap = new Map<number, TMDBTVShow>();
-  allShows.forEach((show) => {
-    if (!uniqueShowsMap.has(show.id)) {
-      uniqueShowsMap.set(show.id, show);
-    }
-  });
-
-  // Process top 10 shows with episode status
-  const showsToProcess = Array.from(uniqueShowsMap.values())
-    .sort((a, b) => b.popularity - a.popularity)
-    .slice(0, 10);
-
-  const showsWithStatus = await Promise.all(
-    showsToProcess.map(async (show) => {
-      try {
-        const details = await getTVShowDetails(show.id);
-        const episodeStatus = await getEpisodeStatusForShow(details);
-        const tvShow = toTVShow(details) as TVShow;
-        const currentSeason =
-          details.seasons?.filter((s) => s.season_number > 0).slice(-1)[0]?.season_number ?? 1;
-
-        return {
-          ...tvShow,
-          episode_status: episodeStatus,
-          current_season: currentSeason,
-        } as TVShowWithEpisodeStatus;
-      } catch {
-        // Return basic show with estimated status if details fail
-        const basicShow = toTVShow(show) as TVShow;
-        return {
-          ...basicShow,
-          episode_status: {
-            total: show.number_of_episodes ?? 0,
-            released: show.number_of_episodes ?? 0,
-            upcoming: 0,
-            nextEpisode: null,
-            lastEpisode: null,
-            isComplete: false,
-            isAiring: true,
-          },
-          current_season: show.number_of_seasons ?? 1,
-        } as TVShowWithEpisodeStatus;
-      }
-    })
-  );
-
-  // Sort by next episode date (shows with upcoming episodes first)
-  return showsWithStatus.sort((a, b) => {
-    // Prioritize shows with upcoming episodes
-    if (a.episode_status.nextEpisode && b.episode_status.nextEpisode) {
-      return (
-        new Date(a.episode_status.nextEpisode.air_date!).getTime() -
-        new Date(b.episode_status.nextEpisode.air_date!).getTime()
-      );
-    }
-    if (a.episode_status.nextEpisode) return -1;
-    if (b.episode_status.nextEpisode) return 1;
-    return 0;
-  });
-}
-
-/**
  * Get all homepage data
  */
 async function getHomepageData() {
@@ -270,46 +299,52 @@ async function getHomepageData() {
     trendingTVRes,
     newMovies,
     justReleasedMovies,
+    justReleasedTVShows,
     popularAnime,
-    tvShowsWithEpisodes,
   ] = await Promise.all([
     getTrendingMovies('day', 1),
     getTrendingTVShows('day', 1),
     getNewMoviesThisWeek(),
     getJustReleasedMovies(),
+    getJustReleasedTVShows(),
     getPopularAnime(),
-    getTVShowsWithEpisodes(),
   ]);
 
   const trendingMovies = (trendingMoviesRes.results ?? []).slice(0, 12).map(toMovie);
   const trendingTV = (trendingTVRes.results ?? []).slice(0, 12).map(toTVShow);
 
-  // For hero: prioritize just released (Torrentio-verified) movies, fallback to trending
-  // Show at least 10 slides in hero for better showcase
-  let heroItems: Content[];
+  // For hero: mix just released movies with trending TV shows
+  // Show 12 slides total for good rotation
   const justReleasedWithBackdrops = justReleasedMovies.filter((item) => item.backdrop_path);
+  const trendingTVWithBackdrops = trendingTV.filter((t) => t.backdrop_path);
 
-  if (justReleasedWithBackdrops.length >= 5) {
-    // Use just released movies for hero (they're actually available to watch)
-    // Take up to 12 for good rotation
-    heroItems = justReleasedWithBackdrops.slice(0, 12) as Content[];
-  } else {
-    // Fallback to trending if not enough just released
-    heroItems = [
-      ...justReleasedWithBackdrops,
-      ...trendingMovies.filter((m) => m.backdrop_path).slice(0, 8),
-      ...trendingTV.filter((t) => t.backdrop_path).slice(0, 4),
-    ].slice(0, 12);
+  // Take 8 just released movies and 4 trending TV shows for a good mix
+  const heroMovies = justReleasedWithBackdrops.slice(0, 8) as Content[];
+  const heroTVShows = trendingTVWithBackdrops.slice(0, 4) as Content[];
+
+  // Interleave movies and TV shows for variety
+  const heroItems: Content[] = [];
+  const maxLen = Math.max(heroMovies.length, heroTVShows.length);
+  for (let i = 0; i < maxLen; i++) {
+    // Add 2 movies then 1 TV show for 2:1 ratio
+    if (i < heroMovies.length) heroItems.push(heroMovies[i]!);
+    if (i + heroMovies.length / 2 < heroMovies.length && heroMovies[i + Math.floor(heroMovies.length / 2)]) {
+      heroItems.push(heroMovies[i + Math.floor(heroMovies.length / 2)]!);
+    }
+    if (i < heroTVShows.length) heroItems.push(heroTVShows[i]!);
   }
 
+  // Deduplicate and limit to 12
+  const uniqueHeroItems = Array.from(new Map(heroItems.map(item => [item.id, item])).values()).slice(0, 12);
+
   return {
-    heroItems,
+    heroItems: uniqueHeroItems,
     trendingMovies,
     trendingTV,
     newMovies,
     justReleasedMovies,
+    justReleasedTVShows,
     popularAnime,
-    tvShowsWithEpisodes,
   };
 }
 
@@ -324,8 +359,8 @@ export default async function HomePage() {
     trendingTV,
     newMovies,
     justReleasedMovies,
+    justReleasedTVShows,
     popularAnime,
-    tvShowsWithEpisodes,
   } = await getHomepageData();
 
   return (
@@ -376,10 +411,17 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* Just Released - Torrentio Verified */}
+        {/* Just Released Movies - Torrentio Verified (4K Only) */}
         {justReleasedMovies.length > 0 && (
           <JustReleasedRow
             movies={justReleasedMovies}
+          />
+        )}
+
+        {/* Just Released TV Shows - Torrentio Verified */}
+        {justReleasedTVShows.length > 0 && (
+          <JustReleasedTVRow
+            shows={justReleasedTVShows}
           />
         )}
 
@@ -393,14 +435,6 @@ export default async function HomePage() {
           />
         )}
 
-        {/* New TV Episodes */}
-        {tvShowsWithEpisodes.length > 0 && (
-          <EpisodeProgressRow
-            title="New TV Episodes"
-            shows={tvShowsWithEpisodes}
-            href="/new/shows"
-          />
-        )}
 
         {/* Trending Movies */}
         <ContentRow

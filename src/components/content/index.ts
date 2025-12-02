@@ -17,8 +17,9 @@ export { ContentGrid, InfiniteContentGrid } from './ContentGrid';
 // Row
 export { ContentRow, FeaturedContentRow } from './ContentRow';
 
-// Just Released Row (Torrentio-verified)
+// Just Released Row (Torrentio-verified for movies, raw TMDB for TV)
 export { JustReleasedRow } from './JustReleasedRow';
+export { JustReleasedTVRow, type JustReleasedTVShowData } from './JustReleasedTVRow';
 
 // Hero
 export { ContentHero, MiniHero } from './ContentHero';

@@ -42,7 +42,7 @@ export type TMDBParams = Record<string, string | number | boolean | undefined>;
 
 /**
  * Base fetch function for TMDB API
- * Handles authentication, error handling, and response parsing
+ * Handles authentication, error handling, response parsing, and retries
  */
 export async function tmdbFetch<T>(
   endpoint: string,
@@ -64,27 +64,62 @@ export async function tmdbFetch<T>(
     }
   });
 
-  // Make request with authentication
-  const response = await fetch(url.toString(), {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${TMDB_ACCESS_TOKEN}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
+  // Retry logic for network failures
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 1000; // 1 second
 
-  // Handle errors
-  if (!response.ok) {
-    const error = (await response.json().catch(() => ({}))) as TMDBError;
-    throw new TMDBApiError(
-      error.status_message || `TMDB API error: ${response.status}`,
-      response.status,
-      error.status_code
-    );
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      // Add timeout to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      const response = await fetch(url.toString(), {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${TMDB_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      // Handle errors
+      if (!response.ok) {
+        const error = (await response.json().catch(() => ({}))) as TMDBError;
+        throw new TMDBApiError(
+          error.status_message || `TMDB API error: ${response.status}`,
+          response.status,
+          error.status_code
+        );
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error) {
+      lastError = error as Error;
+
+      // Don't retry on HTTP errors (4xx, 5xx), only on network failures
+      if (error instanceof TMDBApiError) {
+        throw error;
+      }
+
+      // Wait before retrying (exponential backoff)
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * (attempt + 1)));
+      }
+    }
   }
 
-  return response.json() as Promise<T>;
+  // All retries failed
+  throw new TMDBApiError(
+    `Network error after ${MAX_RETRIES} retries: ${lastError?.message || 'fetch failed'}`,
+    0,
+    0
+  );
 }
 
 // ==========================================================================
