@@ -85,11 +85,15 @@ export function MobileFilterSheet({
 
   // Touch event handlers
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    handleDragStart(e.touches[0].clientY);
+    if (e.touches[0]) {
+      handleDragStart(e.touches[0].clientY);
+    }
   }, [handleDragStart]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    handleDragMove(e.touches[0].clientY);
+    if (e.touches[0]) {
+      handleDragMove(e.touches[0].clientY);
+    }
   }, [handleDragMove]);
 
   const handleTouchEnd = useCallback(() => {
