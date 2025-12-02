@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { X, SlidersHorizontal } from 'lucide-react';
 import { FilterSidebar, type FilterState } from './FilterSidebar';
 import { cn } from '@/lib/utils';
@@ -19,7 +19,7 @@ interface MobileFilterSheetProps {
 
 // ==========================================================================
 // Mobile Filter Sheet Component
-// Bottom sheet for filters on mobile devices
+// Bottom sheet for filters on mobile devices with drag-to-dismiss
 // ==========================================================================
 
 export function MobileFilterSheet({
@@ -30,6 +30,10 @@ export function MobileFilterSheet({
   activeFilterCount,
 }: MobileFilterSheetProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const startYRef = useRef(0);
 
   // Prevent body scroll when sheet is open
   useEffect(() => {
@@ -54,6 +58,67 @@ export function MobileFilterSheet({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
+
+  // Drag handlers
+  const handleDragStart = useCallback((clientY: number) => {
+    setIsDragging(true);
+    startYRef.current = clientY;
+  }, []);
+
+  const handleDragMove = useCallback((clientY: number) => {
+    if (!isDragging) return;
+    const deltaY = clientY - startYRef.current;
+    // Only allow dragging down (positive values)
+    if (deltaY > 0) {
+      setDragY(deltaY);
+    }
+  }, [isDragging]);
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    // If dragged more than 100px, close the sheet
+    if (dragY > 100) {
+      setIsOpen(false);
+    }
+    setDragY(0);
+  }, [dragY]);
+
+  // Touch event handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    handleDragStart(e.touches[0].clientY);
+  }, [handleDragStart]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    handleDragMove(e.touches[0].clientY);
+  }, [handleDragMove]);
+
+  const handleTouchEnd = useCallback(() => {
+    handleDragEnd();
+  }, [handleDragEnd]);
+
+  // Mouse event handlers (for desktop testing)
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    handleDragStart(e.clientY);
+  }, [handleDragStart]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      handleDragMove(e.clientY);
+    };
+
+    const handleMouseUp = () => {
+      handleDragEnd();
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
 
   return (
     <>
@@ -81,18 +146,29 @@ export function MobileFilterSheet({
 
       {/* Sheet */}
       <div
+        ref={sheetRef}
         className={cn(
-          'fixed inset-x-0 bottom-0 z-50 max-h-[85vh] transform overflow-hidden rounded-t-2xl bg-bg-primary transition-transform duration-300 lg:hidden',
-          isOpen ? 'translate-y-0' : 'translate-y-full'
+          'fixed inset-x-0 bottom-0 z-50 flex max-h-[80vh] transform flex-col overflow-hidden rounded-t-2xl bg-bg-primary lg:hidden',
+          isOpen ? 'translate-y-0' : 'translate-y-full',
+          !isDragging && 'transition-transform duration-300'
         )}
+        style={{
+          transform: isOpen ? `translateY(${dragY}px)` : 'translateY(100%)',
+        }}
       >
-        {/* Handle */}
-        <div className="flex justify-center py-2">
-          <div className="h-1 w-12 rounded-full bg-border-default" />
+        {/* Drag Handle - Interactive */}
+        <div
+          className="flex cursor-grab justify-center py-3 active:cursor-grabbing"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+        >
+          <div className="h-1.5 w-12 rounded-full bg-border-strong" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border-subtle px-4 pb-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 pb-4">
           <h2 className="text-lg font-semibold text-text-primary">Filters</h2>
           <button
             onClick={() => setIsOpen(false)}
@@ -104,7 +180,7 @@ export function MobileFilterSheet({
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto p-4" style={{ maxHeight: 'calc(85vh - 120px)' }}>
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4">
           <FilterSidebar
             filters={filters}
             onFilterChange={onFilterChange}
@@ -113,8 +189,8 @@ export function MobileFilterSheet({
           />
         </div>
 
-        {/* Footer Actions */}
-        <div className="border-t border-border-subtle p-4">
+        {/* Footer Actions - Always visible */}
+        <div className="shrink-0 border-t border-border-subtle bg-bg-primary p-4 pb-6">
           <div className="flex gap-3">
             <button
               onClick={onClearFilters}
