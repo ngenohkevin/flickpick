@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import type { WatchlistItem, MediaType, ContentType } from '@/types';
 
 // ==========================================================================
@@ -99,3 +100,10 @@ export const useIsInWatchlist = (id: number, mediaType: MediaType) =>
   useWatchlist((state) =>
     state.items.some((item) => item.id === id && item.media_type === mediaType)
   );
+
+// Returns the array of IDs - use with useMemo to create a Set if needed
+export const useWatchlistItems = () => useWatchlist((state) => state.items);
+
+// Hook that returns watchlist IDs as an array (stable reference with shallow comparison)
+export const useWatchlistIdArray = () =>
+  useWatchlist(useShallow((state) => state.items.map((item) => item.id)));
