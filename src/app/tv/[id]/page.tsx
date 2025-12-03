@@ -1,20 +1,21 @@
 // ==========================================================================
 // TV Show Details Page
-// /tv/[id] - Shows full TV show information with seasons, cast, videos
+// /tv/[id] - Shows full TV show information with seasons, trailer, cast
 // ==========================================================================
 
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Calendar, Play, Heart, ExternalLink, Tv, Users } from 'lucide-react';
+import { Star, Calendar, Play, Heart, ExternalLink, Tv, Film, Globe, Users } from 'lucide-react';
 import { getTVShowDetailsExtended, getRelatedTVShows } from '@/lib/tmdb/tv';
 import { getPosterUrl, getBackdropUrl, extractYear, cn } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
-import { VideoSection } from '@/components/movie/VideoSection';
+import { TrailerEmbed } from '@/components/movie/TrailerEmbed';
+import { hasTrailer } from '@/lib/video-utils';
 import { SeasonList } from '@/components/tv/SeasonList';
 import { ShowStatus } from '@/components/tv/ShowStatus';
 import type { ContentType, Content, TVShow as TVShowType, Season } from '@/types';
@@ -118,6 +119,9 @@ export default async function TVShowPage({ params }: TVPageProps) {
     ? Math.round(show.episode_run_time.reduce((a, b) => a + b, 0) / show.episode_run_time.length)
     : null;
 
+  // Check if there's a trailer
+  const trailerAvailable = hasTrailer(show.videos || []);
+
   // Convert related shows to Content type for ContentRow
   const similarContent: Content[] = relatedShows.slice(0, 12).map((s) => ({
     id: s.id,
@@ -187,7 +191,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
       />
 
       {/* Hero Section */}
-      <section className="relative min-h-[60vh] md:min-h-[70vh]">
+      <section className="relative min-h-[70vh] md:min-h-[80vh]">
         {/* Backdrop Image */}
         {backdropUrl && (
           <div className="absolute inset-0 z-0">
@@ -200,39 +204,39 @@ export default async function TVShowPage({ params }: TVPageProps) {
               sizes="100vw"
             />
             {/* Gradient Overlays */}
-            <div className="absolute inset-0 bg-gradient-to-r from-bg-primary via-bg-primary/80 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-bg-primary via-bg-primary/80 to-bg-primary/20" />
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/60 to-transparent" />
           </div>
         )}
 
         {/* Content */}
-        <div className="container relative z-10 flex min-h-[60vh] items-end pb-8 pt-24 md:min-h-[70vh] md:pb-12">
-          <div className="flex flex-col gap-6 md:flex-row md:gap-8">
+        <div className="container relative z-10 flex min-h-[70vh] items-end pb-12 pt-24 md:min-h-[80vh] md:pb-16">
+          <div className="flex flex-col gap-8 md:flex-row md:gap-10">
             {/* Poster */}
             <div className="hidden flex-shrink-0 md:block">
-              <div className="relative aspect-[2/3] w-64 overflow-hidden rounded-lg shadow-xl lg:w-72">
+              <div className="relative aspect-[2/3] w-64 overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10 lg:w-80">
                 <Image
                   src={posterUrl}
                   alt={show.name}
                   fill
                   priority
                   className="object-cover"
-                  sizes="(min-width: 1024px) 288px, 256px"
+                  sizes="(min-width: 1024px) 320px, 256px"
                 />
               </div>
             </div>
 
             {/* Info */}
             <div className="max-w-2xl">
-              {/* Content Type Badge & Status */}
-              <div className="mb-3 flex flex-wrap items-center gap-2">
+              {/* Content Type Badge & Status & Genres */}
+              <div className="mb-4 flex flex-wrap items-center gap-2">
                 <ContentTypeBadge type={contentType} />
                 <ShowStatus status={show.status} inProduction={show.in_production} />
                 {show.genres?.slice(0, 3).map((genre) => (
                   <Link
                     key={genre.id}
                     href={`/genre/tv/${genre.name.toLowerCase()}`}
-                    className="rounded-full bg-bg-secondary/80 px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+                    className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
                   >
                     {genre.name}
                   </Link>
@@ -240,37 +244,39 @@ export default async function TVShowPage({ params }: TVPageProps) {
               </div>
 
               {/* Title */}
-              <h1 className="text-3xl font-bold text-text-primary md:text-4xl lg:text-5xl">
+              <h1 className="text-3xl font-bold tracking-tight text-text-primary md:text-4xl lg:text-5xl">
                 {show.name}
               </h1>
 
               {/* Tagline */}
               {show.tagline && (
-                <p className="mt-2 text-lg italic text-text-secondary">
+                <p className="mt-3 text-lg italic text-text-secondary/90">
                   &ldquo;{show.tagline}&rdquo;
                 </p>
               )}
 
-              {/* Metadata Row */}
-              <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-text-secondary">
+              {/* Key Stats */}
+              <div className="mt-6 flex flex-wrap items-center gap-6">
                 {/* Rating */}
                 {show.vote_average > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <Star className="h-4 w-4 fill-warning text-warning" />
-                    <span className="font-semibold text-text-primary">
-                      {show.vote_average.toFixed(1)}
-                    </span>
-                    <span className="text-text-tertiary">
-                      ({show.vote_count.toLocaleString()})
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 rounded-lg bg-warning/20 px-3 py-1.5">
+                      <Star className="h-5 w-5 fill-warning text-warning" />
+                      <span className="text-lg font-bold text-warning">
+                        {show.vote_average.toFixed(1)}
+                      </span>
+                    </div>
+                    <span className="text-sm text-text-tertiary">
+                      {show.vote_count.toLocaleString()} votes
                     </span>
                   </div>
                 )}
 
                 {/* Years */}
                 {startYear && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 text-text-secondary">
                     <Calendar className="h-4 w-4" />
-                    <span>
+                    <span className="font-medium">
                       {endYear && endYear !== startYear
                         ? `${startYear} - ${endYear}`
                         : show.status === 'Ended'
@@ -280,35 +286,35 @@ export default async function TVShowPage({ params }: TVPageProps) {
                   </div>
                 )}
 
-                {/* Seasons */}
-                <div className="flex items-center gap-1.5">
-                  <Tv className="h-4 w-4" />
-                  <span>
-                    {show.number_of_seasons} Season{show.number_of_seasons !== 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                {/* Episodes */}
-                <div className="flex items-center gap-1.5">
-                  <Users className="h-4 w-4" />
-                  <span>
-                    {show.number_of_episodes} Episode{show.number_of_episodes !== 1 ? 's' : ''}
-                  </span>
+                {/* Seasons & Episodes */}
+                <div className="flex items-center gap-4 text-text-secondary">
+                  <div className="flex items-center gap-1.5">
+                    <Tv className="h-4 w-4" />
+                    <span className="font-medium">
+                      {show.number_of_seasons} Season{show.number_of_seasons !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Film className="h-4 w-4" />
+                    <span className="font-medium">
+                      {show.number_of_episodes} Episode{show.number_of_episodes !== 1 ? 's' : ''}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Episode Runtime */}
                 {avgRuntime && avgRuntime > 0 && (
-                  <span className="text-text-tertiary">~{avgRuntime}m per episode</span>
+                  <span className="text-sm text-text-tertiary">~{avgRuntime}m per episode</span>
                 )}
               </div>
 
               {/* Networks */}
               {show.networks && show.networks.length > 0 && (
-                <div className="mt-4 flex items-center gap-3">
-                  {show.networks.slice(0, 3).map((network) => (
+                <div className="mt-5 flex items-center gap-3">
+                  {show.networks.slice(0, 4).map((network) => (
                     <div
                       key={network.id}
-                      className="flex h-8 items-center rounded bg-white px-3"
+                      className="flex h-9 items-center rounded-lg bg-white px-4"
                       title={network.name}
                     >
                       {network.logo_path ? (
@@ -320,7 +326,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
                           className="h-5 w-auto object-contain"
                         />
                       ) : (
-                        <span className="text-xs font-medium text-gray-900">
+                        <span className="text-xs font-semibold text-gray-900">
                           {network.name}
                         </span>
                       )}
@@ -331,9 +337,9 @@ export default async function TVShowPage({ params }: TVPageProps) {
 
               {/* Creators */}
               {show.created_by && show.created_by.length > 0 && (
-                <p className="mt-3 text-sm text-text-secondary">
+                <p className="mt-4 text-sm">
                   <span className="text-text-tertiary">Created by </span>
-                  <span className="text-text-primary">
+                  <span className="font-medium text-text-primary">
                     {show.created_by.map((c) => c.name).join(', ')}
                   </span>
                 </p>
@@ -345,20 +351,20 @@ export default async function TVShowPage({ params }: TVPageProps) {
               </p>
 
               {/* Action Buttons */}
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-8 flex flex-wrap gap-3">
                 {/* Play Trailer Button */}
-                {show.videos && show.videos.length > 0 && (
+                {trailerAvailable && (
                   <a
-                    href={`#trailers`}
-                    className="inline-flex items-center gap-2 rounded-md bg-accent-primary px-6 py-3 font-medium transition-colors hover:bg-accent-hover"
+                    href="#trailer"
+                    className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
                   >
-                    <Play className="h-5 w-5 fill-white text-white" />
-                    <span className="text-white">Play Trailer</span>
+                    <Play className="h-5 w-5" fill="currentColor" />
+                    Watch Trailer
                   </a>
                 )}
 
                 {/* Watchlist Button */}
-                <button className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-bg-tertiary">
+                <button className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20">
                   <Heart className="h-5 w-5" />
                   Add to Watchlist
                 </button>
@@ -366,7 +372,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 {/* Similar Button */}
                 <Link
                   href={`/similar/tv/${show.id}`}
-                  className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-bg-tertiary"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
                 >
                   Find Similar
                 </Link>
@@ -377,9 +383,160 @@ export default async function TVShowPage({ params }: TVPageProps) {
       </section>
 
       {/* Main Content */}
-      <main className="container py-8 md:py-12">
-        {/* Streaming Providers */}
-        <StreamingProviders providers={show.providers} title={show.name} />
+      <main className="container py-12 md:py-16">
+        {/* Trailer & About Section - Side by Side */}
+        <section className="grid gap-8 lg:grid-cols-2">
+          {/* Left: Trailer */}
+          <div>
+            {show.videos && show.videos.length > 0 && (
+              <TrailerEmbed
+                videos={show.videos}
+                title={show.name}
+                posterPath={show.poster_path}
+              />
+            )}
+          </div>
+
+          {/* Right: About the Show */}
+          <div className="space-y-6">
+            {/* Quick Facts */}
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
+              <h2 className="text-lg font-semibold text-text-primary mb-4">About the Show</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailItem
+                  icon={<Film className="h-4 w-4" />}
+                  label="Status"
+                  value={show.status}
+                />
+                {show.type && (
+                  <DetailItem
+                    icon={<Tv className="h-4 w-4" />}
+                    label="Type"
+                    value={show.type}
+                  />
+                )}
+                {show.first_air_date && (
+                  <DetailItem
+                    icon={<Calendar className="h-4 w-4" />}
+                    label="First Aired"
+                    value={new Date(show.first_air_date).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  />
+                )}
+                {show.last_air_date && (
+                  <DetailItem
+                    icon={<Calendar className="h-4 w-4" />}
+                    label="Last Aired"
+                    value={new Date(show.last_air_date).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  />
+                )}
+                {show.original_language && (
+                  <DetailItem
+                    icon={<Globe className="h-4 w-4" />}
+                    label="Language"
+                    value={getLanguageName(show.original_language)}
+                  />
+                )}
+                <DetailItem
+                  icon={<Users className="h-4 w-4" />}
+                  label="Total Episodes"
+                  value={`${show.number_of_episodes} across ${show.number_of_seasons} season${show.number_of_seasons !== 1 ? 's' : ''}`}
+                />
+              </div>
+              {show.original_name !== show.name && (
+                <div className="mt-4 pt-4 border-t border-border-subtle">
+                  <span className="text-sm text-text-tertiary">Original Title: </span>
+                  <span className="text-sm text-text-primary">{show.original_name}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Next Episode Card */}
+            {show.next_episode_to_air && (
+              <div className="rounded-xl border border-accent-primary/30 bg-accent-primary/5 p-6">
+                <h3 className="text-sm font-semibold text-accent-primary uppercase tracking-wider mb-3">
+                  Next Episode
+                </h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-lg font-semibold text-text-primary">
+                      S{show.next_episode_to_air.season_number}E{show.next_episode_to_air.episode_number}: {show.next_episode_to_air.name}
+                    </p>
+                    {show.next_episode_to_air.air_date && (
+                      <p className="mt-1 text-sm text-text-secondary">
+                        Airs{' '}
+                        {new Date(show.next_episode_to_air.air_date).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                  {show.next_episode_to_air.air_date && (
+                    <CountdownBadge date={show.next_episode_to_air.air_date} />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* External Links */}
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
+              <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+                External Links
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {show.homepage && (
+                  <a
+                    href={show.homepage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg bg-bg-tertiary px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-border-default"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Website
+                  </a>
+                )}
+                <a
+                  href={`https://www.themoviedb.org/tv/${show.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-lg bg-bg-tertiary px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-border-default"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  TMDB
+                </a>
+              </div>
+            </div>
+
+            {/* Keywords */}
+            {show.keywords && show.keywords.length > 0 && (
+              <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
+                <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+                  Keywords
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {show.keywords.slice(0, 10).map((keyword) => (
+                    <span
+                      key={keyword.id}
+                      className="rounded-full bg-bg-tertiary px-3 py-1 text-xs text-text-secondary"
+                    >
+                      {keyword.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Seasons List */}
         {seasons.length > 0 && (
@@ -387,23 +544,15 @@ export default async function TVShowPage({ params }: TVPageProps) {
             seasons={seasons}
             showId={show.id}
             showName={show.name}
-            className="mt-12"
+            className="mt-16"
           />
-        )}
-
-        {/* Cast Section */}
-        <CastSection cast={show.credits.cast} className="mt-12" />
-
-        {/* Videos/Trailers Section */}
-        {show.videos && show.videos.length > 0 && (
-          <VideoSection videos={show.videos} className="mt-12" />
         )}
 
         {/* Similar Shows */}
         {similarContent.length > 0 && (
-          <div className="mt-12">
+          <div className="mt-16">
             <ContentRow
-              title="Similar Shows"
+              title="More Like This"
               items={similarContent}
               href={`/similar/tv/${show.id}`}
               showTypeBadge={true}
@@ -412,130 +561,15 @@ export default async function TVShowPage({ params }: TVPageProps) {
           </div>
         )}
 
-        {/* Show Details */}
-        <section className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {/* Details Card */}
-          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">Details</h3>
-            <dl className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-text-tertiary">Status</dt>
-                <dd className="text-text-primary">{show.status}</dd>
-              </div>
-              {show.type && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Type</dt>
-                  <dd className="text-text-primary">{show.type}</dd>
-                </div>
-              )}
-              {show.first_air_date && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">First Aired</dt>
-                  <dd className="text-text-primary">
-                    {new Date(show.first_air_date).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </dd>
-                </div>
-              )}
-              {show.last_air_date && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Last Aired</dt>
-                  <dd className="text-text-primary">
-                    {new Date(show.last_air_date).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </dd>
-                </div>
-              )}
-              {show.original_name !== show.name && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Original Title</dt>
-                  <dd className="text-text-primary">{show.original_name}</dd>
-                </div>
-              )}
-              {show.original_language && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Language</dt>
-                  <dd className="text-text-primary uppercase">
-                    {show.original_language}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </div>
+        {/* Where to Watch */}
+        <StreamingProviders
+          providers={show.providers}
+          title={show.name}
+          className="mt-16"
+        />
 
-          {/* Next Episode Card */}
-          {show.next_episode_to_air && (
-            <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-              <h3 className="mb-4 text-lg font-semibold text-text-primary">Next Episode</h3>
-              <div className="space-y-2">
-                <p className="text-text-primary font-medium">
-                  S{show.next_episode_to_air.season_number}E{show.next_episode_to_air.episode_number}
-                </p>
-                <p className="text-sm text-text-secondary">{show.next_episode_to_air.name}</p>
-                {show.next_episode_to_air.air_date && (
-                  <p className="text-sm text-text-tertiary">
-                    Airs{' '}
-                    {new Date(show.next_episode_to_air.air_date).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* External Links Card */}
-          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">External Links</h3>
-            <div className="flex flex-wrap gap-2">
-              {show.homepage && (
-                <a
-                  href={show.homepage}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-border-default hover:text-text-primary"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Official Site
-                </a>
-              )}
-              <a
-                href={`https://www.themoviedb.org/tv/${show.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-border-default hover:text-text-primary"
-              >
-                <ExternalLink className="h-4 w-4" />
-                TMDB
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {/* Keywords */}
-        {show.keywords && show.keywords.length > 0 && (
-          <section className="mt-12">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">Keywords</h3>
-            <div className="flex flex-wrap gap-2">
-              {show.keywords.map((keyword) => (
-                <span
-                  key={keyword.id}
-                  className="rounded-full bg-bg-tertiary px-3 py-1.5 text-sm text-text-secondary"
-                >
-                  {keyword.name}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Cast Section */}
+        <CastSection cast={show.credits.cast} className="mt-16" />
       </main>
     </>
   );
@@ -556,8 +590,57 @@ function ContentTypeBadge({ type }: { type: ContentType }) {
   const { label, className } = config[type];
 
   return (
-    <span className={cn('rounded-full px-3 py-1 text-xs font-medium', className)}>
+    <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', className)}>
       {label}
+    </span>
+  );
+}
+
+interface DetailItemProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}
+
+function DetailItem({ icon, label, value }: DetailItemProps) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-tertiary text-text-tertiary">
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs text-text-tertiary">{label}</p>
+        <p className="font-medium text-text-primary">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function CountdownBadge({ date }: { date: string }) {
+  const airDate = new Date(date);
+  const now = new Date();
+  const diffTime = airDate.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) {
+    return (
+      <span className="rounded-lg bg-success/20 px-3 py-1.5 text-sm font-semibold text-success">
+        Today
+      </span>
+    );
+  }
+
+  if (diffDays === 1) {
+    return (
+      <span className="rounded-lg bg-warning/20 px-3 py-1.5 text-sm font-semibold text-warning">
+        Tomorrow
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-lg bg-bg-tertiary px-3 py-1.5 text-sm font-semibold text-text-secondary">
+      In {diffDays} days
     </span>
   );
 }
@@ -582,4 +665,22 @@ function getTVShowContentType(show: TMDBTVShowWithGenres): ContentType {
   if (isAnimation && isJapanese) return 'anime';
   if (isAnimation) return 'animation';
   return 'tv';
+}
+
+function getLanguageName(code: string): string {
+  const languages: Record<string, string> = {
+    en: 'English',
+    es: 'Spanish',
+    fr: 'French',
+    de: 'German',
+    it: 'Italian',
+    pt: 'Portuguese',
+    ja: 'Japanese',
+    ko: 'Korean',
+    zh: 'Chinese',
+    hi: 'Hindi',
+    ar: 'Arabic',
+    ru: 'Russian',
+  };
+  return languages[code] || code.toUpperCase();
 }

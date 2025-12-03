@@ -1,20 +1,21 @@
 // ==========================================================================
 // Movie Details Page
-// /movie/[id] - Shows full movie information with cast, videos, providers
+// /movie/[id] - Shows full movie information with trailer, similar, cast
 // ==========================================================================
 
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Clock, Calendar, Play, Heart, ExternalLink } from 'lucide-react';
+import { Star, Clock, Calendar, Play, Heart, ExternalLink, Globe, DollarSign, Film, Clapperboard } from 'lucide-react';
 import { getMovieDetailsExtended, getRelatedMovies } from '@/lib/tmdb/movies';
 import { getPosterUrl, getBackdropUrl, formatRuntime, extractYear, cn } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
-import { VideoSection } from '@/components/movie/VideoSection';
+import { TrailerEmbed } from '@/components/movie/TrailerEmbed';
+import { hasTrailer } from '@/lib/video-utils';
 import type { ContentType, Content } from '@/types';
 
 // ==========================================================================
@@ -98,6 +99,14 @@ export default async function MoviePage({ params }: MoviePageProps) {
     .filter((person) => person.job === 'Director')
     .slice(0, 2);
 
+  // Get writers
+  const writers = movie.credits.crew
+    .filter((person) => person.job === 'Writer' || person.job === 'Screenplay')
+    .slice(0, 2);
+
+  // Check if there's a trailer
+  const trailerAvailable = hasTrailer(movie.videos || []);
+
   // Convert related movies to Content type for ContentRow
   const similarContent: Content[] = relatedMovies.slice(0, 12).map((m) => ({
     id: m.id,
@@ -156,7 +165,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
       />
 
       {/* Hero Section */}
-      <section className="relative min-h-[60vh] md:min-h-[70vh]">
+      <section className="relative min-h-[70vh] md:min-h-[80vh]">
         {/* Backdrop Image */}
         {backdropUrl && (
           <div className="absolute inset-0 z-0">
@@ -169,38 +178,38 @@ export default async function MoviePage({ params }: MoviePageProps) {
               sizes="100vw"
             />
             {/* Gradient Overlays */}
-            <div className="absolute inset-0 bg-gradient-to-r from-bg-primary via-bg-primary/80 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-r from-bg-primary via-bg-primary/80 to-bg-primary/20" />
+            <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-bg-primary/60 to-transparent" />
           </div>
         )}
 
         {/* Content */}
-        <div className="container relative z-10 flex min-h-[60vh] items-end pb-8 pt-24 md:min-h-[70vh] md:pb-12">
-          <div className="flex flex-col gap-6 md:flex-row md:gap-8">
+        <div className="container relative z-10 flex min-h-[70vh] items-end pb-12 pt-24 md:min-h-[80vh] md:pb-16">
+          <div className="flex flex-col gap-8 md:flex-row md:gap-10">
             {/* Poster */}
             <div className="hidden flex-shrink-0 md:block">
-              <div className="relative aspect-[2/3] w-64 overflow-hidden rounded-lg shadow-xl lg:w-72">
+              <div className="relative aspect-[2/3] w-64 overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10 lg:w-80">
                 <Image
                   src={posterUrl}
                   alt={movie.title}
                   fill
                   priority
                   className="object-cover"
-                  sizes="(min-width: 1024px) 288px, 256px"
+                  sizes="(min-width: 1024px) 320px, 256px"
                 />
               </div>
             </div>
 
             {/* Info */}
             <div className="max-w-2xl">
-              {/* Content Type Badge */}
-              <div className="mb-3 flex items-center gap-2">
+              {/* Content Type Badge & Genres */}
+              <div className="mb-4 flex flex-wrap items-center gap-2">
                 <ContentTypeBadge type={contentType} />
                 {movie.genres?.slice(0, 3).map((genre) => (
                   <Link
                     key={genre.id}
                     href={`/genre/movie/${genre.name.toLowerCase()}`}
-                    className="rounded-full bg-bg-secondary/80 px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+                    className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
                   >
                     {genre.name}
                   </Link>
@@ -208,54 +217,66 @@ export default async function MoviePage({ params }: MoviePageProps) {
               </div>
 
               {/* Title */}
-              <h1 className="text-3xl font-bold text-text-primary md:text-4xl lg:text-5xl">
+              <h1 className="text-3xl font-bold tracking-tight text-text-primary md:text-4xl lg:text-5xl">
                 {movie.title}
               </h1>
 
               {/* Tagline */}
               {movie.tagline && (
-                <p className="mt-2 text-lg italic text-text-secondary">
+                <p className="mt-3 text-lg italic text-text-secondary/90">
                   &ldquo;{movie.tagline}&rdquo;
                 </p>
               )}
 
-              {/* Metadata Row */}
-              <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-text-secondary">
+              {/* Key Stats */}
+              <div className="mt-6 flex flex-wrap items-center gap-6">
                 {/* Rating */}
                 {movie.vote_average > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <Star className="h-4 w-4 fill-warning text-warning" />
-                    <span className="font-semibold text-text-primary">
-                      {movie.vote_average.toFixed(1)}
-                    </span>
-                    <span className="text-text-tertiary">
-                      ({movie.vote_count.toLocaleString()})
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 rounded-lg bg-warning/20 px-3 py-1.5">
+                      <Star className="h-5 w-5 fill-warning text-warning" />
+                      <span className="text-lg font-bold text-warning">
+                        {movie.vote_average.toFixed(1)}
+                      </span>
+                    </div>
+                    <span className="text-sm text-text-tertiary">
+                      {movie.vote_count.toLocaleString()} votes
                     </span>
                   </div>
                 )}
 
                 {/* Year */}
                 {year && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 text-text-secondary">
                     <Calendar className="h-4 w-4" />
-                    <span>{year}</span>
+                    <span className="font-medium">{year}</span>
                   </div>
                 )}
 
                 {/* Runtime */}
                 {movie.runtime && movie.runtime > 0 && (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 text-text-secondary">
                     <Clock className="h-4 w-4" />
-                    <span>{formatRuntime(movie.runtime)}</span>
+                    <span className="font-medium">{formatRuntime(movie.runtime)}</span>
                   </div>
                 )}
+              </div>
 
-                {/* Directors */}
+              {/* Director & Writer */}
+              <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
                 {directors.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-text-tertiary">Directed by</span>
-                    <span className="text-text-primary">
+                  <div>
+                    <span className="text-text-tertiary">Directed by </span>
+                    <span className="font-medium text-text-primary">
                       {directors.map((d) => d.name).join(', ')}
+                    </span>
+                  </div>
+                )}
+                {writers.length > 0 && (
+                  <div>
+                    <span className="text-text-tertiary">Written by </span>
+                    <span className="font-medium text-text-primary">
+                      {writers.map((w) => w.name).join(', ')}
                     </span>
                   </div>
                 )}
@@ -267,20 +288,20 @@ export default async function MoviePage({ params }: MoviePageProps) {
               </p>
 
               {/* Action Buttons */}
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-8 flex flex-wrap gap-3">
                 {/* Play Trailer Button */}
-                {movie.videos && movie.videos.length > 0 && (
+                {trailerAvailable && (
                   <a
-                    href={`#trailers`}
-                    className="inline-flex items-center gap-2 rounded-md bg-accent-primary px-6 py-3 font-medium transition-colors hover:bg-accent-hover"
+                    href="#trailer"
+                    className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
                   >
-                    <Play className="h-5 w-5 fill-white text-white" />
-                    <span className="text-white">Play Trailer</span>
+                    <Play className="h-5 w-5" fill="currentColor" />
+                    Watch Trailer
                   </a>
                 )}
 
-                {/* Watchlist Button (placeholder - will be interactive later) */}
-                <button className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-bg-tertiary">
+                {/* Watchlist Button */}
+                <button className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20">
                   <Heart className="h-5 w-5" />
                   Add to Watchlist
                 </button>
@@ -288,7 +309,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 {/* Similar Button */}
                 <Link
                   href={`/similar/movie/${movie.id}`}
-                  className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-bg-tertiary"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
                 >
                   Find Similar
                 </Link>
@@ -299,23 +320,147 @@ export default async function MoviePage({ params }: MoviePageProps) {
       </section>
 
       {/* Main Content */}
-      <main className="container py-8 md:py-12">
-        {/* Streaming Providers */}
-        <StreamingProviders providers={movie.providers} title={movie.title} />
+      <main className="container py-12 md:py-16">
+        {/* Trailer & About Section - Side by Side */}
+        <section className="grid gap-8 lg:grid-cols-2">
+          {/* Left: Trailer */}
+          <div>
+            {movie.videos && movie.videos.length > 0 && (
+              <TrailerEmbed
+                videos={movie.videos}
+                title={movie.title}
+                posterPath={movie.poster_path}
+              />
+            )}
+          </div>
 
-        {/* Cast Section */}
-        <CastSection cast={movie.credits.cast} className="mt-12" />
+          {/* Right: About the Movie */}
+          <div className="space-y-6">
+            {/* Quick Facts */}
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
+              <h2 className="text-lg font-semibold text-text-primary mb-4">About the Movie</h2>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {movie.release_date && (
+                  <DetailItem
+                    icon={<Calendar className="h-4 w-4" />}
+                    label="Release Date"
+                    value={new Date(movie.release_date).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  />
+                )}
+                {movie.runtime && movie.runtime > 0 && (
+                  <DetailItem
+                    icon={<Clock className="h-4 w-4" />}
+                    label="Runtime"
+                    value={formatRuntime(movie.runtime)}
+                  />
+                )}
+                {movie.original_language && (
+                  <DetailItem
+                    icon={<Globe className="h-4 w-4" />}
+                    label="Language"
+                    value={getLanguageName(movie.original_language)}
+                  />
+                )}
+                {movie.status && (
+                  <DetailItem
+                    icon={<Film className="h-4 w-4" />}
+                    label="Status"
+                    value={movie.status}
+                  />
+                )}
+                {movie.budget && movie.budget > 0 && (
+                  <DetailItem
+                    icon={<DollarSign className="h-4 w-4" />}
+                    label="Budget"
+                    value={`$${movie.budget.toLocaleString()}`}
+                  />
+                )}
+                {movie.revenue && movie.revenue > 0 && (
+                  <DetailItem
+                    icon={<DollarSign className="h-4 w-4" />}
+                    label="Box Office"
+                    value={`$${movie.revenue.toLocaleString()}`}
+                  />
+                )}
+              </div>
+              {movie.original_title !== movie.title && (
+                <div className="mt-4 pt-4 border-t border-border-subtle">
+                  <span className="text-sm text-text-tertiary">Original Title: </span>
+                  <span className="text-sm text-text-primary">{movie.original_title}</span>
+                </div>
+              )}
+            </div>
 
-        {/* Videos/Trailers Section */}
-        {movie.videos && movie.videos.length > 0 && (
-          <VideoSection videos={movie.videos} className="mt-12" />
-        )}
+            {/* External Links */}
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
+              <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+                External Links
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {movie.imdb_id && (
+                  <a
+                    href={`https://www.imdb.com/title/${movie.imdb_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg bg-[#f5c518] px-4 py-2.5 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+                  >
+                    <Clapperboard className="h-4 w-4" />
+                    IMDb
+                  </a>
+                )}
+                {movie.homepage && (
+                  <a
+                    href={movie.homepage}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 rounded-lg bg-bg-tertiary px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-border-default"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Website
+                  </a>
+                )}
+                <a
+                  href={`https://www.themoviedb.org/movie/${movie.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 rounded-lg bg-bg-tertiary px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-border-default"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  TMDB
+                </a>
+              </div>
+            </div>
+
+            {/* Keywords */}
+            {movie.keywords && movie.keywords.length > 0 && (
+              <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
+                <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+                  Keywords
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {movie.keywords.slice(0, 10).map((keyword) => (
+                    <span
+                      key={keyword.id}
+                      className="rounded-full bg-bg-tertiary px-3 py-1 text-xs text-text-secondary"
+                    >
+                      {keyword.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Similar Movies */}
         {similarContent.length > 0 && (
-          <div className="mt-12">
+          <div className="mt-16">
             <ContentRow
-              title="Similar Movies"
+              title="More Like This"
               items={similarContent}
               href={`/similar/movie/${movie.id}`}
               showTypeBadge={true}
@@ -324,133 +469,15 @@ export default async function MoviePage({ params }: MoviePageProps) {
           </div>
         )}
 
-        {/* Movie Details */}
-        <section className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {/* Details Card */}
-          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">Details</h3>
-            <dl className="space-y-3 text-sm">
-              {movie.status && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Status</dt>
-                  <dd className="text-text-primary">{movie.status}</dd>
-                </div>
-              )}
-              {movie.release_date && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Release Date</dt>
-                  <dd className="text-text-primary">
-                    {new Date(movie.release_date).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                  </dd>
-                </div>
-              )}
-              {movie.runtime && movie.runtime > 0 && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Runtime</dt>
-                  <dd className="text-text-primary">{formatRuntime(movie.runtime)}</dd>
-                </div>
-              )}
-              {movie.original_title !== movie.title && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Original Title</dt>
-                  <dd className="text-text-primary">{movie.original_title}</dd>
-                </div>
-              )}
-              {movie.original_language && (
-                <div className="flex justify-between">
-                  <dt className="text-text-tertiary">Language</dt>
-                  <dd className="text-text-primary uppercase">
-                    {movie.original_language}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </div>
+        {/* Where to Watch */}
+        <StreamingProviders
+          providers={movie.providers}
+          title={movie.title}
+          className="mt-16"
+        />
 
-          {/* Financial Card */}
-          {((movie.budget && movie.budget > 0) || (movie.revenue && movie.revenue > 0)) && (
-            <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-              <h3 className="mb-4 text-lg font-semibold text-text-primary">Box Office</h3>
-              <dl className="space-y-3 text-sm">
-                {movie.budget && movie.budget > 0 && (
-                  <div className="flex justify-between">
-                    <dt className="text-text-tertiary">Budget</dt>
-                    <dd className="text-text-primary">
-                      ${movie.budget.toLocaleString()}
-                    </dd>
-                  </div>
-                )}
-                {movie.revenue && movie.revenue > 0 && (
-                  <div className="flex justify-between">
-                    <dt className="text-text-tertiary">Revenue</dt>
-                    <dd className="text-text-primary">
-                      ${movie.revenue.toLocaleString()}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </div>
-          )}
-
-          {/* External Links Card */}
-          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">External Links</h3>
-            <div className="flex flex-wrap gap-2">
-              {movie.imdb_id && (
-                <a
-                  href={`https://www.imdb.com/title/${movie.imdb_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-border-default hover:text-text-primary"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  IMDb
-                </a>
-              )}
-              {movie.homepage && (
-                <a
-                  href={movie.homepage}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-border-default hover:text-text-primary"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Official Site
-                </a>
-              )}
-              <a
-                href={`https://www.themoviedb.org/movie/${movie.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-border-default hover:text-text-primary"
-              >
-                <ExternalLink className="h-4 w-4" />
-                TMDB
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {/* Keywords */}
-        {movie.keywords && movie.keywords.length > 0 && (
-          <section className="mt-12">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">Keywords</h3>
-            <div className="flex flex-wrap gap-2">
-              {movie.keywords.map((keyword) => (
-                <span
-                  key={keyword.id}
-                  className="rounded-full bg-bg-tertiary px-3 py-1.5 text-sm text-text-secondary"
-                >
-                  {keyword.name}
-                </span>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Cast Section */}
+        <CastSection cast={movie.credits.cast} className="mt-16" />
       </main>
     </>
   );
@@ -471,9 +498,29 @@ function ContentTypeBadge({ type }: { type: ContentType }) {
   const { label, className } = config[type];
 
   return (
-    <span className={cn('rounded-full px-3 py-1 text-xs font-medium', className)}>
+    <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', className)}>
       {label}
     </span>
+  );
+}
+
+interface DetailItemProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}
+
+function DetailItem({ icon, label, value }: DetailItemProps) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-tertiary text-text-tertiary">
+        {icon}
+      </div>
+      <div>
+        <p className="text-xs text-text-tertiary">{label}</p>
+        <p className="font-medium text-text-primary">{value}</p>
+      </div>
+    </div>
   );
 }
 
@@ -495,4 +542,22 @@ function getMovieContentType(movie: TMDBMovieWithGenres): ContentType {
   if (isAnimation && isJapanese) return 'anime';
   if (isAnimation) return 'animation';
   return 'movie';
+}
+
+function getLanguageName(code: string): string {
+  const languages: Record<string, string> = {
+    en: 'English',
+    es: 'Spanish',
+    fr: 'French',
+    de: 'German',
+    it: 'Italian',
+    pt: 'Portuguese',
+    ja: 'Japanese',
+    ko: 'Korean',
+    zh: 'Chinese',
+    hi: 'Hindi',
+    ar: 'Arabic',
+    ru: 'Russian',
+  };
+  return languages[code] || code.toUpperCase();
 }

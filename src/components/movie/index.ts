@@ -5,3 +5,4 @@
 export { CastSection } from './CastSection';
 export { StreamingProviders } from './StreamingProviders';
 export { VideoSection } from './VideoSection';
+export { TrailerEmbed } from './TrailerEmbed';
