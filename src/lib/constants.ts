@@ -381,6 +381,8 @@ export const CACHE_TTL = {
   TV_DETAILS: 86400, // 24 hours
   SEARCH: 300, // 5 minutes
   SIMILAR: 86400, // 24 hours
+  TASTEDIVE: 86400, // 24 hours (TasteDive results)
+  BLEND: 86400, // 24 hours (Blend results)
   PROVIDERS: 21600, // 6 hours
   GENRES: 604800, // 7 days
 } as const;
@@ -393,4 +395,5 @@ export const RATE_LIMITS = {
   DISCOVER: { requests: 10, window: 60 }, // 10 req/min
   SEARCH: { requests: 30, window: 60 }, // 30 req/min
   DEFAULT: { requests: 100, window: 60 }, // 100 req/min
+  TASTEDIVE: { requests: 300, window: 3600 }, // 300 req/hour (TasteDive limit)
 } as const;

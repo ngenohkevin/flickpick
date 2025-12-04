@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Play, Info, Plus, Check, ChevronLeft, ChevronRight } from 'lucide-react';
-import { ContentTypeBadge } from '@/components/ui';
+import { useRouter } from 'next/navigation';
+import { Play, Info, Plus, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ContentTypeBadge, Tooltip, useToast } from '@/components/ui';
 import { ContentRating } from './ContentRating';
 import {
   getBackdropUrl,
@@ -39,6 +40,7 @@ export function HeroSpotlight({
   onWatchlistToggle,
   className = '',
 }: HeroSpotlightProps) {
+  const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
@@ -80,12 +82,25 @@ export function HeroSpotlight({
   const year = extractYear(releaseDate);
   const contentType = getContentType(currentItem);
   const backdropUrl = getBackdropUrl(currentItem.backdrop_path, 'original');
-  const detailUrl = isMovie(currentItem) ? `/movie/${currentItem.id}` : `/tv/${currentItem.id}`;
+  const isTV = !isMovie(currentItem);
+  const detailUrl = isTV ? `/tv/${currentItem.id}` : `/movie/${currentItem.id}`;
+  const similarUrl = isTV ? `/similar/tv/${currentItem.id}` : `/similar/movie/${currentItem.id}`;
   const isInWatchlist = watchlistIds?.has(currentItem.id);
+  const { addToast } = useToast();
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    onWatchlistToggle?.(currentItem);
+    addToast({
+      type: 'info',
+      title: 'Coming Soon',
+      message: 'Watchlist feature is coming soon!',
+      duration: 3000,
+    });
+  };
+
+  const handleSimilarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    router.push(similarUrl);
   };
 
   return (
@@ -193,20 +208,30 @@ export function HeroSpotlight({
                 <span>More Info</span>
               </Link>
 
-              <button
-                onClick={handleWatchlistClick}
-                className={cn(
-                  'inline-flex items-center justify-center rounded-full border border-white/30 bg-white/10 p-2 text-white shadow-lg backdrop-blur-sm transition-all hover:scale-105 hover:bg-white/20 sm:p-3',
-                  isInWatchlist && 'border-success/50 bg-success/20 text-success'
-                )}
-                aria-label={isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
-              >
-                {isInWatchlist ? (
-                  <Check className="h-4 w-4 sm:h-6 sm:w-6" />
-                ) : (
+              {/* Find Similar Button */}
+              <Tooltip content="Find Similar" position="top">
+                <button
+                  onClick={handleSimilarClick}
+                  className="inline-flex items-center justify-center rounded-full border border-border-default bg-bg-secondary p-2 text-text-primary shadow-lg transition-all hover:scale-105 hover:bg-bg-tertiary sm:p-3"
+                  aria-label="Find similar content"
+                >
                   <Plus className="h-4 w-4 sm:h-6 sm:w-6" />
-                )}
-              </button>
+                </button>
+              </Tooltip>
+
+              {/* Watchlist Button */}
+              <Tooltip content={isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'} position="top">
+                <button
+                  onClick={handleWatchlistClick}
+                  className={cn(
+                    'inline-flex items-center justify-center rounded-full border border-border-default bg-bg-secondary p-2 text-text-primary shadow-lg transition-all hover:scale-105 hover:bg-bg-tertiary sm:p-3',
+                    isInWatchlist && 'border-accent-primary bg-accent-primary text-white'
+                  )}
+                  aria-label={isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
+                >
+                  <Heart className={cn('h-4 w-4 sm:h-6 sm:w-6', isInWatchlist && 'fill-current')} />
+                </button>
+              </Tooltip>
             </div>
           </div>
         </div>

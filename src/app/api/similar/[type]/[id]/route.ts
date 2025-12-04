@@ -1,11 +1,13 @@
 // ==========================================================================
 // Similar Content API Route
 // GET /api/similar/[type]/[id] - Fetch similar movies or TV shows
+// Primary: TasteDive, Fallback: TMDB Similar
 // ==========================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getMovieDetailsExtended, getRelatedMovies, toMovie } from '@/lib/tmdb/movies';
 import { getTVShowDetailsExtended, getRelatedTVShows, toTVShow } from '@/lib/tmdb/tv';
+import { getSimilarEnriched, isTasteDiveAvailable } from '@/lib/tastedive';
 import { getContentType } from '@/lib/utils';
 import type { Movie, TVShow, ContentType, Genre } from '@/types';
 
@@ -14,6 +16,30 @@ import type { Movie, TVShow, ContentType, Genre } from '@/types';
 // ==========================================================================
 
 type ContentMediaType = 'movie' | 'tv';
+
+/**
+ * Simplified content item for similar results
+ * This type is more flexible than full Movie/TVShow since TasteDive
+ * results don't have all TMDB-specific properties
+ */
+interface SimilarContentItem {
+  id: number;
+  title?: string;
+  name?: string;
+  original_title?: string;
+  original_name?: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average: number;
+  vote_count: number;
+  popularity: number;
+  genre_ids?: number[];
+  original_language: string;
+  media_type: ContentMediaType;
+}
 
 interface SimilarContentResponse {
   source: {
@@ -35,9 +61,10 @@ interface SimilarContentResponse {
     number_of_episodes?: number;
     status?: string;
   };
-  similar: Array<Movie | TVShow>;
+  similar: SimilarContentItem[];
   traits: string[];
   related_genres: Genre[];
+  provider: 'tastedive' | 'tmdb';
 }
 
 // ==========================================================================
@@ -157,24 +184,79 @@ export async function GET(
     }
 
     let response: SimilarContentResponse;
+    let provider: 'tastedive' | 'tmdb' = 'tmdb';
 
     if (type === 'movie') {
-      // Fetch movie details and related content
-      const [details, related] = await Promise.all([
-        getMovieDetailsExtended(contentId),
-        getRelatedMovies(contentId),
-      ]);
+      // Fetch movie details
+      const details = await getMovieDetailsExtended(contentId);
 
       const contentType = getContentType({
         ...details,
         media_type: 'movie',
       } as Movie);
 
-      // Convert related movies
-      const similarMovies = related.map((m) => ({
-        ...toMovie(m),
-        media_type: 'movie' as const,
-      }));
+      // Try TasteDive first, fall back to TMDB
+      let similarMovies: SimilarContentItem[] = [];
+
+      const tasteDiveAvailable = await isTasteDiveAvailable();
+
+      if (tasteDiveAvailable) {
+        try {
+          const tasteDiveResults = await getSimilarEnriched(
+            details.title,
+            'movie',
+            20,
+            [contentId]
+          );
+
+          if (tasteDiveResults.length > 0) {
+            provider = 'tastedive';
+            similarMovies = tasteDiveResults
+              .filter((r) => r.media_type === 'movie')
+              .map((r) => ({
+                id: r.id,
+                title: r.title,
+                original_title: r.title,
+                overview: r.overview,
+                poster_path: r.poster_path,
+                backdrop_path: r.backdrop_path,
+                release_date: r.year ? `${r.year}-01-01` : '',
+                vote_average: r.vote_average,
+                vote_count: r.vote_count,
+                popularity: r.popularity,
+                genre_ids: r.genre_ids,
+                original_language: r.original_language,
+                media_type: 'movie' as const,
+              }));
+          }
+        } catch (error) {
+          console.warn('TasteDive failed, falling back to TMDB:', error);
+        }
+      }
+
+      // Fallback to TMDB if TasteDive didn't return results
+      if (similarMovies.length === 0) {
+        provider = 'tmdb';
+        const related = await getRelatedMovies(contentId);
+        similarMovies = related.map((m) => {
+          const movie = toMovie(m);
+          return {
+            id: movie.id,
+            title: movie.title,
+            original_title: movie.original_title,
+            overview: movie.overview,
+            poster_path: movie.poster_path,
+            backdrop_path: movie.backdrop_path,
+            release_date: movie.release_date,
+            vote_average: movie.vote_average,
+            vote_count: movie.vote_count,
+            popularity: movie.popularity,
+            genre_ids: movie.genre_ids,
+            original_language: movie.original_language,
+            media_type: 'movie' as const,
+          };
+        });
+      }
 
       response = {
         source: {
@@ -205,24 +287,79 @@ export async function GET(
           'movie'
         ),
         related_genres: details.genres ?? [],
+        provider,
       };
     } else {
-      // Fetch TV show details and related content
-      const [details, related] = await Promise.all([
-        getTVShowDetailsExtended(contentId),
-        getRelatedTVShows(contentId),
-      ]);
+      // Fetch TV show details
+      const details = await getTVShowDetailsExtended(contentId);
 
       const contentType = getContentType({
         ...details,
         media_type: 'tv',
       } as unknown as TVShow);
 
-      // Convert related TV shows
-      const similarShows = related.map((s) => ({
-        ...toTVShow(s),
-        media_type: 'tv' as const,
-      }));
+      // Try TasteDive first, fall back to TMDB
+      let similarShows: SimilarContentItem[] = [];
+
+      const tasteDiveAvailable = await isTasteDiveAvailable();
+
+      if (tasteDiveAvailable) {
+        try {
+          const tasteDiveResults = await getSimilarEnriched(
+            details.name,
+            'tv',
+            20,
+            [contentId]
+          );
+
+          if (tasteDiveResults.length > 0) {
+            provider = 'tastedive';
+            similarShows = tasteDiveResults
+              .filter((r) => r.media_type === 'tv')
+              .map((r) => ({
+                id: r.id,
+                name: r.title,
+                original_name: r.title,
+                overview: r.overview,
+                poster_path: r.poster_path,
+                backdrop_path: r.backdrop_path,
+                first_air_date: r.year ? `${r.year}-01-01` : '',
+                vote_average: r.vote_average,
+                vote_count: r.vote_count,
+                popularity: r.popularity,
+                genre_ids: r.genre_ids,
+                original_language: r.original_language,
+                media_type: 'tv' as const,
+              }));
+          }
+        } catch (error) {
+          console.warn('TasteDive failed, falling back to TMDB:', error);
+        }
+      }
+
+      // Fallback to TMDB if TasteDive didn't return results
+      if (similarShows.length === 0) {
+        provider = 'tmdb';
+        const related = await getRelatedTVShows(contentId);
+        similarShows = related.map((s) => {
+          const show = toTVShow(s);
+          return {
+            id: show.id,
+            name: show.name,
+            original_name: show.original_name,
+            overview: show.overview,
+            poster_path: show.poster_path,
+            backdrop_path: show.backdrop_path,
+            first_air_date: show.first_air_date,
+            vote_average: show.vote_average,
+            vote_count: show.vote_count,
+            popularity: show.popularity,
+            genre_ids: show.genre_ids,
+            original_language: show.original_language,
+            media_type: 'tv' as const,
+          };
+        });
+      }
 
       response = {
         source: {
@@ -255,6 +392,7 @@ export async function GET(
           'tv'
         ),
         related_genres: details.genres ?? [],
+        provider,
       };
     }
 

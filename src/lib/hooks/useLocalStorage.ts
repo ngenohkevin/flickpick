@@ -3,7 +3,7 @@
 // Persists state to localStorage with SSR safety
 // ==========================================================================
 
-import { useState, useCallback, useSyncExternalStore, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 /**
  * Get stored value from localStorage
@@ -23,7 +23,6 @@ function getStoredValue<T>(key: string, initialValue: T): T {
 
 /**
  * Persist state to localStorage with SSR safety
- * Uses useSyncExternalStore for proper SSR hydration
  * @param key - The localStorage key
  * @param initialValue - The initial value if no stored value exists
  * @returns [storedValue, setValue, removeValue]
@@ -32,59 +31,58 @@ export function useLocalStorage<T>(
   key: string,
   initialValue: T
 ): [T, (value: T | ((val: T) => T)) => void, () => void] {
-  // Force re-render mechanism
-  const [, setTick] = useState(0);
-  const forceUpdate = useCallback(() => setTick((t) => t + 1), []);
+  // Store initial value in ref to avoid reference changes causing re-renders
+  const initialValueRef = useRef(initialValue);
 
-  // Memoize the initial value to avoid recreating on each render
-  const memoizedInitialValue = useMemo(() => initialValue, [initialValue]);
+  // Use lazy initialization to avoid reading localStorage on every render
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
 
-  // Get snapshot for useSyncExternalStore
-  const getSnapshot = useCallback(() => {
-    return getStoredValue(key, memoizedInitialValue);
-  }, [key, memoizedInitialValue]);
+  // Track if we've hydrated from localStorage
+  const hasHydrated = useRef(false);
 
-  // Server snapshot always returns initial value
-  const getServerSnapshot = useCallback(() => {
-    return memoizedInitialValue;
-  }, [memoizedInitialValue]);
+  // Hydrate from localStorage on mount (client-side only)
+  useEffect(() => {
+    if (!hasHydrated.current) {
+      hasHydrated.current = true;
+      const stored = getStoredValue(key, initialValueRef.current);
+      setStoredValue(stored);
+    }
+  }, [key]);
 
-  // Subscribe to storage events from other tabs/windows
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      const handleStorageChange = (e: StorageEvent) => {
-        if (e.key === key) {
-          callback();
+  // Listen for storage changes from other tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === key && e.newValue !== null) {
+        try {
+          setStoredValue(JSON.parse(e.newValue));
+        } catch {
+          setStoredValue(initialValueRef.current);
         }
-      };
-      window.addEventListener('storage', handleStorageChange);
-      return () => window.removeEventListener('storage', handleStorageChange);
-    },
-    [key]
-  );
+      } else if (e.key === key && e.newValue === null) {
+        setStoredValue(initialValueRef.current);
+      }
+    };
 
-  // Use useSyncExternalStore for SSR-safe hydration
-  const storedValue = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [key]);
 
   // Setter function that persists to localStorage
   const setValue = useCallback(
     (value: T | ((val: T) => T)) => {
       try {
-        // Get current value
-        const currentValue = getStoredValue(key, memoizedInitialValue);
-        // Allow value to be a function so we have same API as useState
-        const valueToStore = value instanceof Function ? value(currentValue) : value;
-        // Save to localStorage
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(key, JSON.stringify(valueToStore));
-          // Trigger re-render
-          forceUpdate();
-        }
+        setStoredValue((currentValue) => {
+          const valueToStore = value instanceof Function ? value(currentValue) : value;
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          }
+          return valueToStore;
+        });
       } catch (error) {
         console.warn(`Error setting localStorage key "${key}":`, error);
       }
     },
-    [key, memoizedInitialValue, forceUpdate]
+    [key]
   );
 
   // Remove value from localStorage
@@ -92,13 +90,12 @@ export function useLocalStorage<T>(
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem(key);
-        // Trigger re-render
-        forceUpdate();
       }
+      setStoredValue(initialValueRef.current);
     } catch (error) {
       console.warn(`Error removing localStorage key "${key}":`, error);
     }
-  }, [key, forceUpdate]);
+  }, [key]);
 
   return [storedValue, setValue, removeValue];
 }
