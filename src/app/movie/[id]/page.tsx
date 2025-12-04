@@ -306,7 +306,6 @@ export default async function MoviePage({ params }: MoviePageProps) {
                   id={movie.id}
                   title={movie.title}
                   mediaType="movie"
-                  contentType={contentType}
                   posterPath={movie.poster_path}
                   variant="hero"
                 />

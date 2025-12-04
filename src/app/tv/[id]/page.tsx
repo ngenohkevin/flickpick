@@ -369,7 +369,6 @@ export default async function TVShowPage({ params }: TVPageProps) {
                   id={show.id}
                   title={show.name}
                   mediaType="tv"
-                  contentType={contentType}
                   posterPath={show.poster_path}
                   variant="hero"
                 />
