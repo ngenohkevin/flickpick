@@ -48,3 +48,6 @@ export {
 
 // Tooltip
 export { Tooltip } from './Tooltip';
+
+// Watchlist Button
+export { WatchlistButton } from './WatchlistButton';

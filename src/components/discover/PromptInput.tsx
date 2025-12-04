@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Sparkles, Loader2, Search, ArrowRight } from 'lucide-react';
+import { Sparkles, Loader2, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ==========================================================================
@@ -69,10 +69,11 @@ export function PromptInput({
         )}
       >
         {/* Search icon */}
-        <div className="absolute left-4 top-4 text-text-tertiary">
+        <div className="absolute left-3 top-3 sm:left-4 sm:top-4 text-text-tertiary">
           <Search className="h-5 w-5" />
         </div>
 
+        {/* Textarea */}
         <textarea
           ref={textareaRef}
           value={value}
@@ -82,18 +83,19 @@ export function PromptInput({
           onBlur={() => setIsFocused(false)}
           placeholder={placeholder}
           disabled={disabled || isLoading}
-          rows={2}
+          rows={3}
           className={cn(
-            'w-full resize-none bg-transparent pl-12 pr-28 py-4',
-            'text-text-primary placeholder:text-text-tertiary',
+            'w-full resize-none bg-transparent',
+            'pl-10 pr-4 pt-3 pb-16 sm:pl-12 sm:pr-4 sm:pt-4 sm:pb-16',
+            'text-sm sm:text-base text-text-primary placeholder:text-text-tertiary',
             'focus:outline-none',
             'disabled:cursor-not-allowed'
           )}
           aria-label="Describe what you're looking for"
         />
 
-        {/* Submit button - positioned inside */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+        {/* Submit button - positioned at bottom right */}
+        <div className="absolute right-3 bottom-3">
           <button
             type="button"
             onClick={onSubmit}

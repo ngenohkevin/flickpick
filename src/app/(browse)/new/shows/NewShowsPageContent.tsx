@@ -71,6 +71,7 @@ export function NewShowsPageContent() {
     ratingMin: searchParams.get('rating') ? parseFloat(searchParams.get('rating')!) : null,
     language: null,
     provider: null,
+    runtime: null,
   }));
 
   // Data state

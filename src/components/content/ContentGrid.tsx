@@ -1,5 +1,8 @@
+'use client';
+
 import { ContentCard } from './ContentCard';
 import { SkeletonGrid } from '@/components/ui';
+import { useInfiniteScroll } from '@/lib/hooks';
 import type { Content } from '@/types';
 
 // ==========================================================================
@@ -75,13 +78,23 @@ export function ContentGrid({
 }
 
 // ==========================================================================
-// Infinite Grid (with load more support)
+// Infinite Grid (with automatic infinite scroll)
 // ==========================================================================
 
 interface InfiniteContentGridProps extends ContentGridProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
+  /** Show "no more results" message when all content loaded */
+  showEndMessage?: boolean;
+  /** Custom end message text */
+  endMessage?: string;
+  /** Enable infinite scroll (auto-load on scroll), otherwise manual button */
+  enableInfiniteScroll?: boolean;
+  /** Max pages to auto-load before switching to manual "Load More" button (default: 3) */
+  maxAutoLoadPages?: number;
+  /** Current page number (used with maxAutoLoadPages) */
+  currentPage?: number;
 }
 
 export function InfiniteContentGrid({
@@ -98,7 +111,25 @@ export function InfiniteContentGrid({
   watchlistIds,
   onWatchlistToggle,
   className = '',
+  showEndMessage = true,
+  endMessage = "You've reached the end",
+  enableInfiniteScroll = true,
+  maxAutoLoadPages = 3,
+  currentPage = 1,
 }: InfiniteContentGridProps) {
+  // Determine if we should auto-load or show manual button
+  // After maxAutoLoadPages, switch to manual "Load More" to allow footer access
+  const shouldAutoLoad = enableInfiniteScroll && currentPage < maxAutoLoadPages;
+
+  // Use infinite scroll hook for automatic loading
+  const { sentinelRef } = useInfiniteScroll({
+    onLoadMore: onLoadMore ?? (() => {}),
+    hasMore,
+    isLoading: isLoading || isLoadingMore,
+    enabled: shouldAutoLoad && !!onLoadMore,
+    rootMargin: '600px', // Start loading 600px before reaching the end
+  });
+
   return (
     <div className={className}>
       <ContentGrid
@@ -113,23 +144,42 @@ export function InfiniteContentGrid({
         onWatchlistToggle={onWatchlistToggle}
       />
 
-      {/* Load More Button / Loading indicator */}
-      {hasMore && !isLoading && (
+      {/* Loading indicator - shows when loading more content */}
+      {isLoadingMore && !isLoading && (
         <div className="mt-8 flex justify-center">
-          {isLoadingMore ? (
-            <div className="flex items-center gap-2 text-text-secondary">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-border-default border-t-accent-primary" />
-              <span>Loading more...</span>
-            </div>
-          ) : (
-            <button
-              onClick={onLoadMore}
-              className="rounded-md border border-border-default bg-bg-tertiary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-border-default"
-            >
-              Load More
-            </button>
-          )}
+          <div className="flex items-center gap-2 text-text-secondary">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-border-default border-t-accent-primary" />
+            <span>Loading more...</span>
+          </div>
         </div>
+      )}
+
+      {/* Manual Load More button (when infinite scroll is disabled or after max auto-load pages) */}
+      {!shouldAutoLoad && hasMore && !isLoading && !isLoadingMore && (
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={onLoadMore}
+            className="rounded-md border border-border-default bg-bg-tertiary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-border-default"
+          >
+            Load More
+          </button>
+        </div>
+      )}
+
+      {/* End of results message */}
+      {!hasMore && !isLoading && items.length > 0 && showEndMessage && (
+        <div className="mt-8 flex justify-center">
+          <p className="text-sm text-text-tertiary">{endMessage}</p>
+        </div>
+      )}
+
+      {/* Sentinel element for intersection observer */}
+      {shouldAutoLoad && hasMore && !isLoading && (
+        <div
+          ref={sentinelRef}
+          className="h-1 w-full"
+          aria-hidden="true"
+        />
       )}
     </div>
   );

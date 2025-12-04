@@ -37,6 +37,8 @@ export interface EnrichedRecommendation {
   genre_ids: number[];
   original_language: string;
   reason: string;
+  /** Streaming provider IDs (for filtering) */
+  providers?: number[];
 }
 
 // ==========================================================================

@@ -7,7 +7,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Calendar, Play, Heart, ExternalLink, Tv, Film, Globe, Users } from 'lucide-react';
+import { Star, Calendar, Play, ExternalLink, Tv, Film, Globe, Users } from 'lucide-react';
 import { getTVShowDetailsExtended, getRelatedTVShows } from '@/lib/tmdb/tv';
 import { getPosterUrl, getBackdropUrl, extractYear, cn } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
@@ -18,6 +18,7 @@ import { TrailerEmbed } from '@/components/movie/TrailerEmbed';
 import { hasTrailer } from '@/lib/video-utils';
 import { SeasonList } from '@/components/tv/SeasonList';
 import { ShowStatus } from '@/components/tv/ShowStatus';
+import { WatchlistButton } from '@/components/ui';
 import type { ContentType, Content, TVShow as TVShowType, Season } from '@/types';
 
 // ==========================================================================
@@ -364,10 +365,14 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 )}
 
                 {/* Watchlist Button */}
-                <button className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20">
-                  <Heart className="h-5 w-5" />
-                  Add to Watchlist
-                </button>
+                <WatchlistButton
+                  id={show.id}
+                  title={show.name}
+                  mediaType="tv"
+                  contentType={contentType}
+                  posterPath={show.poster_path}
+                  variant="hero"
+                />
 
                 {/* Similar Button */}
                 <Link

@@ -5,11 +5,34 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getRecommendations } from '@/lib/ai';
-import { isRateLimited } from '@/lib/redis';
+import { getRecommendations, EXAMPLE_PROMPTS } from '@/lib/ai';
+import {
+  isRateLimited,
+  getCachedPromptResults,
+  cachePromptResults,
+  trackPromptPopularity,
+  normalizePrompt,
+} from '@/lib/redis';
 import { RATE_LIMITS } from '@/lib/constants';
 import type { DiscoverResponse, DiscoverError } from '@/lib/ai/types';
 import type { ContentType } from '@/types';
+import type { DiscoveryResult } from '@/lib/ai';
+
+// ==========================================================================
+// Example Prompts Set (for quick lookup)
+// Lazily initialized to avoid module load issues
+// ==========================================================================
+
+let examplePromptsSet: Set<string> | null = null;
+
+function getExamplePromptsSet(): Set<string> {
+  if (!examplePromptsSet) {
+    examplePromptsSet = new Set(
+      EXAMPLE_PROMPTS.map((p) => normalizePrompt(p))
+    );
+  }
+  return examplePromptsSet;
+}
 
 // ==========================================================================
 // Request Validation
@@ -90,12 +113,51 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Discover] Processing request: "${prompt.substring(0, 50)}..."`);
 
+    // Check if this is an example prompt (always cache these)
+    const normalizedPrompt = normalizePrompt(prompt);
+    const isExamplePrompt = getExamplePromptsSet().has(normalizedPrompt);
+
+    // Check if we have cached results for this prompt
+    // Only use cache if no excludeIds (personalized requests shouldn't use cache)
+    const canUseCache = !excludeIds || excludeIds.length === 0;
+
+    if (canUseCache) {
+      const cachedResult = await getCachedPromptResults<DiscoveryResult>(prompt);
+
+      if (cachedResult) {
+        const duration = Date.now() - startTime;
+        console.log(
+          `[Discover] Cache hit in ${duration}ms - ${cachedResult.results.length} results`
+        );
+
+        const response: DiscoverResponse = {
+          results: cachedResult.results,
+          provider: cachedResult.provider,
+          isFallback: cachedResult.isFallback,
+          prompt,
+        };
+
+        return NextResponse.json(response);
+      }
+    }
+
+    // Track prompt popularity (for automatic caching of popular searches)
+    const shouldCache = await trackPromptPopularity(prompt);
+
     // Get AI recommendations
     const result = await getRecommendations(
       prompt,
       contentTypes as ContentType[] | undefined,
       excludeIds
     );
+
+    // Cache the results if:
+    // 1. This is an example prompt (always cache), OR
+    // 2. This prompt has become popular (searched multiple times)
+    if (canUseCache && (isExamplePrompt || shouldCache)) {
+      // Example prompts get longer TTL (24h), popular prompts get 12h
+      await cachePromptResults(prompt, result, isExamplePrompt ? 86400 : 43200);
+    }
 
     const response: DiscoverResponse = {
       results: result.results,
@@ -105,8 +167,9 @@ export async function POST(request: NextRequest) {
     };
 
     const duration = Date.now() - startTime;
+    const cacheStatus = isExamplePrompt ? ' (cached as example)' : shouldCache ? ' (cached as popular)' : '';
     console.log(
-      `[Discover] Completed in ${duration}ms - ${result.results.length} results from ${result.provider}`
+      `[Discover] Completed in ${duration}ms - ${result.results.length} results from ${result.provider}${cacheStatus}`
     );
 
     return NextResponse.json(response);
@@ -155,5 +218,7 @@ export async function POST(request: NextRequest) {
 // Route Config
 // ==========================================================================
 
-// Don't cache AI responses - they should be fresh each time
+// Dynamic route - caching is handled via Redis for:
+// 1. Example prompts (always cached for 24h)
+// 2. Popular prompts (cached for 12h after 3+ searches)
 export const dynamic = 'force-dynamic';

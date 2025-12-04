@@ -7,7 +7,7 @@ import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Star, Clock, Calendar, Play, Heart, ExternalLink, Globe, DollarSign, Film, Clapperboard } from 'lucide-react';
+import { Star, Clock, Calendar, Play, ExternalLink, Globe, DollarSign, Film, Clapperboard } from 'lucide-react';
 import { getMovieDetailsExtended, getRelatedMovies } from '@/lib/tmdb/movies';
 import { getPosterUrl, getBackdropUrl, formatRuntime, extractYear, cn } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
@@ -15,6 +15,7 @@ import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
 import { TrailerEmbed } from '@/components/movie/TrailerEmbed';
+import { WatchlistButton } from '@/components/ui';
 import { hasTrailer } from '@/lib/video-utils';
 import type { ContentType, Content } from '@/types';
 
@@ -301,10 +302,14 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 )}
 
                 {/* Watchlist Button */}
-                <button className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20">
-                  <Heart className="h-5 w-5" />
-                  Add to Watchlist
-                </button>
+                <WatchlistButton
+                  id={movie.id}
+                  title={movie.title}
+                  mediaType="movie"
+                  contentType={contentType}
+                  posterPath={movie.poster_path}
+                  variant="hero"
+                />
 
                 {/* Similar Button */}
                 <Link

@@ -1,15 +1,19 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { Sparkles, AlertCircle, Wand2, Search } from 'lucide-react';
+import { AlertCircle, Wand2 } from 'lucide-react';
 import {
   PromptInput,
   ContentTypeSelector,
   ExamplePrompts,
   DiscoverResults,
   DiscoverEmptyState,
+  PromptHistory,
+  RefineSearch,
+  StreamingFilter,
 } from '@/components/discover';
 import { useWatchlist, useWatchlistIdArray } from '@/stores/watchlist';
+import { usePromptHistory } from '@/stores/promptHistory';
 import type { DiscoverResponse, DiscoverError, EnrichedRecommendation } from '@/lib/ai/types';
 import type { ContentType, Content } from '@/types';
 
@@ -22,6 +26,10 @@ export default function DiscoverPage() {
   // Form state
   const [prompt, setPrompt] = useState('');
   const [contentTypes, setContentTypes] = useState<ContentType[]>([]);
+  const [lastSearchedPrompt, setLastSearchedPrompt] = useState('');
+
+  // Streaming filter state
+  const [streamingFilter, setStreamingFilter] = useState<number[]>([]);
 
   // Results state
   const [results, setResults] = useState<EnrichedRecommendation[]>([]);
@@ -38,13 +46,23 @@ export default function DiscoverPage() {
   const watchlistIdArray = useWatchlistIdArray();
   const watchlistIds = useMemo(() => new Set(watchlistIdArray), [watchlistIdArray]);
 
+  // Prompt history
+  const { addPrompt } = usePromptHistory();
+
   // Handle discovery request
-  const handleDiscover = useCallback(async () => {
-    if (prompt.trim().length < 3) return;
+  const handleDiscover = useCallback(async (searchPrompt?: string) => {
+    const promptToUse = searchPrompt || prompt;
+    if (promptToUse.trim().length < 3) return;
 
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
+    setLastSearchedPrompt(promptToUse.trim());
+
+    // Update prompt input if using a different prompt (from refine)
+    if (searchPrompt) {
+      setPrompt(searchPrompt);
+    }
 
     try {
       const response = await fetch('/api/discover', {
@@ -53,7 +71,7 @@ export default function DiscoverPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt: prompt.trim(),
+          prompt: promptToUse.trim(),
           contentTypes: contentTypes.length > 0 ? contentTypes : undefined,
         }),
       });
@@ -69,6 +87,9 @@ export default function DiscoverPage() {
       setResults(successData.results);
       setProvider(successData.provider);
       setIsFallback(successData.isFallback);
+
+      // Add to history with result count
+      addPrompt(promptToUse.trim(), successData.results.length);
     } catch (err) {
       console.error('Discovery error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -76,12 +97,17 @@ export default function DiscoverPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [prompt, contentTypes]);
+  }, [prompt, contentTypes, addPrompt]);
 
-  // Handle example prompt selection
-  const handleExampleSelect = useCallback((examplePrompt: string) => {
-    setPrompt(examplePrompt);
+  // Handle example or history prompt selection
+  const handlePromptSelect = useCallback((selectedPrompt: string) => {
+    setPrompt(selectedPrompt);
   }, []);
+
+  // Handle refine search
+  const handleRefine = useCallback((refinedPrompt: string) => {
+    handleDiscover(refinedPrompt);
+  }, [handleDiscover]);
 
   // Handle watchlist toggle
   const handleWatchlistToggle = useCallback(
@@ -110,6 +136,29 @@ export default function DiscoverPage() {
   );
 
   const showResults = hasSearched && (results.length > 0 || isLoading);
+
+  // Filter results by content type and streaming provider
+  const filteredResults = useMemo(() => {
+    let filtered = results;
+
+    // Filter by content type (in case AI returned wrong types)
+    if (contentTypes.length > 0) {
+      filtered = filtered.filter((result) => contentTypes.includes(result.content_type));
+    }
+
+    // Filter by streaming provider (if provider data is available)
+    if (streamingFilter.length > 0) {
+      filtered = filtered.filter((result) => {
+        // Check if result has provider data and matches selected providers
+        if (!result.providers || result.providers.length === 0) {
+          return false; // Exclude results without provider data when filter is active
+        }
+        return result.providers.some((p) => streamingFilter.includes(p));
+      });
+    }
+
+    return filtered;
+  }, [results, contentTypes, streamingFilter]);
 
   return (
     <main className="min-h-screen bg-bg-primary">
@@ -159,16 +208,17 @@ export default function DiscoverPage() {
             <PromptInput
               value={prompt}
               onChange={setPrompt}
-              onSubmit={handleDiscover}
+              onSubmit={() => handleDiscover()}
               isLoading={isLoading}
               placeholder="A cozy anime for a rainy night, mind-bending sci-fi like Inception..."
             />
           </div>
 
-          {/* Example prompts - Hide when results shown */}
+          {/* Example prompts and history - Hide when results shown */}
           {!showResults && (
-            <div className="mt-6">
-              <ExamplePrompts onSelect={handleExampleSelect} disabled={isLoading} />
+            <div className="mt-6 space-y-6">
+              <PromptHistory onSelect={handlePromptSelect} disabled={isLoading} />
+              <ExamplePrompts onSelect={handlePromptSelect} disabled={isLoading} />
             </div>
           )}
         </div>
@@ -187,12 +237,28 @@ export default function DiscoverPage() {
           </div>
         )}
 
+        {/* Refine search and filters - Show when we have results */}
+        {showResults && results.length > 0 && !isLoading && (
+          <div className="mb-6 space-y-4">
+            <RefineSearch
+              currentPrompt={lastSearchedPrompt}
+              onRefine={handleRefine}
+              disabled={isLoading}
+            />
+            <StreamingFilter
+              selected={streamingFilter}
+              onChange={setStreamingFilter}
+              disabled={isLoading}
+            />
+          </div>
+        )}
+
         {/* Results or empty state */}
         {isLoading ? (
           <DiscoverResults results={[]} isLoading={true} />
-        ) : results.length > 0 ? (
+        ) : filteredResults.length > 0 ? (
           <DiscoverResults
-            results={results}
+            results={filteredResults}
             provider={provider}
             isFallback={isFallback}
             watchlistIds={watchlistIds}

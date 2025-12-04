@@ -61,6 +61,7 @@ export function NewMoviesPageContent() {
     ratingMin: searchParams.get('rating') ? parseFloat(searchParams.get('rating')!) : null,
     language: searchParams.get('language') ?? null,
     provider: searchParams.get('provider') ?? null,
+    runtime: null,
   }));
 
   // This Week data (always shown at top)
@@ -159,7 +160,12 @@ export function NewMoviesPageContent() {
         const data: NewMoviesResponse = await response.json();
 
         if (append) {
-          setMovies((prev) => [...prev, ...data.results]);
+          // Deduplicate items to prevent React key warnings
+          setMovies((prev) => {
+            const existingIds = new Set(prev.map((movie) => movie.id));
+            const newMovies = data.results.filter((movie) => !existingIds.has(movie.id));
+            return [...prev, ...newMovies];
+          });
         } else {
           setMovies(data.results);
         }
@@ -456,6 +462,7 @@ export function NewMoviesPageContent() {
               isLoadingMore={isLoadingMore}
               watchlistIds={watchlistIds}
               onWatchlistToggle={handleWatchlistToggle}
+              currentPage={page}
             />
 
             {!isLoading && movies.length === 0 && (

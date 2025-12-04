@@ -1,72 +1,85 @@
 'use client';
 
+// ==========================================================================
+// BlendResults Component
+// Display blend recommendations with reasons
+// ==========================================================================
+
 import Link from 'next/link';
-import { Plus, Check, Star, Sparkles, Play, Zap, Database, Info } from 'lucide-react';
+import { Plus, Check, Star, Zap, Database } from 'lucide-react';
 import { ContentPoster } from '@/components/content/ContentPoster';
 import { cn } from '@/lib/utils';
-import type { EnrichedRecommendation } from '@/lib/ai/types';
-import type { Content } from '@/types';
+import type { ContentType, Content } from '@/types';
 
 // ==========================================================================
-// Discover Results Component
-// Compact grid of AI-recommended content with reasons
+// Types
 // ==========================================================================
 
-interface DiscoverResultsProps {
-  results: EnrichedRecommendation[];
+export interface BlendResultItem {
+  id: number;
+  title: string;
+  year: number;
+  media_type: 'movie' | 'tv';
+  content_type: ContentType;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  vote_average: number;
+  overview: string;
+  blend_reason: string;
+}
+
+interface BlendResultsProps {
+  results: BlendResultItem[];
   isLoading?: boolean;
-  provider?: string;
-  isFallback?: boolean;
+  provider?: 'tastedive' | 'gemini';
   watchlistIds?: Set<number>;
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
 }
 
-/**
- * Get provider display info
- */
-function getProviderInfo(provider?: string): { icon: React.ReactNode; label: string; description: string } {
+// ==========================================================================
+// Provider Info
+// ==========================================================================
+
+function getProviderInfo(provider?: string) {
   switch (provider) {
-    case 'gemini':
-      return {
-        icon: <Sparkles className="h-4 w-4" />,
-        label: 'AI-Powered',
-        description: 'Personalized by Gemini AI',
-      };
     case 'tastedive':
       return {
         icon: <Zap className="h-4 w-4" />,
-        label: 'Similar Titles',
-        description: 'Based on titles you mentioned',
+        label: 'Blended Results',
+        description: 'Combined from your selected titles',
       };
-    case 'tmdb':
+    case 'gemini':
       return {
-        icon: <Database className="h-4 w-4" />,
-        label: 'Smart Match',
-        description: 'Matched from your preferences',
+        icon: <Zap className="h-4 w-4" />,
+        label: 'AI Blended',
+        description: 'AI-powered combination',
       };
     default:
       return {
-        icon: <Sparkles className="h-4 w-4" />,
-        label: 'Recommendations',
-        description: 'Based on your request',
+        icon: <Database className="h-4 w-4" />,
+        label: 'Similar Matches',
+        description: 'Related to your selections',
       };
   }
 }
 
-export function DiscoverResults({
+// ==========================================================================
+// BlendResults Component
+// ==========================================================================
+
+export function BlendResults({
   results,
   isLoading = false,
   provider,
-  isFallback = false,
   watchlistIds,
   onWatchlistToggle,
   className = '',
-}: DiscoverResultsProps) {
+}: BlendResultsProps) {
   if (isLoading) {
     return (
       <div className={className}>
-        <DiscoverResultsSkeleton />
+        <BlendResultsSkeleton />
       </div>
     );
   }
@@ -82,10 +95,7 @@ export function DiscoverResults({
       {/* Results header */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className={cn(
-            'flex h-8 w-8 items-center justify-center rounded-lg',
-            isFallback ? 'bg-amber-500/10 text-amber-500' : 'bg-accent-primary/10 text-accent-primary'
-          )}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-primary/10 text-accent-primary">
             {providerInfo.icon}
           </div>
           <div>
@@ -95,22 +105,12 @@ export function DiscoverResults({
             <p className="text-xs text-text-tertiary">{providerInfo.description}</p>
           </div>
         </div>
-
-        {/* Fallback indicator */}
-        {isFallback && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-1.5">
-            <Info className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-xs text-amber-500/90">
-              Using alternative matching
-            </span>
-          </div>
-        )}
       </div>
 
-      {/* Results grid - compact cards */}
+      {/* Results grid */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {results.map((result, index) => (
-          <CompactResultCard
+          <BlendResultCard
             key={`${result.id}-${result.media_type}`}
             result={result}
             priority={index < 6}
@@ -124,52 +124,52 @@ export function DiscoverResults({
 }
 
 // ==========================================================================
-// Compact Result Card
+// BlendResultCard Component
 // ==========================================================================
 
-interface CompactResultCardProps {
-  result: EnrichedRecommendation;
+interface BlendResultCardProps {
+  result: BlendResultItem;
   priority?: boolean;
   isInWatchlist?: boolean;
   onWatchlistToggle?: (content: Content) => void;
 }
 
-function CompactResultCard({
+function BlendResultCard({
   result,
   priority = false,
   isInWatchlist = false,
   onWatchlistToggle,
-}: CompactResultCardProps) {
+}: BlendResultCardProps) {
   const detailUrl = result.media_type === 'tv' ? `/tv/${result.id}` : `/movie/${result.id}`;
 
-  const asContent = result.media_type === 'movie'
-    ? ({
+  const asContent: Content = result.media_type === 'movie'
+    ? {
         id: result.id,
         media_type: 'movie' as const,
         poster_path: result.poster_path,
         backdrop_path: result.backdrop_path,
         vote_average: result.vote_average,
-        vote_count: result.vote_count,
+        vote_count: 0,
         overview: result.overview,
-        popularity: result.popularity,
-        original_language: result.original_language,
-        genre_ids: result.genre_ids,
+        popularity: 0,
+        original_language: 'en',
+        genre_ids: [],
         title: result.title,
         original_title: result.title,
         release_date: `${result.year}-01-01`,
         adult: false,
-      } satisfies Content)
-    : ({
+      }
+    : {
         id: result.id,
         media_type: 'tv' as const,
         poster_path: result.poster_path,
         backdrop_path: result.backdrop_path,
         vote_average: result.vote_average,
-        vote_count: result.vote_count,
+        vote_count: 0,
         overview: result.overview,
-        popularity: result.popularity,
-        original_language: result.original_language,
-        genre_ids: result.genre_ids,
+        popularity: 0,
+        original_language: 'en',
+        genre_ids: [],
         name: result.title,
         original_name: result.title,
         first_air_date: `${result.year}-01-01`,
@@ -178,7 +178,7 @@ function CompactResultCard({
         episode_run_time: [],
         status: 'Ended' as const,
         type: 'Scripted',
-      } satisfies Content);
+      };
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -257,10 +257,10 @@ function CompactResultCard({
           </div>
         </div>
 
-        {/* AI Reason - shown below card */}
+        {/* Blend reason */}
         <div className="p-2.5 pt-2">
           <p className="line-clamp-2 text-xs leading-relaxed text-text-secondary group-hover:text-text-primary transition-colors">
-            {result.reason}
+            {result.blend_reason}
           </p>
         </div>
       </article>
@@ -272,7 +272,7 @@ function CompactResultCard({
 // Loading Skeleton
 // ==========================================================================
 
-function DiscoverResultsSkeleton() {
+function BlendResultsSkeleton() {
   return (
     <div>
       {/* Header skeleton */}
@@ -284,14 +284,14 @@ function DiscoverResultsSkeleton() {
       {/* Grid skeleton */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {Array.from({ length: 12 }).map((_, i) => (
-          <CompactCardSkeleton key={i} />
+          <BlendCardSkeleton key={i} />
         ))}
       </div>
     </div>
   );
 }
 
-function CompactCardSkeleton() {
+function BlendCardSkeleton() {
   return (
     <div className="overflow-hidden rounded-xl bg-bg-secondary/50">
       <div className="aspect-[2/3] animate-pulse bg-bg-tertiary" />
@@ -307,26 +307,26 @@ function CompactCardSkeleton() {
 // Empty State
 // ==========================================================================
 
-interface DiscoverEmptyStateProps {
+interface BlendEmptyStateProps {
   hasSearched?: boolean;
 }
 
-export function DiscoverEmptyState({ hasSearched = false }: DiscoverEmptyStateProps) {
+export function BlendEmptyState({ hasSearched = false }: BlendEmptyStateProps) {
   if (!hasSearched) {
-    return null; // Don't show anything before first search
+    return null;
   }
 
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-tertiary">
-        <Play className="h-8 w-8 text-text-tertiary" />
+        <Zap className="h-8 w-8 text-text-tertiary" />
       </div>
-      <h3 className="text-lg font-semibold text-text-primary">No matches found</h3>
+      <h3 className="text-lg font-semibold text-text-primary">No blend results</h3>
       <p className="mt-2 max-w-sm text-sm text-text-secondary">
-        Try adjusting your description or exploring different moods and genres.
+        We couldn&apos;t find content that blends your selections. Try different titles.
       </p>
     </div>
   );
 }
 
-export default DiscoverResults;
+export default BlendResults;

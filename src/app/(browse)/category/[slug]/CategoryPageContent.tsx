@@ -88,7 +88,12 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
         const data: CategoryResponse = await response.json();
 
         if (append) {
-          setItems((prev) => [...prev, ...data.results]);
+          // Deduplicate items to prevent React key warnings
+          setItems((prev) => {
+            const existingIds = new Set(prev.map((item) => item.id));
+            const newItems = data.results.filter((item) => !existingIds.has(item.id));
+            return [...prev, ...newItems];
+          });
         } else {
           setItems(data.results);
         }
@@ -222,6 +227,7 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
           isLoadingMore={isLoadingMore}
           watchlistIds={watchlistIds}
           onWatchlistToggle={handleWatchlistToggle}
+          currentPage={page}
         />
       </div>
     </div>

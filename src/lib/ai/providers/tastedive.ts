@@ -5,9 +5,9 @@
 
 import {
   isTasteDiveAvailable,
-  extractTitleMentions,
   getSimilar,
 } from '@/lib/tastedive';
+import { extractTitleMentions } from '../intent-parser';
 import { searchMovies, searchTVShows } from '@/lib/tmdb/search';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import type { AIProvider, AIRecommendation } from '../types';

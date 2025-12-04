@@ -33,6 +33,7 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
   // Parse initial filters from URL
   const parseFiltersFromUrl = useCallback((): FilterState => {
     const genreParam = searchParams.get('genre');
+    const runtimeParam = searchParams.get('runtime');
     return {
       genres: genreParam ? genreParam.split(',').map(Number) : [],
       yearFrom: searchParams.get('year_from') ? parseInt(searchParams.get('year_from')!, 10) : null,
@@ -40,6 +41,7 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       ratingMin: searchParams.get('rating_min') ? parseFloat(searchParams.get('rating_min')!) : null,
       language: searchParams.get('language') ?? null,
       provider: searchParams.get('provider') ?? null,
+      runtime: runtimeParam as FilterState['runtime'] ?? null,
     };
   }, [searchParams]);
 
@@ -85,6 +87,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       if (filters.provider) {
         params.set('provider', filters.provider);
       }
+      if (filters.runtime) {
+        params.set('runtime', filters.runtime);
+      }
       params.set('sort_by', sortBy);
 
       // Map content type to API type
@@ -117,6 +122,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       if (newFilters.provider) {
         params.set('provider', newFilters.provider);
       }
+      if (newFilters.runtime) {
+        params.set('runtime', newFilters.runtime);
+      }
       if (newSort !== 'popularity') {
         params.set('sort_by', newSort);
       }
@@ -148,7 +156,12 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
         const data: PaginatedResponse<Content> = await response.json();
 
         if (append) {
-          setItems((prev) => [...prev, ...data.results]);
+          // Deduplicate items to prevent React key warnings
+          setItems((prev) => {
+            const existingIds = new Set(prev.map((item) => item.id));
+            const newItems = data.results.filter((item) => !existingIds.has(item.id));
+            return [...prev, ...newItems];
+          });
         } else {
           setItems(data.results);
         }
@@ -215,7 +228,8 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
     filters.genres.length +
     (filters.yearFrom || filters.yearTo ? 1 : 0) +
     (filters.ratingMin ? 1 : 0) +
-    (filters.provider ? 1 : 0);
+    (filters.provider ? 1 : 0) +
+    (filters.runtime ? 1 : 0);
 
   // Scroll-to-hide for page header (syncs with navigation bar)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
@@ -296,6 +310,7 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
               isLoadingMore={isLoadingMore}
               watchlistIds={watchlistIds}
               onWatchlistToggle={handleWatchlistToggle}
+              currentPage={page}
             />
           </main>
         </div>

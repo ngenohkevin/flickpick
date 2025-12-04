@@ -284,6 +284,154 @@ export async function isAIProviderLimited(provider: string): Promise<boolean> {
 }
 
 // ==========================================================================
+// Prompt Caching (for AI Discovery)
+// ==========================================================================
+
+/**
+ * Normalize a prompt for consistent cache key generation
+ * - Lowercase
+ * - Trim whitespace
+ * - Remove extra spaces
+ * - Remove common filler words for better matching
+ */
+export function normalizePrompt(prompt: string): string {
+  return prompt
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ') // Collapse multiple spaces
+    .replace(/[^\w\s]/g, '') // Remove punctuation
+    .split(' ')
+    .filter((word) => !['a', 'an', 'the', 'i', 'me', 'my', 'want', 'to', 'watch', 'see', 'find', 'show', 'give'].includes(word))
+    .join(' ')
+    .trim();
+}
+
+/**
+ * Generate cache key for a prompt
+ */
+export function getPromptCacheKey(prompt: string): string {
+  const normalized = normalizePrompt(prompt);
+  return `discover:prompt:${normalized}`;
+}
+
+/**
+ * Get prompt popularity key
+ */
+function getPromptPopularityKey(normalizedPrompt: string): string {
+  return `discover:popularity:${normalizedPrompt}`;
+}
+
+/**
+ * Threshold for caching a prompt (number of times it needs to be searched)
+ */
+const PROMPT_CACHE_THRESHOLD = 3;
+
+/**
+ * TTL for cached prompts (12 hours - shorter than moods since prompts are more dynamic)
+ */
+const PROMPT_CACHE_TTL = 43200;
+
+/**
+ * TTL for popularity tracking (24 hours rolling window)
+ */
+const POPULARITY_TTL = 86400;
+
+/**
+ * Track prompt search and check if it should be cached
+ * Returns true if the prompt has reached the caching threshold
+ */
+export async function trackPromptPopularity(prompt: string): Promise<boolean> {
+  const client = getRedisClient();
+  if (!client) return false;
+
+  const normalized = normalizePrompt(prompt);
+  const key = getPromptPopularityKey(normalized);
+
+  try {
+    const count = await client.incr(key);
+
+    // Set TTL on first increment
+    if (count === 1) {
+      await client.expire(key, POPULARITY_TTL);
+    }
+
+    return count >= PROMPT_CACHE_THRESHOLD;
+  } catch (error) {
+    console.error('Prompt popularity tracking error:', error);
+    return false;
+  }
+}
+
+/**
+ * Check if a prompt is popular enough to be cached
+ */
+export async function isPromptPopular(prompt: string): Promise<boolean> {
+  const client = getRedisClient();
+  if (!client) return false;
+
+  const normalized = normalizePrompt(prompt);
+  const key = getPromptPopularityKey(normalized);
+
+  try {
+    const count = await client.get(key);
+    return count ? parseInt(count, 10) >= PROMPT_CACHE_THRESHOLD : false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get cached prompt results
+ */
+export async function getCachedPromptResults<T>(prompt: string): Promise<T | null> {
+  const client = getRedisClient();
+  if (!client) return null;
+
+  const key = getPromptCacheKey(prompt);
+
+  try {
+    const cached = await client.get(key);
+    return cached ? (JSON.parse(cached) as T) : null;
+  } catch (error) {
+    console.error('Prompt cache get error:', error);
+    return null;
+  }
+}
+
+/**
+ * Cache prompt results
+ */
+export async function cachePromptResults<T>(
+  prompt: string,
+  results: T,
+  ttl: number = PROMPT_CACHE_TTL
+): Promise<void> {
+  const client = getRedisClient();
+  if (!client) return;
+
+  const key = getPromptCacheKey(prompt);
+
+  try {
+    await client.setex(key, ttl, JSON.stringify(results));
+    console.log(`[Cache] Cached prompt: "${normalizePrompt(prompt)}"`);
+  } catch (error) {
+    console.error('Prompt cache set error:', error);
+  }
+}
+
+/**
+ * Pre-cache example prompts on startup or first request
+ * Call this with the results after generating them
+ */
+export async function preCacheExamplePrompt<T>(
+  prompt: string,
+  results: T
+): Promise<void> {
+  // Use longer TTL for example prompts (24 hours)
+  await cachePromptResults(prompt, results, CACHE_TTL.SIMILAR);
+}
+
+// ==========================================================================
 // Cleanup
 // ==========================================================================
 

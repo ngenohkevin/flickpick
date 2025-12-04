@@ -7,7 +7,8 @@ import { GeminiProvider } from './providers/gemini';
 import { TasteDiveProvider } from './providers/tastedive';
 import { TMDBProvider } from './providers/tmdb';
 import { searchMovies, searchTVShows } from '@/lib/tmdb/search';
-import { ANIMATION_GENRE_ID } from '@/lib/constants';
+import { getMovieProviders, getTVProviders, getStreamingProviders } from '@/lib/tmdb/providers';
+import { ANIMATION_GENRE_ID, DEFAULT_COUNTRY } from '@/lib/constants';
 import type { AIProvider, AIRecommendation, EnrichedRecommendation } from './types';
 import type { ContentType } from '@/types';
 
@@ -33,6 +34,30 @@ const AI_PROVIDERS: AIProvider[] = [
 // ==========================================================================
 // TMDB Enrichment
 // ==========================================================================
+
+/**
+ * Fetch streaming provider IDs for a title
+ * Returns array of provider IDs (flatrate/ads only, not rent/buy)
+ */
+async function getProviderIds(
+  mediaType: 'movie' | 'tv',
+  id: number
+): Promise<number[]> {
+  try {
+    const response = mediaType === 'movie'
+      ? await getMovieProviders(id)
+      : await getTVProviders(id);
+
+    const countryProviders = response.results[DEFAULT_COUNTRY];
+    if (!countryProviders) return [];
+
+    const streamingProviders = getStreamingProviders(countryProviders);
+    return streamingProviders.map((p) => p.provider_id);
+  } catch (error) {
+    console.warn(`Failed to fetch providers for ${mediaType}/${id}:`, error);
+    return [];
+  }
+}
 
 /**
  * Search TMDB for a title and return the best match
@@ -192,7 +217,16 @@ async function enrichRecommendations(
     }
   }
 
-  return uniqueResults;
+  // Fetch streaming providers for each result in parallel
+  // This enables the streaming filter feature
+  const resultsWithProviders = await Promise.all(
+    uniqueResults.map(async (result) => {
+      const providers = await getProviderIds(result.media_type, result.id);
+      return { ...result, providers };
+    })
+  );
+
+  return resultsWithProviders;
 }
 
 // ==========================================================================
@@ -273,10 +307,55 @@ export async function getRecommendations(
 }
 
 // ==========================================================================
+// Provider Status
+// ==========================================================================
+
+export interface ProviderStatus {
+  name: string;
+  available: boolean;
+  reason?: string;
+}
+
+/**
+ * Get status of all AI providers
+ * Useful for debugging and status display
+ */
+export async function getProviderStatuses(): Promise<ProviderStatus[]> {
+  const statuses: ProviderStatus[] = [];
+
+  for (const provider of AI_PROVIDERS) {
+    try {
+      const available = await provider.isAvailable();
+      statuses.push({
+        name: provider.name,
+        available,
+        reason: available ? undefined : 'Rate limited or not configured',
+      });
+    } catch (error) {
+      statuses.push({
+        name: provider.name,
+        available: false,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  return statuses;
+}
+
+/**
+ * Check if primary AI (Gemini) is available
+ */
+export async function isPrimaryAIAvailable(): Promise<boolean> {
+  return GeminiProvider.isAvailable();
+}
+
+// ==========================================================================
 // Exports
 // ==========================================================================
 
 export * from './types';
+export * from './intent-parser';
 export { GeminiProvider } from './providers/gemini';
 export { TasteDiveProvider } from './providers/tastedive';
 export { TMDBProvider } from './providers/tmdb';

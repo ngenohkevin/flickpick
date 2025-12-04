@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 // Types
 // ==========================================================================
 
+export type RuntimeFilter = 'short' | 'medium' | 'long' | null;
+
 export interface FilterState {
   genres: number[];
   yearFrom: number | null;
@@ -17,7 +19,15 @@ export interface FilterState {
   ratingMin: number | null;
   language: string | null;
   provider: string | null;
+  runtime: RuntimeFilter;
 }
+
+// Runtime filter options with descriptions
+const RUNTIME_OPTIONS = [
+  { value: 'short' as const, label: 'Short', description: '< 90 min', maxMinutes: 90 },
+  { value: 'medium' as const, label: 'Medium', description: '90-150 min', minMinutes: 90, maxMinutes: 150 },
+  { value: 'long' as const, label: 'Long', description: '> 150 min', minMinutes: 150 },
+];
 
 interface FilterSidebarProps {
   filters: FilterState;
@@ -87,13 +97,19 @@ export function FilterSidebar({
     onFilterChange({ ...filters, provider: newProvider });
   };
 
+  const handleRuntimeChange = (value: RuntimeFilter) => {
+    const newRuntime = filters.runtime === value ? null : value;
+    onFilterChange({ ...filters, runtime: newRuntime });
+  };
+
   const hasActiveFilters =
     filters.genres.length > 0 ||
     filters.yearFrom !== null ||
     filters.yearTo !== null ||
     filters.ratingMin !== null ||
     filters.language !== null ||
-    filters.provider !== null;
+    filters.provider !== null ||
+    filters.runtime !== null;
 
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 100 }, (_, i) => currentYear - i);
@@ -216,6 +232,37 @@ export function FilterSidebar({
           </div>
         </div>
       </FilterSection>
+
+      {/* Runtime Filter (Movies only) */}
+      {(contentType === 'movie' || contentType === 'animation') && (
+        <FilterSection
+          title="Runtime"
+          isExpanded={expandedSections.has('runtime')}
+          onToggle={() => toggleSection('runtime')}
+          count={filters.runtime ? 1 : 0}
+        >
+          <div className="flex flex-wrap gap-2">
+            {RUNTIME_OPTIONS.map((option) => {
+              const isSelected = filters.runtime === option.value;
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => handleRuntimeChange(option.value)}
+                  className={cn(
+                    'flex flex-col items-center rounded-lg border px-4 py-2 transition-colors',
+                    isSelected
+                      ? 'border-accent-primary bg-accent-primary/10 text-accent-primary'
+                      : 'border-border-default bg-bg-tertiary text-text-secondary hover:border-border-strong hover:text-text-primary'
+                  )}
+                >
+                  <span className="text-sm font-medium">{option.label}</span>
+                  <span className="text-xs opacity-70">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </FilterSection>
+      )}
 
       {/* Language Filter */}
       <FilterSection
@@ -341,6 +388,17 @@ export function FilterSidebar({
                 </button>
               </span>
             )}
+            {filters.runtime && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent-primary/20 px-2 py-0.5 text-xs text-accent-primary">
+                {RUNTIME_OPTIONS.find(o => o.value === filters.runtime)?.label} runtime
+                <button
+                  onClick={() => handleRuntimeChange(filters.runtime)}
+                  className="hover:text-white"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -403,4 +461,8 @@ export const defaultFilters: FilterState = {
   ratingMin: null,
   language: null,
   provider: null,
+  runtime: null,
 };
+
+// Export runtime options for use in API
+export { RUNTIME_OPTIONS };

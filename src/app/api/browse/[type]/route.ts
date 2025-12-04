@@ -66,6 +66,14 @@ export async function GET(
     const provider = searchParams.get('provider') ?? undefined;
     const watchRegion = searchParams.get('watch_region') ?? 'US';
     const sortBy = (searchParams.get('sort_by') ?? 'popularity') as SortOption;
+    const runtime = searchParams.get('runtime') ?? undefined;
+
+    // Runtime filter mapping (in minutes)
+    const runtimeFilters: Record<string, { gte?: number; lte?: number }> = {
+      short: { lte: 90 },
+      medium: { gte: 90, lte: 150 },
+      long: { gte: 150 },
+    };
 
     // Build sort parameter based on type
     const sortMapping: Record<SortOption, { movie: MovieSortBy; tv: TVSortBy }> = {
@@ -78,6 +86,9 @@ export async function GET(
     // Determine if we're dealing with movies or TV
     const isMovieType = contentType === 'movie' || contentType === 'animation' || contentType === 'anime';
 
+    // Get runtime filter values if specified
+    const runtimeFilter = runtime && runtimeFilters[runtime] ? runtimeFilters[runtime] : null;
+
     // Build common filter params
     // Note: For animation/anime, genres are passed separately to combine with animation genre
     const baseParams = {
@@ -86,6 +97,14 @@ export async function GET(
       ...(ratingMin && { 'vote_count.gte': 50 }), // Require minimum votes when filtering by rating
       ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
     };
+
+    // Movie-specific params (runtime only works for movies)
+    const movieRuntimeParams = runtimeFilter
+      ? {
+          ...(runtimeFilter.gte && { 'with_runtime.gte': runtimeFilter.gte }),
+          ...(runtimeFilter.lte && { 'with_runtime.lte': runtimeFilter.lte }),
+        }
+      : {};
 
     // For movie/tv types, include genres in baseParams
     const baseParamsWithGenres = {
@@ -98,6 +117,7 @@ export async function GET(
     if (contentType === 'movie') {
       response = await discoverMovies({
         ...baseParamsWithGenres,
+        ...movieRuntimeParams,
         sort_by: sortMapping[sortBy].movie,
         ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
         ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
@@ -117,6 +137,7 @@ export async function GET(
           discoverAnimationMovies(
             {
               ...baseParams,
+              ...movieRuntimeParams,
               sort_by: sortMapping[sortBy].movie,
               ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
               ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
@@ -162,6 +183,7 @@ export async function GET(
         discoverAnimeMovies(
           {
             ...baseParams,
+            ...movieRuntimeParams,
             sort_by: sortMapping[sortBy].movie,
             ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
             ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
