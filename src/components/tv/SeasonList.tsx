@@ -57,7 +57,7 @@ export function SeasonList({ seasons, showId, showName, className = '' }: Season
       {hasMore && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border-default bg-bg-secondary px-4 py-3 font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-border-default bg-bg-secondary px-4 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary sm:py-3 sm:text-base"
         >
           {expanded ? (
             <>
@@ -115,14 +115,14 @@ function SeasonCard({ season, showId, showName }: SeasonCardProps) {
 
       {/* Info */}
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <h3 className="font-semibold text-text-primary group-hover:text-accent-primary">
+        <h3 className="text-sm font-semibold text-text-primary group-hover:text-accent-primary sm:text-base">
           {season.name}
         </h3>
 
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-text-tertiary">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-tertiary sm:gap-x-3 sm:text-sm">
           {year && (
             <span className="flex items-center gap-1">
-              <Calendar className="h-3.5 w-3.5" />
+              <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               {year}
             </span>
           )}
@@ -135,7 +135,7 @@ function SeasonCard({ season, showId, showName }: SeasonCardProps) {
 
         {/* Overview */}
         {season.overview && (
-          <p className="mt-2 line-clamp-2 text-sm text-text-secondary">
+          <p className="mt-1.5 line-clamp-2 text-xs text-text-secondary sm:mt-2 sm:text-sm">
             {season.overview}
           </p>
         )}

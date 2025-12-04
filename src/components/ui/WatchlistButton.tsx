@@ -48,12 +48,12 @@ export function WatchlistButton({
       <button
         onClick={handleClick}
         className={cn(
-          'inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20',
+          'inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base',
           isAnimating && 'scale-95',
           className
         )}
       >
-        <Heart className="h-5 w-5" />
+        <Heart className="h-4 w-4 sm:h-5 sm:w-5" />
         Add to Watchlist
       </button>
     );

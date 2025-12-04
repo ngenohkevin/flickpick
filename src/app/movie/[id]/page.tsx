@@ -218,29 +218,29 @@ export default async function MoviePage({ params }: MoviePageProps) {
               </div>
 
               {/* Title */}
-              <h1 className="text-3xl font-bold tracking-tight text-text-primary md:text-4xl lg:text-5xl">
+              <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl md:text-4xl lg:text-5xl">
                 {movie.title}
               </h1>
 
               {/* Tagline */}
               {movie.tagline && (
-                <p className="mt-3 text-lg italic text-text-secondary/90">
+                <p className="mt-2 text-sm italic text-text-secondary/90 sm:mt-3 sm:text-base md:text-lg">
                   &ldquo;{movie.tagline}&rdquo;
                 </p>
               )}
 
               {/* Key Stats */}
-              <div className="mt-6 flex flex-wrap items-center gap-6">
+              <div className="mt-4 flex flex-wrap items-center gap-3 sm:mt-6 sm:gap-6">
                 {/* Rating */}
                 {movie.vote_average > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 rounded-lg bg-warning/20 px-3 py-1.5">
-                      <Star className="h-5 w-5 fill-warning text-warning" />
-                      <span className="text-lg font-bold text-warning">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="flex items-center gap-1 rounded-lg bg-warning/20 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5">
+                      <Star className="h-4 w-4 fill-warning text-warning sm:h-5 sm:w-5" />
+                      <span className="text-base font-bold text-warning sm:text-lg">
                         {movie.vote_average.toFixed(1)}
                       </span>
                     </div>
-                    <span className="text-sm text-text-tertiary">
+                    <span className="text-xs text-text-tertiary sm:text-sm">
                       {movie.vote_count.toLocaleString()} votes
                     </span>
                   </div>
@@ -248,23 +248,23 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
                 {/* Year */}
                 {year && (
-                  <div className="flex items-center gap-1.5 text-text-secondary">
-                    <Calendar className="h-4 w-4" />
-                    <span className="font-medium">{year}</span>
+                  <div className="flex items-center gap-1 text-text-secondary sm:gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-sm font-medium sm:text-base">{year}</span>
                   </div>
                 )}
 
                 {/* Runtime */}
                 {movie.runtime && movie.runtime > 0 && (
-                  <div className="flex items-center gap-1.5 text-text-secondary">
-                    <Clock className="h-4 w-4" />
-                    <span className="font-medium">{formatRuntime(movie.runtime)}</span>
+                  <div className="flex items-center gap-1 text-text-secondary sm:gap-1.5">
+                    <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-sm font-medium sm:text-base">{formatRuntime(movie.runtime)}</span>
                   </div>
                 )}
               </div>
 
               {/* Director & Writer */}
-              <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs sm:mt-4 sm:gap-x-6 sm:gap-y-2 sm:text-sm">
                 {directors.length > 0 && (
                   <div>
                     <span className="text-text-tertiary">Directed by </span>
@@ -284,19 +284,19 @@ export default async function MoviePage({ params }: MoviePageProps) {
               </div>
 
               {/* Overview */}
-              <p className="mt-6 text-base leading-relaxed text-text-secondary md:text-lg">
+              <p className="mt-4 text-sm leading-relaxed text-text-secondary sm:mt-6 sm:text-base md:text-lg">
                 {movie.overview || 'No overview available.'}
               </p>
 
               {/* Action Buttons */}
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-2 sm:mt-8 sm:gap-3">
                 {/* Play Trailer Button */}
                 {trailerAvailable && (
                   <a
                     href="#trailer"
-                    className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                   >
-                    <Play className="h-5 w-5" fill="currentColor" />
+                    <Play className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" />
                     Watch Trailer
                   </a>
                 )}
@@ -313,7 +313,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 {/* Similar Button */}
                 <Link
                   href={`/similar/movie/${movie.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                 >
                   Find Similar
                 </Link>
@@ -341,9 +341,9 @@ export default async function MoviePage({ params }: MoviePageProps) {
           {/* Right: About the Movie */}
           <div className="space-y-6">
             {/* Quick Facts */}
-            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
-              <h2 className="text-lg font-semibold text-text-primary mb-4">About the Movie</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+              <h2 className="text-base font-semibold text-text-primary mb-3 sm:text-lg sm:mb-4">About the Movie</h2>
+              <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                 {movie.release_date && (
                   <DetailItem
                     icon={<Calendar className="h-4 w-4" />}
@@ -400,8 +400,8 @@ export default async function MoviePage({ params }: MoviePageProps) {
             </div>
 
             {/* External Links */}
-            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
-              <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+              <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3 sm:text-sm sm:mb-4">
                 External Links
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -441,8 +441,8 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
             {/* Keywords */}
             {movie.keywords && movie.keywords.length > 0 && (
-              <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
-                <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+              <div className="rounded-xl border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+                <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3 sm:text-sm sm:mb-4">
                   Keywords
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -516,13 +516,13 @@ interface DetailItemProps {
 
 function DetailItem({ icon, label, value }: DetailItemProps) {
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-tertiary text-text-tertiary">
+    <div className="flex items-start gap-2 sm:gap-3">
+      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-bg-tertiary text-text-tertiary sm:h-8 sm:w-8">
         {icon}
       </div>
       <div>
-        <p className="text-xs text-text-tertiary">{label}</p>
-        <p className="font-medium text-text-primary">{value}</p>
+        <p className="text-[10px] text-text-tertiary sm:text-xs">{label}</p>
+        <p className="text-sm font-medium text-text-primary sm:text-base">{value}</p>
       </div>
     </div>
   );

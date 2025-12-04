@@ -245,29 +245,29 @@ export default async function TVShowPage({ params }: TVPageProps) {
               </div>
 
               {/* Title */}
-              <h1 className="text-3xl font-bold tracking-tight text-text-primary md:text-4xl lg:text-5xl">
+              <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl md:text-4xl lg:text-5xl">
                 {show.name}
               </h1>
 
               {/* Tagline */}
               {show.tagline && (
-                <p className="mt-3 text-lg italic text-text-secondary/90">
+                <p className="mt-2 text-sm italic text-text-secondary/90 sm:mt-3 sm:text-base md:text-lg">
                   &ldquo;{show.tagline}&rdquo;
                 </p>
               )}
 
               {/* Key Stats */}
-              <div className="mt-6 flex flex-wrap items-center gap-6">
+              <div className="mt-4 flex flex-wrap items-center gap-3 sm:mt-6 sm:gap-6">
                 {/* Rating */}
                 {show.vote_average > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5 rounded-lg bg-warning/20 px-3 py-1.5">
-                      <Star className="h-5 w-5 fill-warning text-warning" />
-                      <span className="text-lg font-bold text-warning">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="flex items-center gap-1 rounded-lg bg-warning/20 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5">
+                      <Star className="h-4 w-4 fill-warning text-warning sm:h-5 sm:w-5" />
+                      <span className="text-base font-bold text-warning sm:text-lg">
                         {show.vote_average.toFixed(1)}
                       </span>
                     </div>
-                    <span className="text-sm text-text-tertiary">
+                    <span className="text-xs text-text-tertiary sm:text-sm">
                       {show.vote_count.toLocaleString()} votes
                     </span>
                   </div>
@@ -275,9 +275,9 @@ export default async function TVShowPage({ params }: TVPageProps) {
 
                 {/* Years */}
                 {startYear && (
-                  <div className="flex items-center gap-1.5 text-text-secondary">
-                    <Calendar className="h-4 w-4" />
-                    <span className="font-medium">
+                  <div className="flex items-center gap-1 text-text-secondary sm:gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-sm font-medium sm:text-base">
                       {endYear && endYear !== startYear
                         ? `${startYear} - ${endYear}`
                         : show.status === 'Ended'
@@ -288,16 +288,16 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 )}
 
                 {/* Seasons & Episodes */}
-                <div className="flex items-center gap-4 text-text-secondary">
-                  <div className="flex items-center gap-1.5">
-                    <Tv className="h-4 w-4" />
-                    <span className="font-medium">
+                <div className="flex items-center gap-2 text-text-secondary sm:gap-4">
+                  <div className="flex items-center gap-1 sm:gap-1.5">
+                    <Tv className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-sm font-medium sm:text-base">
                       {show.number_of_seasons} Season{show.number_of_seasons !== 1 ? 's' : ''}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Film className="h-4 w-4" />
-                    <span className="font-medium">
+                  <div className="flex items-center gap-1 sm:gap-1.5">
+                    <Film className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="text-sm font-medium sm:text-base">
                       {show.number_of_episodes} Episode{show.number_of_episodes !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -305,17 +305,17 @@ export default async function TVShowPage({ params }: TVPageProps) {
 
                 {/* Episode Runtime */}
                 {avgRuntime && avgRuntime > 0 && (
-                  <span className="text-sm text-text-tertiary">~{avgRuntime}m per episode</span>
+                  <span className="text-xs text-text-tertiary sm:text-sm">~{avgRuntime}m per episode</span>
                 )}
               </div>
 
               {/* Networks */}
               {show.networks && show.networks.length > 0 && (
-                <div className="mt-5 flex items-center gap-3">
+                <div className="mt-4 flex items-center gap-2 sm:mt-5 sm:gap-3">
                   {show.networks.slice(0, 4).map((network) => (
                     <div
                       key={network.id}
-                      className="flex h-9 items-center rounded-lg bg-white px-4"
+                      className="flex h-7 items-center rounded-lg bg-white px-2 sm:h-9 sm:px-4"
                       title={network.name}
                     >
                       {network.logo_path ? (
@@ -324,10 +324,10 @@ export default async function TVShowPage({ params }: TVPageProps) {
                           alt={network.name}
                           width={60}
                           height={24}
-                          className="h-5 w-auto object-contain"
+                          className="h-4 w-auto object-contain sm:h-5"
                         />
                       ) : (
-                        <span className="text-xs font-semibold text-gray-900">
+                        <span className="text-[10px] font-semibold text-gray-900 sm:text-xs">
                           {network.name}
                         </span>
                       )}
@@ -338,7 +338,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
 
               {/* Creators */}
               {show.created_by && show.created_by.length > 0 && (
-                <p className="mt-4 text-sm">
+                <p className="mt-3 text-xs sm:mt-4 sm:text-sm">
                   <span className="text-text-tertiary">Created by </span>
                   <span className="font-medium text-text-primary">
                     {show.created_by.map((c) => c.name).join(', ')}
@@ -347,19 +347,19 @@ export default async function TVShowPage({ params }: TVPageProps) {
               )}
 
               {/* Overview */}
-              <p className="mt-6 text-base leading-relaxed text-text-secondary md:text-lg">
+              <p className="mt-4 text-sm leading-relaxed text-text-secondary sm:mt-6 sm:text-base md:text-lg">
                 {show.overview || 'No overview available.'}
               </p>
 
               {/* Action Buttons */}
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-6 flex flex-wrap gap-2 sm:mt-8 sm:gap-3">
                 {/* Play Trailer Button */}
                 {trailerAvailable && (
                   <a
                     href="#trailer"
-                    className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                   >
-                    <Play className="h-5 w-5" fill="currentColor" />
+                    <Play className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" />
                     Watch Trailer
                   </a>
                 )}
@@ -376,7 +376,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 {/* Similar Button */}
                 <Link
                   href={`/similar/tv/${show.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-6 py-3 font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                 >
                   Find Similar
                 </Link>
@@ -404,9 +404,9 @@ export default async function TVShowPage({ params }: TVPageProps) {
           {/* Right: About the Show */}
           <div className="space-y-6">
             {/* Quick Facts */}
-            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
-              <h2 className="text-lg font-semibold text-text-primary mb-4">About the Show</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+              <h2 className="text-base font-semibold text-text-primary mb-3 sm:text-lg sm:mb-4">About the Show</h2>
+              <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
                 <DetailItem
                   icon={<Film className="h-4 w-4" />}
                   label="Status"
@@ -464,17 +464,17 @@ export default async function TVShowPage({ params }: TVPageProps) {
 
             {/* Next Episode Card */}
             {show.next_episode_to_air && (
-              <div className="rounded-xl border border-accent-primary/30 bg-accent-primary/5 p-6">
-                <h3 className="text-sm font-semibold text-accent-primary uppercase tracking-wider mb-3">
+              <div className="rounded-xl border border-accent-primary/30 bg-accent-primary/5 p-4 sm:p-6">
+                <h3 className="text-xs font-semibold text-accent-primary uppercase tracking-wider mb-2 sm:text-sm sm:mb-3">
                   Next Episode
                 </h3>
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
                   <div>
-                    <p className="text-lg font-semibold text-text-primary">
+                    <p className="text-base font-semibold text-text-primary sm:text-lg">
                       S{show.next_episode_to_air.season_number}E{show.next_episode_to_air.episode_number}: {show.next_episode_to_air.name}
                     </p>
                     {show.next_episode_to_air.air_date && (
-                      <p className="mt-1 text-sm text-text-secondary">
+                      <p className="mt-1 text-xs text-text-secondary sm:text-sm">
                         Airs{' '}
                         {new Date(show.next_episode_to_air.air_date).toLocaleDateString('en-US', {
                           weekday: 'long',
@@ -493,8 +493,8 @@ export default async function TVShowPage({ params }: TVPageProps) {
             )}
 
             {/* External Links */}
-            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
-              <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+            <div className="rounded-xl border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+              <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3 sm:text-sm sm:mb-4">
                 External Links
               </h3>
               <div className="flex flex-wrap gap-2">
@@ -523,8 +523,8 @@ export default async function TVShowPage({ params }: TVPageProps) {
 
             {/* Keywords */}
             {show.keywords && show.keywords.length > 0 && (
-              <div className="rounded-xl border border-border-subtle bg-bg-secondary p-6">
-                <h3 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-4">
+              <div className="rounded-xl border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+                <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3 sm:text-sm sm:mb-4">
                   Keywords
                 </h3>
                 <div className="flex flex-wrap gap-2">
@@ -608,13 +608,13 @@ interface DetailItemProps {
 
 function DetailItem({ icon, label, value }: DetailItemProps) {
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-tertiary text-text-tertiary">
+    <div className="flex items-start gap-2 sm:gap-3">
+      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-bg-tertiary text-text-tertiary sm:h-8 sm:w-8">
         {icon}
       </div>
       <div>
-        <p className="text-xs text-text-tertiary">{label}</p>
-        <p className="font-medium text-text-primary">{value}</p>
+        <p className="text-[10px] text-text-tertiary sm:text-xs">{label}</p>
+        <p className="text-sm font-medium text-text-primary sm:text-base">{value}</p>
       </div>
     </div>
   );
@@ -628,7 +628,7 @@ function CountdownBadge({ date }: { date: string }) {
 
   if (diffDays <= 0) {
     return (
-      <span className="rounded-lg bg-success/20 px-3 py-1.5 text-sm font-semibold text-success">
+      <span className="rounded-lg bg-success/20 px-2 py-1 text-xs font-semibold text-success sm:px-3 sm:py-1.5 sm:text-sm">
         Today
       </span>
     );
@@ -636,14 +636,14 @@ function CountdownBadge({ date }: { date: string }) {
 
   if (diffDays === 1) {
     return (
-      <span className="rounded-lg bg-warning/20 px-3 py-1.5 text-sm font-semibold text-warning">
+      <span className="rounded-lg bg-warning/20 px-2 py-1 text-xs font-semibold text-warning sm:px-3 sm:py-1.5 sm:text-sm">
         Tomorrow
       </span>
     );
   }
 
   return (
-    <span className="rounded-lg bg-bg-tertiary px-3 py-1.5 text-sm font-semibold text-text-secondary">
+    <span className="rounded-lg bg-bg-tertiary px-2 py-1 text-xs font-semibold text-text-secondary sm:px-3 sm:py-1.5 sm:text-sm">
       In {diffDays} days
     </span>
   );

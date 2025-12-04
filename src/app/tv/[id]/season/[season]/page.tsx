@@ -261,17 +261,17 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
               </div>
 
               {/* Title */}
-              <h1 className="text-3xl font-bold text-text-primary md:text-4xl">
+              <h1 className="text-2xl font-bold text-text-primary sm:text-3xl md:text-4xl">
                 {seasonInfo.name}
               </h1>
-              <p className="mt-1 text-lg text-text-secondary">{show.name}</p>
+              <p className="mt-1 text-base text-text-secondary sm:text-lg">{show.name}</p>
 
               {/* Metadata Row */}
-              <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-text-secondary">
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-text-secondary sm:mt-4 sm:gap-4 sm:text-sm">
                 {/* Air Date */}
                 {seasonInfo.air_date && (
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4" />
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     <span>
                       {new Date(seasonInfo.air_date).toLocaleDateString('en-US', {
                         year: 'numeric',
@@ -282,23 +282,23 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                 )}
 
                 {/* Episodes */}
-                <div className="flex items-center gap-1.5">
-                  <Tv className="h-4 w-4" />
+                <div className="flex items-center gap-1">
+                  <Tv className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span>{total} Episodes</span>
                 </div>
 
                 {/* Average Runtime */}
                 {avgRuntime && (
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" />
-                    <span>~{avgRuntime}m per episode</span>
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span>~{avgRuntime}m per ep</span>
                   </div>
                 )}
 
                 {/* Average Rating */}
                 {avgRating && avgRating > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <Star className="h-4 w-4 fill-warning text-warning" />
+                  <div className="flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5 fill-warning text-warning sm:h-4 sm:w-4" />
                     <span className="font-semibold text-text-primary">
                       {avgRating.toFixed(1)}
                     </span>
@@ -314,7 +314,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
               {/* Overview */}
               {seasonInfo.overview && (
-                <p className="mt-6 text-base leading-relaxed text-text-secondary">
+                <p className="mt-4 text-sm leading-relaxed text-text-secondary sm:mt-6 sm:text-base">
                   {seasonInfo.overview}
                 </p>
               )}
@@ -326,8 +326,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
       {/* Main Content */}
       <main className="container py-8 md:py-12">
         {/* Season Navigation */}
-        <div className="mb-8 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-text-primary sm:text-2xl">
+        <div className="mb-6 flex items-center justify-between sm:mb-8">
+          <h2 className="text-lg font-semibold text-text-primary sm:text-xl md:text-2xl">
             All Episodes
           </h2>
 
@@ -343,8 +343,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
         {/* Next Episode Highlight */}
         {nextEpisodeWithStatus && (
-          <div className="mb-8 rounded-lg border border-warning/30 bg-warning/10 p-4 sm:p-6">
-            <div className="flex items-start gap-4">
+          <div className="mb-6 rounded-lg border border-warning/30 bg-warning/10 p-3 sm:mb-8 sm:p-4 md:p-6">
+            <div className="flex items-start gap-3 sm:gap-4">
               {nextEpisodeWithStatus.still_path && (
                 <div className="relative hidden h-20 w-32 flex-shrink-0 overflow-hidden rounded sm:block">
                   <Image
@@ -357,14 +357,14 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-warning">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-warning sm:text-xs">
                   Next Episode
                 </p>
-                <h3 className="mt-1 font-semibold text-text-primary">
+                <h3 className="mt-1 text-sm font-semibold text-text-primary sm:text-base">
                   S{nextEpisodeWithStatus.season_number}E{nextEpisodeWithStatus.episode_number}: {nextEpisodeWithStatus.name}
                 </h3>
                 {nextEpisodeWithStatus.air_date && (
-                  <p className="mt-1 text-sm text-text-secondary">
+                  <p className="mt-1 text-xs text-text-secondary sm:text-sm">
                     Airs{' '}
                     {nextEpisodeWithStatus.days_until === 0
                       ? 'Today'
@@ -381,7 +381,7 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
                   </p>
                 )}
                 {nextEpisodeWithStatus.overview && (
-                  <p className="mt-2 line-clamp-2 text-sm text-text-tertiary">
+                  <p className="mt-1.5 line-clamp-2 text-xs text-text-tertiary sm:mt-2 sm:text-sm">
                     {nextEpisodeWithStatus.overview}
                   </p>
                 )}
@@ -407,8 +407,8 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
         {/* Episode Cards Grid (Alternative View for Small Screens) */}
         {episodes.length > 0 && (
-          <div className="mt-12 lg:hidden">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">Episode Gallery</h3>
+          <div className="mt-10 lg:hidden sm:mt-12">
+            <h3 className="mb-3 text-base font-semibold text-text-primary sm:mb-4 sm:text-lg">Episode Gallery</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               {episodes.slice(0, 6).map((episode) => (
                 <EpisodeCard key={episode.id} episode={episode} />
@@ -423,11 +423,11 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
         )}
 
         {/* Season Summary */}
-        <section className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="mt-10 grid gap-4 sm:mt-12 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {/* Status Card */}
-          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-            <h3 className="mb-4 text-lg font-semibold text-text-primary">Season Status</h3>
-            <dl className="space-y-3 text-sm">
+          <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+            <h3 className="mb-3 text-base font-semibold text-text-primary sm:mb-4 sm:text-lg">Season Status</h3>
+            <dl className="space-y-2 text-xs sm:space-y-3 sm:text-sm">
               <div className="flex justify-between">
                 <dt className="text-text-tertiary">Total Episodes</dt>
                 <dd className="font-medium text-text-primary">{total}</dd>
@@ -453,27 +453,27 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
           {/* Ratings Card */}
           {avgRating && avgRating > 0 && (
-            <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-              <h3 className="mb-4 text-lg font-semibold text-text-primary">Ratings</h3>
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-warning/10">
-                  <Star className="h-8 w-8 fill-warning text-warning" />
+            <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+              <h3 className="mb-3 text-base font-semibold text-text-primary sm:mb-4 sm:text-lg">Ratings</h3>
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 sm:h-16 sm:w-16">
+                  <Star className="h-6 w-6 fill-warning text-warning sm:h-8 sm:w-8" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold text-text-primary">{avgRating.toFixed(1)}</p>
-                  <p className="text-sm text-text-tertiary">Average Episode Rating</p>
+                  <p className="text-2xl font-bold text-text-primary sm:text-3xl">{avgRating.toFixed(1)}</p>
+                  <p className="text-xs text-text-tertiary sm:text-sm">Average Episode Rating</p>
                 </div>
               </div>
               {/* Top rated episode */}
               {episodesWithRating.length > 0 && (
-                <div className="mt-4 border-t border-border-subtle pt-4">
-                  <p className="text-xs text-text-tertiary">Highest Rated</p>
+                <div className="mt-3 border-t border-border-subtle pt-3 sm:mt-4 sm:pt-4">
+                  <p className="text-[10px] text-text-tertiary sm:text-xs">Highest Rated</p>
                   {(() => {
                     const topEp = [...episodesWithRating].sort(
                       (a, b) => b.vote_average - a.vote_average
                     )[0]!;
                     return (
-                      <p className="mt-1 text-sm text-text-primary">
+                      <p className="mt-1 text-xs text-text-primary sm:text-sm">
                         E{topEp.episode_number}: {topEp.name}
                         <span className="ml-2 text-warning">{topEp.vote_average.toFixed(1)}</span>
                       </p>
@@ -486,14 +486,14 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
 
           {/* Other Seasons Card */}
           {allSeasons.length > 1 && (
-            <div className="rounded-lg border border-border-subtle bg-bg-secondary p-6">
-              <h3 className="mb-4 text-lg font-semibold text-text-primary">Other Seasons</h3>
+            <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4 sm:p-6">
+              <h3 className="mb-3 text-base font-semibold text-text-primary sm:mb-4 sm:text-lg">Other Seasons</h3>
               <SeasonQuickNav
                 showId={showId}
                 currentSeason={seasonNum}
                 allSeasons={allSeasons}
               />
-              <p className="mt-4 text-sm text-text-tertiary">
+              <p className="mt-3 text-xs text-text-tertiary sm:mt-4 sm:text-sm">
                 {show.number_of_episodes} total episodes across {allSeasons.length} seasons
               </p>
             </div>
@@ -501,10 +501,10 @@ export default async function SeasonPage({ params }: SeasonPageProps) {
         </section>
 
         {/* Back to Show */}
-        <div className="mt-12 text-center">
+        <div className="mt-10 text-center sm:mt-12">
           <Link
             href={`/tv/${show.id}`}
-            className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-bg-tertiary"
+            className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-bg-tertiary sm:px-6 sm:py-3 sm:text-base"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to {show.name}

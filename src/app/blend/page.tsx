@@ -213,11 +213,11 @@ export default function BlendPage() {
                 </span>
               </div>
 
-              <h1 className="text-3xl font-bold tracking-tight text-text-primary sm:text-4xl lg:text-5xl">
+              <h1 className="text-2xl font-bold tracking-tight text-text-primary sm:text-3xl md:text-4xl lg:text-5xl">
                 Blend Your Favorites
               </h1>
 
-              <p className="mx-auto mt-4 max-w-xl text-base text-text-secondary sm:text-lg">
+              <p className="mx-auto mt-3 max-w-xl text-sm text-text-secondary sm:mt-4 sm:text-base md:text-lg">
                 Select 2-3 titles you love, and we&apos;ll find content that combines their best elements.
               </p>
             </div>

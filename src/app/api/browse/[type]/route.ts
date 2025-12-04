@@ -63,6 +63,7 @@ export async function GET(
     const yearFrom = searchParams.get('year_from') ?? undefined;
     const yearTo = searchParams.get('year_to') ?? undefined;
     const ratingMin = searchParams.get('rating_min') ?? undefined;
+    const language = searchParams.get('language') ?? undefined; // ISO 639-1 language code
     const provider = searchParams.get('provider') ?? undefined;
     const watchRegion = searchParams.get('watch_region') ?? 'US';
     const sortBy = (searchParams.get('sort_by') ?? 'popularity') as SortOption;
@@ -95,6 +96,7 @@ export async function GET(
       page,
       ...(ratingMin && { 'vote_average.gte': parseFloat(ratingMin) }),
       ...(ratingMin && { 'vote_count.gte': 50 }), // Require minimum votes when filtering by rating
+      ...(language && { with_original_language: language }),
       ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
     };
 

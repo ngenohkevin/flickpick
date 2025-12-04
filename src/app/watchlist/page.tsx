@@ -98,7 +98,7 @@ export default function WatchlistPage() {
   if (items.length === 0) {
     return (
       <main className="container py-8 md:py-12">
-        <h1 className="mb-8 text-3xl font-bold text-text-primary md:text-4xl">
+        <h1 className="mb-6 text-2xl font-bold text-text-primary sm:mb-8 sm:text-3xl md:text-4xl">
           My Watchlist
         </h1>
         <WatchlistEmpty />
@@ -109,12 +109,12 @@ export default function WatchlistPage() {
   return (
     <main className="container py-8 md:py-12">
       {/* Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-text-primary md:text-4xl">
+          <h1 className="text-2xl font-bold text-text-primary sm:text-3xl md:text-4xl">
             My Watchlist
           </h1>
-          <p className="mt-1 text-text-secondary">
+          <p className="mt-1 text-sm text-text-secondary sm:text-base">
             {items.length} {items.length === 1 ? 'title' : 'titles'} saved
           </p>
         </div>
@@ -123,14 +123,14 @@ export default function WatchlistPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={handlePickForMe}
-            className="inline-flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 font-medium text-white transition-colors hover:bg-accent-hover"
+            className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover sm:gap-2 sm:px-4 sm:text-base"
           >
             <Shuffle className="h-4 w-4" />
             Pick for me
           </button>
           <button
             onClick={() => setShowClearConfirm(true)}
-            className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-4 py-2 font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-error"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-error sm:gap-2 sm:px-4 sm:text-base"
           >
             <Trash2 className="h-4 w-4" />
             Clear all
@@ -140,8 +140,8 @@ export default function WatchlistPage() {
 
       {/* Picked Item Modal */}
       {pickedItem && (
-        <div className="mb-8 rounded-lg border border-accent-primary bg-accent-primary/5 p-4 sm:p-6">
-          <div className="flex items-start gap-4">
+        <div className="mb-6 rounded-lg border border-accent-primary bg-accent-primary/5 p-3 sm:mb-8 sm:p-4 md:p-6">
+          <div className="flex items-start gap-3 sm:gap-4">
             <div className="relative h-24 w-16 flex-shrink-0 overflow-hidden rounded-md sm:h-36 sm:w-24">
               <Image
                 src={getPosterUrl(pickedItem.poster_path, 'small')}
@@ -154,8 +154,8 @@ export default function WatchlistPage() {
             <div className="flex-1">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-medium text-accent-primary">Your pick for tonight:</p>
-                  <h2 className="text-xl font-semibold text-text-primary sm:text-2xl">
+                  <p className="text-xs font-medium text-accent-primary sm:text-sm">Your pick for tonight:</p>
+                  <h2 className="text-lg font-semibold text-text-primary sm:text-xl md:text-2xl">
                     {pickedItem.title}
                   </h2>
                   <span
@@ -175,18 +175,18 @@ export default function WatchlistPage() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2 sm:mt-4">
                 <Link
                   href={`/${pickedItem.media_type}/${pickedItem.id}`}
-                  className="inline-flex items-center gap-2 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
                 >
                   View Details
                 </Link>
                 <button
                   onClick={handlePickForMe}
-                  className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-secondary px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-bg-tertiary"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-3 py-1.5 text-xs font-medium text-text-primary transition-colors hover:bg-bg-tertiary sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
                 >
-                  <Shuffle className="h-4 w-4" />
+                  <Shuffle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   Pick another
                 </button>
               </div>

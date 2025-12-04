@@ -267,12 +267,12 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-text-primary sm:text-3xl">{title}</h1>
+              <h1 className="text-xl font-bold text-text-primary sm:text-2xl md:text-3xl">{title}</h1>
               {description && (
-                <p className="mt-1 text-text-secondary">{description}</p>
+                <p className="mt-1 text-sm text-text-secondary sm:text-base">{description}</p>
               )}
               {!isLoading && (
-                <p className="mt-1 text-sm text-text-tertiary">
+                <p className="mt-1 text-xs text-text-tertiary sm:text-sm">
                   {totalResults.toLocaleString()} results
                 </p>
               )}
