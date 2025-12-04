@@ -185,9 +185,41 @@ export default async function MoviePage({ params }: MoviePageProps) {
         )}
 
         {/* Content */}
-        <div className="container relative z-10 flex items-end pb-8 pt-24 md:pb-12">
-          <div className="flex flex-col gap-8 md:flex-row md:gap-10">
-            {/* Poster */}
+        <div className="container relative z-10 pb-6 pt-20 sm:pb-8 sm:pt-24 md:pb-12">
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:gap-10">
+            {/* Mobile Poster + Info Row */}
+            <div className="flex gap-4 md:hidden">
+              <div className="relative aspect-[2/3] w-28 flex-shrink-0 overflow-hidden rounded-lg shadow-xl ring-1 ring-white/10 sm:w-36">
+                <Image
+                  src={posterUrl}
+                  alt={movie.title}
+                  fill
+                  priority
+                  className="object-cover"
+                  sizes="144px"
+                />
+              </div>
+              {/* Mobile Quick Info */}
+              <div className="flex flex-col justify-end">
+                <ContentTypeBadge type={contentType} />
+                {movie.vote_average > 0 && (
+                  <div className="mt-2 flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-warning text-warning" />
+                    <span className="text-sm font-bold text-warning">
+                      {movie.vote_average.toFixed(1)}
+                    </span>
+                  </div>
+                )}
+                {year && (
+                  <p className="mt-1 text-xs text-text-secondary">{year}</p>
+                )}
+                {movie.runtime && movie.runtime > 0 && (
+                  <p className="text-xs text-text-secondary">{formatRuntime(movie.runtime)}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop Poster */}
             <div className="hidden flex-shrink-0 md:block">
               <div className="relative aspect-[2/3] w-64 overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10 lg:w-80">
                 <Image
@@ -203,14 +235,26 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
             {/* Info */}
             <div className="max-w-2xl">
-              {/* Content Type Badge & Genres */}
-              <div className="mb-4 flex flex-wrap items-center gap-2">
+              {/* Content Type Badge & Genres - Hidden on mobile (shown in poster section) */}
+              <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
                 <ContentTypeBadge type={contentType} />
                 {movie.genres?.slice(0, 3).map((genre) => (
                   <Link
                     key={genre.id}
                     href={`/genre/movie/${genre.name.toLowerCase()}`}
                     className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
+                  >
+                    {genre.name}
+                  </Link>
+                ))}
+              </div>
+              {/* Mobile Genres */}
+              <div className="mb-3 flex flex-wrap gap-1.5 md:hidden">
+                {movie.genres?.slice(0, 3).map((genre) => (
+                  <Link
+                    key={genre.id}
+                    href={`/genre/movie/${genre.name.toLowerCase()}`}
+                    className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
                   >
                     {genre.name}
                   </Link>
@@ -229,18 +273,18 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 </p>
               )}
 
-              {/* Key Stats */}
-              <div className="mt-4 flex flex-wrap items-center gap-3 sm:mt-6 sm:gap-6">
+              {/* Key Stats - Hidden on mobile (shown in poster section) */}
+              <div className="mt-6 hidden flex-wrap items-center gap-6 md:flex">
                 {/* Rating */}
                 {movie.vote_average > 0 && (
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="flex items-center gap-1 rounded-lg bg-warning/20 px-2 py-1 sm:gap-1.5 sm:px-3 sm:py-1.5">
-                      <Star className="h-4 w-4 fill-warning text-warning sm:h-5 sm:w-5" />
-                      <span className="text-base font-bold text-warning sm:text-lg">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 rounded-lg bg-warning/20 px-3 py-1.5">
+                      <Star className="h-5 w-5 fill-warning text-warning" />
+                      <span className="text-lg font-bold text-warning">
                         {movie.vote_average.toFixed(1)}
                       </span>
                     </div>
-                    <span className="text-xs text-text-tertiary sm:text-sm">
+                    <span className="text-sm text-text-tertiary">
                       {movie.vote_count.toLocaleString()} votes
                     </span>
                   </div>
@@ -248,17 +292,17 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
                 {/* Year */}
                 {year && (
-                  <div className="flex items-center gap-1 text-text-secondary sm:gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="text-sm font-medium sm:text-base">{year}</span>
+                  <div className="flex items-center gap-1.5 text-text-secondary">
+                    <Calendar className="h-4 w-4" />
+                    <span className="font-medium">{year}</span>
                   </div>
                 )}
 
                 {/* Runtime */}
                 {movie.runtime && movie.runtime > 0 && (
-                  <div className="flex items-center gap-1 text-text-secondary sm:gap-1.5">
-                    <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                    <span className="text-sm font-medium sm:text-base">{formatRuntime(movie.runtime)}</span>
+                  <div className="flex items-center gap-1.5 text-text-secondary">
+                    <Clock className="h-4 w-4" />
+                    <span className="font-medium">{formatRuntime(movie.runtime)}</span>
                   </div>
                 )}
               </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Tv, LayoutGrid, List, Filter, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
@@ -82,6 +82,32 @@ export function NewShowsPageContent() {
   // Watchlist
   const watchlist = useWatchlist();
   const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => item.id));
+
+  // Scroll direction for auto-hide sticky bar
+  const [isBarVisible, setIsBarVisible] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const scrollThreshold = 100; // Start checking after scrolling 100px
+
+      if (currentScrollY < scrollThreshold) {
+        setIsBarVisible(true);
+      } else if (currentScrollY > lastScrollY.current) {
+        // Scrolling down
+        setIsBarVisible(false);
+      } else {
+        // Scrolling up
+        setIsBarVisible(true);
+      }
+
+      lastScrollY.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // ==========================================================================
   // Data Fetching
@@ -244,8 +270,13 @@ export function NewShowsPageContent() {
         </div>
       </div>
 
-      {/* Controls Bar */}
-      <div className="sticky top-16 z-30 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-lg">
+      {/* Controls Bar with auto-hide */}
+      <div
+        className={cn(
+          'sticky top-16 z-30 border-b border-border-subtle bg-bg-primary/80 backdrop-blur-lg transition-transform duration-300',
+          isBarVisible ? 'translate-y-0' : '-translate-y-full'
+        )}
+      >
         <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
