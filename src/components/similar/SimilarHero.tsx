@@ -2,10 +2,9 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { ContentPoster } from '@/components/content/ContentPoster';
 import { ContentRating } from '@/components/content/ContentRating';
-import { ContentTypeBadge, Button } from '@/components/ui';
+import { ContentTypeBadge } from '@/components/ui';
 import { getBackdropUrl, extractYear, formatRuntime, cn } from '@/lib/utils';
 import type { ContentType, Genre } from '@/types';
 
@@ -87,15 +86,6 @@ export function SimilarHero({
 
       {/* Content */}
       <div className="container relative pb-8 pt-24 sm:pb-12 sm:pt-32">
-        {/* Back Link */}
-        <Link
-          href={detailHref}
-          className="mb-6 inline-flex items-center gap-2 text-sm text-text-secondary transition-colors hover:text-text-primary"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to {title}
-        </Link>
-
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:gap-10">
           {/* Poster (hidden on mobile) */}
           <div className="hidden w-48 flex-shrink-0 lg:block">

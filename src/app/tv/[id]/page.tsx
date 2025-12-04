@@ -192,10 +192,10 @@ export default async function TVShowPage({ params }: TVPageProps) {
       />
 
       {/* Hero Section */}
-      <section className="relative min-h-[70vh] md:min-h-[80vh]">
+      <section className="relative">
         {/* Backdrop Image */}
         {backdropUrl && (
-          <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 z-0 h-full">
             <Image
               src={backdropUrl}
               alt=""
@@ -211,7 +211,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
         )}
 
         {/* Content */}
-        <div className="container relative z-10 flex min-h-[70vh] items-end pb-12 pt-24 md:min-h-[80vh] md:pb-16">
+        <div className="container relative z-10 flex items-end pb-8 pt-24 md:pb-12">
           <div className="flex flex-col gap-8 md:flex-row md:gap-10">
             {/* Poster */}
             <div className="hidden flex-shrink-0 md:block">
