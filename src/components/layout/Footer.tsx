@@ -4,7 +4,7 @@
 // ==========================================================================
 
 import Link from 'next/link';
-import { Github } from 'lucide-react';
+import { Github, Heart } from 'lucide-react';
 
 // ==========================================================================
 // Footer Links
@@ -68,7 +68,7 @@ export function Footer() {
             {/* Social Links */}
             <div className="mt-6 flex gap-4">
               <a
-                href="https://github.com"
+                href="https://github.com/ngenohkevin"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-text-tertiary transition-colors hover:text-text-primary"
@@ -111,9 +111,17 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Copyright */}
-          <p className="text-xs text-text-tertiary">
-            &copy; {currentYear} FlickPick. Built with Next.js & Tailwind CSS.
+          {/* Built by */}
+          <p className="flex items-center gap-1 text-xs text-text-tertiary">
+            Built with <Heart className="h-3 w-3 fill-red-500 text-red-500" /> by{' '}
+            <a
+              href="https://github.com/ngenohkevin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-text-secondary hover:text-accent-primary"
+            >
+              Kevin
+            </a>
           </p>
         </div>
       </div>
