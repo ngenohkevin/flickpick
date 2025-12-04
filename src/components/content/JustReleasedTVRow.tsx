@@ -2,9 +2,11 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Tv, Play, Plus, Check, Calendar, Sparkles, CheckCircle2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight, Tv, Plus, Heart, Calendar, Sparkles, CheckCircle2 } from 'lucide-react';
 import { ContentPoster } from './ContentPoster';
 import { ContentRating } from './ContentRating';
+import { Tooltip, useToast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import type { TVShow } from '@/types';
 
@@ -184,12 +186,26 @@ function JustReleasedTVCard({
   onWatchlistToggle,
   className = '',
 }: JustReleasedTVCardProps) {
+  const router = useRouter();
+  const { addToast } = useToast();
   const detailUrl = `/tv/${show.id}`;
+  const similarUrl = `/similar/tv/${show.id}`;
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onWatchlistToggle?.(show);
+    addToast({
+      type: 'info',
+      title: 'Coming Soon',
+      message: 'Watchlist feature is coming soon!',
+      duration: 3000,
+    });
+  };
+
+  const handleSimilarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(similarUrl);
   };
 
   // Format the latest episode info
@@ -242,21 +258,32 @@ function JustReleasedTVCard({
 
           {/* Quick Actions (visible on hover) */}
           <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
-            <button
-              onClick={handleWatchlistClick}
-              className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-                isInWatchlist
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-white/20 text-white hover:bg-white/30'
-              )}
-              aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-            >
-              {isInWatchlist ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-            </button>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30">
-              <Play className="h-5 w-5" />
-            </span>
+            {/* Find Similar Button */}
+            <Tooltip content="Find Similar" position="top">
+              <button
+                onClick={handleSimilarClick}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-colors hover:bg-badge-tv"
+                aria-label="Find similar shows"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </Tooltip>
+
+            {/* Watchlist Button */}
+            <Tooltip content={isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'} position="top">
+              <button
+                onClick={handleWatchlistClick}
+                className={cn(
+                  'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
+                  isInWatchlist
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                )}
+                aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+              >
+                <Heart className={cn('h-5 w-5', isInWatchlist && 'fill-current')} />
+              </button>
+            </Tooltip>
           </div>
 
           {/* Status Badge (top-left) - NEW, COMPLETE, or Episode */}

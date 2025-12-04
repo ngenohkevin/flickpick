@@ -45,3 +45,6 @@ export {
   TabContent,
   SimpleTabs,
 } from './Tabs';
+
+// Tooltip
+export { Tooltip } from './Tooltip';

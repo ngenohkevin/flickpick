@@ -1,4 +1,8 @@
+'use client';
+
+import { useState } from 'react';
 import Image from 'next/image';
+import { Film } from 'lucide-react';
 import { getPosterUrl } from '@/lib/utils';
 
 // ==========================================================================
@@ -23,6 +27,26 @@ const POSTER_DIMENSIONS = {
   large: { width: 500, height: 750 },
 };
 
+const BLUR_DATA_URL = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABQODxIPDRQSEBIXFRQdHx4eHRoaHSQtJSEkMjU1LC0yMi4xODY6NT04Mj4+QUlBR0pHPklKWlpYXlpgYGBg/2wBDAVUXFx4aHh4gIB4kJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJD/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWERM0teleL/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABkRAAIDAQAAAAAAAAAAAAAAAAABAhExQf/aAAwDAQACEQMRAD8AoZ9EYm0klsLGzkJkUMzPlFJPABsemIopYogACigK0Kf/2Q==";
+
+// Placeholder component shown when image fails to load
+function PosterPlaceholder({
+  className = '',
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-center bg-bg-tertiary ${className}`}
+      style={style}
+    >
+      <Film className="h-12 w-12 text-text-tertiary" />
+    </div>
+  );
+}
+
 export function ContentPoster({
   path,
   alt,
@@ -33,8 +57,22 @@ export function ContentPoster({
   width,
   height,
 }: ContentPosterProps) {
+  const [hasError, setHasError] = useState(false);
   const url = getPosterUrl(path, size);
   const dimensions = POSTER_DIMENSIONS[size];
+
+  // Show placeholder if no path or if image failed to load
+  if (!path || hasError) {
+    if (fill) {
+      return <PosterPlaceholder className={`absolute inset-0 ${className}`} />;
+    }
+    return (
+      <PosterPlaceholder
+        className={`${className}`}
+        style={{ width: width ?? dimensions.width, height: height ?? dimensions.height }}
+      />
+    );
+  }
 
   // Use fill mode for responsive containers
   if (fill) {
@@ -47,7 +85,8 @@ export function ContentPoster({
         priority={priority}
         className={`object-cover ${className}`}
         placeholder="blur"
-        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABQODxIPDRQSEBIXFRQdHx4eHRoaHSQtJSEkMjU1LC0yMi4xODY6NT04Mj4+QUlBR0pHPklKWlpYXlpgYGBg/2wBDAVUXFx4aHh4gIB4kJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJD/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWERM0teleL/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABkRAAIDAQAAAAAAAAAAAAAAAAABAhExQf/aAAwDAQACEQMRAD8AoZ9EYm0klsLGzkJkUMzPlFJPABsemIopYogACigK0Kf/2Q=="
+        blurDataURL={BLUR_DATA_URL}
+        onError={() => setHasError(true)}
       />
     );
   }
@@ -62,7 +101,8 @@ export function ContentPoster({
       priority={priority}
       className={`object-cover ${className}`}
       placeholder="blur"
-      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABQODxIPDRQSEBIXFRQdHx4eHRoaHSQtJSEkMjU1LC0yMi4xODY6NT04Mj4+QUlBR0pHPklKWlpYXlpgYGBg/2wBDAVUXFx4aHh4gIB4kJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJD/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWERM0teleL/xAAVAQEBAAAAAAAAAAAAAAAAAAAAAf/EABkRAAIDAQAAAAAAAAAAAAAAAAABAhExQf/aAAwDAQACEQMRAD8AoZ9EYm0klsLGzkJkUMzPlFJPABsemIopYogACigK0Kf/2Q=="
+      blurDataURL={BLUR_DATA_URL}
+      onError={() => setHasError(true)}
     />
   );
 }

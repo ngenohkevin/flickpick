@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { Play, Plus, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Heart } from 'lucide-react';
 import { ContentPoster } from './ContentPoster';
 import { ContentRating } from './ContentRating';
-import { ContentTypeBadge } from '@/components/ui';
+import { ContentTypeBadge, Tooltip, useToast } from '@/components/ui';
 import {
   getContentTitle,
   getContentReleaseDate,
@@ -49,16 +50,29 @@ export function ContentCard({
   const contentType = getContentType(content);
   const isNew = showNewBadge && isWithinHours(releaseDate, 48);
 
-  // Build the detail page URL
-  const detailUrl =
-    content.media_type === 'tv' || 'first_air_date' in content
-      ? `/tv/${content.id}`
-      : `/movie/${content.id}`;
+  // Build URLs
+  const isTV = content.media_type === 'tv' || 'first_air_date' in content;
+  const detailUrl = isTV ? `/tv/${content.id}` : `/movie/${content.id}`;
+  const similarUrl = isTV ? `/similar/tv/${content.id}` : `/similar/movie/${content.id}`;
+
+  const router = useRouter();
+  const { addToast } = useToast();
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    onWatchlistToggle?.(content);
+    addToast({
+      type: 'info',
+      title: 'Coming Soon',
+      message: 'Watchlist feature is coming soon!',
+      duration: 3000,
+    });
+  };
+
+  const handleSimilarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(similarUrl);
   };
 
   return (
@@ -86,21 +100,32 @@ export function ContentCard({
 
           {/* Quick Actions (visible on hover) */}
           <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-200 group-hover/card:opacity-100">
-            <button
-              onClick={handleWatchlistClick}
-              className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-                isInWatchlist
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-white/20 text-white hover:bg-white/30'
-              )}
-              aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-            >
-              {isInWatchlist ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-            </button>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30">
-              <Play className="h-5 w-5" />
-            </span>
+            {/* Find Similar Button */}
+            <Tooltip content="Find Similar" position="top">
+              <button
+                onClick={handleSimilarClick}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-colors hover:bg-accent-primary"
+                aria-label="Find similar content"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </Tooltip>
+
+            {/* Watchlist Button */}
+            <Tooltip content={isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'} position="top">
+              <button
+                onClick={handleWatchlistClick}
+                className={cn(
+                  'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
+                  isInWatchlist
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                )}
+                aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+              >
+                <Heart className={cn('h-5 w-5', isInWatchlist && 'fill-current')} />
+              </button>
+            </Tooltip>
           </div>
 
           {/* Badges */}

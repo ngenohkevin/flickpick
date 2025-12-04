@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Plus, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Plus, Heart } from 'lucide-react';
 import { EpisodeProgressBar, EpisodeStatusBadge, NextEpisodeInfo } from './EpisodeProgressBar';
 import { ContentPoster } from '@/components/content/ContentPoster';
+import { Tooltip } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { TMDB_IMAGE_BASE_URL } from '@/lib/constants';
 import type { TVShow, EpisodeStatus } from '@/types';
@@ -39,10 +41,19 @@ export function TVShowCard({
   onWatchlistToggle,
   className = '',
 }: TVShowCardProps) {
+  const router = useRouter();
+  const similarUrl = `/similar/tv/${show.id}`;
+
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onWatchlistToggle?.(show);
+  };
+
+  const handleSimilarClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(similarUrl);
   };
 
   return (
@@ -70,18 +81,32 @@ export function TVShowCard({
 
           {/* Quick Actions (visible on hover) */}
           <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            <button
-              onClick={handleWatchlistClick}
-              className={cn(
-                'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-                isInWatchlist
-                  ? 'bg-accent-primary text-white'
-                  : 'bg-white/20 text-white hover:bg-white/30'
-              )}
-              aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
-            >
-              {isInWatchlist ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-            </button>
+            {/* Find Similar Button */}
+            <Tooltip content="Find Similar" position="top">
+              <button
+                onClick={handleSimilarClick}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-colors hover:bg-accent-primary"
+                aria-label="Find similar shows"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </Tooltip>
+
+            {/* Watchlist Button */}
+            <Tooltip content={isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'} position="top">
+              <button
+                onClick={handleWatchlistClick}
+                className={cn(
+                  'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
+                  isInWatchlist
+                    ? 'bg-accent-primary text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                )}
+                aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+              >
+                <Heart className={cn('h-5 w-5', isInWatchlist && 'fill-current')} />
+              </button>
+            </Tooltip>
           </div>
 
           {/* Status Badge */}

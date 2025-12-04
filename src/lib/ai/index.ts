@@ -4,6 +4,8 @@
 // ==========================================================================
 
 import { GeminiProvider } from './providers/gemini';
+import { TasteDiveProvider } from './providers/tastedive';
+import { TMDBProvider } from './providers/tmdb';
 import { searchMovies, searchTVShows } from '@/lib/tmdb/search';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import type { AIProvider, AIRecommendation, EnrichedRecommendation } from './types';
@@ -16,12 +18,16 @@ import type { ContentType } from '@/types';
 /**
  * Ordered list of AI providers (fallback chain)
  * When primary fails, try the next one
+ *
+ * Chain order:
+ * 1. Gemini - Primary AI for natural language understanding
+ * 2. TasteDive - Secondary, extracts titles and finds similar content
+ * 3. TMDB - Ultimate fallback, uses keyword→genre mapping + discover
  */
 const AI_PROVIDERS: AIProvider[] = [
   GeminiProvider,
-  // Future providers can be added here:
-  // GroqProvider,
-  // OpenAIProvider,
+  TasteDiveProvider,
+  TMDBProvider,
 ];
 
 // ==========================================================================
@@ -272,3 +278,5 @@ export async function getRecommendations(
 
 export * from './types';
 export { GeminiProvider } from './providers/gemini';
+export { TasteDiveProvider } from './providers/tastedive';
+export { TMDBProvider } from './providers/tmdb';

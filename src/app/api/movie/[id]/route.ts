@@ -10,8 +10,9 @@ import {
   getRelatedMovies,
   type TMDBMovie,
 } from '@/lib/tmdb/movies';
+import { getCached, cacheKeys } from '@/lib/redis';
+import { CACHE_TTL, ANIMATION_GENRE_ID } from '@/lib/constants';
 import type { ApiError, ContentType, Credits, Video, ProvidersByCountry } from '@/types';
-import { ANIMATION_GENRE_ID } from '@/lib/constants';
 
 // ==========================================================================
 // Types
@@ -77,51 +78,58 @@ export async function GET(
   }
 
   try {
-    // Fetch movie details and related movies in parallel
-    const [movieData, relatedMovies] = await Promise.all([
-      getMovieDetailsExtended(movieId),
-      getRelatedMovies(movieId),
-    ]);
+    // Use Redis cache for movie details
+    const response = await getCached<MovieResponse>(
+      cacheKeys.movie(movieId),
+      async () => {
+        // Fetch movie details and related movies in parallel
+        const [movieData, relatedMovies] = await Promise.all([
+          getMovieDetailsExtended(movieId),
+          getRelatedMovies(movieId),
+        ]);
 
-    // Determine content type
-    const contentType = getMovieContentType(movieData);
+        // Determine content type
+        const contentType = getMovieContentType(movieData);
 
-    // Format similar movies
-    const similar = relatedMovies.slice(0, 12).map((movie) => ({
-      id: movie.id,
-      title: movie.title,
-      poster_path: movie.poster_path,
-      release_date: movie.release_date,
-      vote_average: movie.vote_average,
-      content_type: getMovieContentType(movie),
-    }));
+        // Format similar movies
+        const similar = relatedMovies.slice(0, 12).map((movie) => ({
+          id: movie.id,
+          title: movie.title,
+          poster_path: movie.poster_path,
+          release_date: movie.release_date,
+          vote_average: movie.vote_average,
+          content_type: getMovieContentType(movie),
+        }));
 
-    const response: MovieResponse = {
-      id: movieData.id,
-      title: movieData.title,
-      original_title: movieData.original_title,
-      overview: movieData.overview,
-      tagline: movieData.tagline ?? null,
-      poster_path: movieData.poster_path,
-      backdrop_path: movieData.backdrop_path,
-      release_date: movieData.release_date,
-      runtime: movieData.runtime ?? null,
-      vote_average: movieData.vote_average,
-      vote_count: movieData.vote_count,
-      popularity: movieData.popularity,
-      genres: movieData.genres ?? [],
-      keywords: movieData.keywords ?? [],
-      credits: movieData.credits,
-      videos: movieData.videos ?? [],
-      providers: movieData.providers ?? {},
-      content_type: contentType,
-      budget: movieData.budget ?? null,
-      revenue: movieData.revenue ?? null,
-      status: movieData.status ?? null,
-      imdb_id: movieData.imdb_id ?? null,
-      homepage: movieData.homepage ?? null,
-      similar,
-    };
+        return {
+          id: movieData.id,
+          title: movieData.title,
+          original_title: movieData.original_title,
+          overview: movieData.overview,
+          tagline: movieData.tagline ?? null,
+          poster_path: movieData.poster_path,
+          backdrop_path: movieData.backdrop_path,
+          release_date: movieData.release_date,
+          runtime: movieData.runtime ?? null,
+          vote_average: movieData.vote_average,
+          vote_count: movieData.vote_count,
+          popularity: movieData.popularity,
+          genres: movieData.genres ?? [],
+          keywords: movieData.keywords ?? [],
+          credits: movieData.credits,
+          videos: movieData.videos ?? [],
+          providers: movieData.providers ?? {},
+          content_type: contentType,
+          budget: movieData.budget ?? null,
+          revenue: movieData.revenue ?? null,
+          status: movieData.status ?? null,
+          imdb_id: movieData.imdb_id ?? null,
+          homepage: movieData.homepage ?? null,
+          similar,
+        };
+      },
+      CACHE_TTL.MOVIE_DETAILS
+    );
 
     return NextResponse.json(response);
   } catch (error) {

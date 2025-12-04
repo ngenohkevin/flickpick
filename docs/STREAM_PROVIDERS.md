@@ -1,5 +1,7 @@
 # Stream Provider Integration
 
+> **Main Reference:** [../CLAUDE.md](../CLAUDE.md) - Contains overview, design system, architecture, project structure, and roadmap.
+
 FlickPick integrates with multiple Stremio addon APIs to verify content availability. This ensures that only movies and TV shows with actual digital releases (WEB-DL, BluRay, etc.) are displayed to users - not theatrical-only releases or low-quality CAM/TS copies.
 
 ## Overview

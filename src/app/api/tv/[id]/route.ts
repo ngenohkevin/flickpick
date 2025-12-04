@@ -10,8 +10,9 @@ import {
   getRelatedTVShows,
   type TMDBTVShow,
 } from '@/lib/tmdb/tv';
+import { getCached, cacheKeys } from '@/lib/redis';
+import { CACHE_TTL, ANIMATION_GENRE_ID } from '@/lib/constants';
 import type { ApiError, ContentType, Credits, Video, ProvidersByCountry, Season, Network, Creator } from '@/types';
-import { ANIMATION_GENRE_ID } from '@/lib/constants';
 
 // ==========================================================================
 // Types
@@ -96,87 +97,94 @@ export async function GET(
   }
 
   try {
-    // Fetch TV show details and related shows in parallel
-    const [showData, relatedShows] = await Promise.all([
-      getTVShowDetailsExtended(showId),
-      getRelatedTVShows(showId),
-    ]);
+    // Use Redis cache for TV show details
+    const response = await getCached<TVShowResponse>(
+      cacheKeys.tv(showId),
+      async () => {
+        // Fetch TV show details and related shows in parallel
+        const [showData, relatedShows] = await Promise.all([
+          getTVShowDetailsExtended(showId),
+          getRelatedTVShows(showId),
+        ]);
 
-    // Determine content type
-    const contentType = getTVShowContentType(showData);
+        // Determine content type
+        const contentType = getTVShowContentType(showData);
 
-    // Format seasons (filter out season 0 / specials for main list)
-    const seasons: Season[] = (showData.seasons ?? [])
-      .filter((s) => s.season_number > 0)
-      .map((s) => ({
-        id: s.id,
-        name: s.name,
-        overview: s.overview,
-        poster_path: s.poster_path,
-        season_number: s.season_number,
-        episode_count: s.episode_count,
-        air_date: s.air_date,
-      }));
+        // Format seasons (filter out season 0 / specials for main list)
+        const seasons: Season[] = (showData.seasons ?? [])
+          .filter((s) => s.season_number > 0)
+          .map((s) => ({
+            id: s.id,
+            name: s.name,
+            overview: s.overview,
+            poster_path: s.poster_path,
+            season_number: s.season_number,
+            episode_count: s.episode_count,
+            air_date: s.air_date,
+          }));
 
-    // Format similar shows
-    const similar = relatedShows.slice(0, 12).map((show) => ({
-      id: show.id,
-      name: show.name,
-      poster_path: show.poster_path,
-      first_air_date: show.first_air_date,
-      vote_average: show.vote_average,
-      content_type: getTVShowContentType(show),
-    }));
+        // Format similar shows
+        const similar = relatedShows.slice(0, 12).map((show) => ({
+          id: show.id,
+          name: show.name,
+          poster_path: show.poster_path,
+          first_air_date: show.first_air_date,
+          vote_average: show.vote_average,
+          content_type: getTVShowContentType(show),
+        }));
 
-    const response: TVShowResponse = {
-      id: showData.id,
-      name: showData.name,
-      original_name: showData.original_name,
-      overview: showData.overview,
-      tagline: showData.tagline ?? null,
-      poster_path: showData.poster_path,
-      backdrop_path: showData.backdrop_path,
-      first_air_date: showData.first_air_date,
-      last_air_date: showData.last_air_date ?? null,
-      status: showData.status,
-      type: showData.type ?? null,
-      number_of_seasons: showData.number_of_seasons,
-      number_of_episodes: showData.number_of_episodes,
-      episode_run_time: showData.episode_run_time ?? [],
-      vote_average: showData.vote_average,
-      vote_count: showData.vote_count,
-      popularity: showData.popularity,
-      genres: showData.genres ?? [],
-      keywords: showData.keywords ?? [],
-      credits: showData.credits,
-      videos: showData.videos ?? [],
-      providers: showData.providers ?? {},
-      content_type: contentType,
-      networks: showData.networks ?? [],
-      created_by: showData.created_by ?? [],
-      seasons,
-      in_production: showData.in_production ?? false,
-      homepage: showData.homepage ?? null,
-      next_episode_to_air: showData.next_episode_to_air
-        ? {
-            id: showData.next_episode_to_air.id,
-            name: showData.next_episode_to_air.name,
-            air_date: showData.next_episode_to_air.air_date,
-            episode_number: showData.next_episode_to_air.episode_number,
-            season_number: showData.next_episode_to_air.season_number,
-          }
-        : null,
-      last_episode_to_air: showData.last_episode_to_air
-        ? {
-            id: showData.last_episode_to_air.id,
-            name: showData.last_episode_to_air.name,
-            air_date: showData.last_episode_to_air.air_date,
-            episode_number: showData.last_episode_to_air.episode_number,
-            season_number: showData.last_episode_to_air.season_number,
-          }
-        : null,
-      similar,
-    };
+        return {
+          id: showData.id,
+          name: showData.name,
+          original_name: showData.original_name,
+          overview: showData.overview,
+          tagline: showData.tagline ?? null,
+          poster_path: showData.poster_path,
+          backdrop_path: showData.backdrop_path,
+          first_air_date: showData.first_air_date,
+          last_air_date: showData.last_air_date ?? null,
+          status: showData.status,
+          type: showData.type ?? null,
+          number_of_seasons: showData.number_of_seasons,
+          number_of_episodes: showData.number_of_episodes,
+          episode_run_time: showData.episode_run_time ?? [],
+          vote_average: showData.vote_average,
+          vote_count: showData.vote_count,
+          popularity: showData.popularity,
+          genres: showData.genres ?? [],
+          keywords: showData.keywords ?? [],
+          credits: showData.credits,
+          videos: showData.videos ?? [],
+          providers: showData.providers ?? {},
+          content_type: contentType,
+          networks: showData.networks ?? [],
+          created_by: showData.created_by ?? [],
+          seasons,
+          in_production: showData.in_production ?? false,
+          homepage: showData.homepage ?? null,
+          next_episode_to_air: showData.next_episode_to_air
+            ? {
+                id: showData.next_episode_to_air.id,
+                name: showData.next_episode_to_air.name,
+                air_date: showData.next_episode_to_air.air_date,
+                episode_number: showData.next_episode_to_air.episode_number,
+                season_number: showData.next_episode_to_air.season_number,
+              }
+            : null,
+          last_episode_to_air: showData.last_episode_to_air
+            ? {
+                id: showData.last_episode_to_air.id,
+                name: showData.last_episode_to_air.name,
+                air_date: showData.last_episode_to_air.air_date,
+                episode_number: showData.last_episode_to_air.episode_number,
+                season_number: showData.last_episode_to_air.season_number,
+              }
+            : null,
+          similar,
+        };
+      },
+      CACHE_TTL.TV_DETAILS
+    );
 
     return NextResponse.json(response);
   } catch (error) {
