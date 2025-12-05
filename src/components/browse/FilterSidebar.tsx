@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { MOVIE_GENRES, TV_GENRES, LANGUAGES, STREAMING_PROVIDERS, TMDB_IMAGE_BASE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { trackFilterChange } from '@/lib/analytics';
 import { SkeletonFilterSidebar } from '@/components/ui';
 
 // ==========================================================================
@@ -79,6 +80,7 @@ export function FilterSidebar({
       ? filters.genres.filter((id) => id !== genreId)
       : [...filters.genres, genreId];
     onFilterChange({ ...filters, genres: newGenres });
+    trackFilterChange(contentType, 'genre', genres[genreId] || String(genreId));
   };
 
   const handleYearChange = (type: 'from' | 'to', value: string) => {
@@ -88,25 +90,41 @@ export function FilterSidebar({
     } else {
       onFilterChange({ ...filters, yearTo: numValue });
     }
+    if (value) {
+      trackFilterChange(contentType, 'year', `${type}:${value}`);
+    }
   };
 
   const handleRatingChange = (value: string) => {
     const numValue = value ? parseFloat(value) : null;
     onFilterChange({ ...filters, ratingMin: numValue });
+    if (value) {
+      trackFilterChange(contentType, 'rating', `${value}+`);
+    }
   };
 
   const handleLanguageChange = (value: string) => {
     onFilterChange({ ...filters, language: value || null });
+    if (value) {
+      trackFilterChange(contentType, 'genre', LANGUAGES[value] || value);
+    }
   };
 
   const handleProviderChange = (providerId: string) => {
     const newProvider = filters.provider === providerId ? null : providerId;
     onFilterChange({ ...filters, provider: newProvider });
+    const providerName = STREAMING_PROVIDERS.find(p => String(p.id) === providerId)?.name;
+    if (providerName) {
+      trackFilterChange(contentType, 'provider', providerName);
+    }
   };
 
   const handleRuntimeChange = (value: RuntimeFilter) => {
     const newRuntime = filters.runtime === value ? null : value;
     onFilterChange({ ...filters, runtime: newRuntime });
+    if (value) {
+      trackFilterChange(contentType, 'genre', value);
+    }
   };
 
   const hasActiveFilters =

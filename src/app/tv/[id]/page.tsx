@@ -37,6 +37,7 @@ const TrailerEmbed = dynamic(
 import { SeasonList } from '@/components/tv/SeasonList';
 import { ShowStatus } from '@/components/tv/ShowStatus';
 import { WatchlistButton } from '@/components/ui';
+import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
 import type { ContentType, Content, TVShow as TVShowType, Season } from '@/types';
 
 // ==========================================================================
@@ -207,6 +208,13 @@ export default async function TVShowPage({ params }: TVPageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* Analytics Tracking */}
+      <ContentViewTracker
+        contentId={show.id}
+        contentType="tv"
+        title={show.name}
       />
 
       {/* Hero Section */}

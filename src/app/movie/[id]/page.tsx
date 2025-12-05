@@ -19,6 +19,7 @@ import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
 import { WatchlistButton } from '@/components/ui';
+import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
 
 // Dynamic import for TrailerEmbed - loads YouTube player only when needed
 const TrailerEmbed = dynamic(
@@ -181,6 +182,13 @@ export default async function MoviePage({ params }: MoviePageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
+      {/* Track content view */}
+      <ContentViewTracker
+        contentId={movie.id}
+        contentType="movie"
+        title={movie.title}
       />
 
       {/* Hero Section */}

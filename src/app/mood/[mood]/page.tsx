@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { DiscoverResults, DiscoverEmptyState, MoodSelector } from '@/components/discover';
 import { useWatchlist, useWatchlistIdArray } from '@/stores/watchlist';
+import { trackMoodSelect } from '@/lib/analytics';
 import { MOODS } from '@/lib/constants';
 import type { DiscoverResponse, DiscoverError, EnrichedRecommendation } from '@/lib/ai/types';
 import type { Content } from '@/types';
@@ -55,6 +56,9 @@ export default function MoodPage() {
         setResults(successData.results);
         setProvider(successData.provider);
         setIsFallback(successData.isFallback);
+
+        // Track mood selection
+        trackMoodSelect(mood, successData.results.length);
       } catch (err) {
         console.error('Mood fetch error:', err);
         setError(err instanceof Error ? err.message : 'Something went wrong');

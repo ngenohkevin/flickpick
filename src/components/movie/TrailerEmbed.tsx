@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Play, X } from 'lucide-react';
 import { getBestTrailer } from '@/lib/video-utils';
 import { shouldShowPrerollAds, adProvider } from '@/lib/ads';
+import { trackTrailerPlay } from '@/lib/analytics';
 import { AdPlayer } from '@/components/ads';
 import type { Video } from '@/types';
 import type { Ad } from '@/lib/ads/types';
@@ -114,12 +115,22 @@ export function TrailerEmbed({
 
     // No ad to show, play trailer directly
     setPlayerState('playing_trailer');
-  }, [contentType, genreIds, contentId]);
+
+    // Track trailer play
+    if (contentId && trailer) {
+      trackTrailerPlay(contentId, contentType || 'movie', title, trailer.key);
+    }
+  }, [contentType, genreIds, contentId, title, trailer]);
 
   const handleAdComplete = useCallback(() => {
     setCurrentAd(null);
     setPlayerState('playing_trailer');
-  }, []);
+
+    // Track trailer play (after ad)
+    if (contentId && trailer) {
+      trackTrailerPlay(contentId, contentType || 'movie', title, trailer.key);
+    }
+  }, [contentId, contentType, title, trailer]);
 
   const handleClose = useCallback(() => {
     setPlayerState('idle');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
   TrendingUp,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { InfiniteContentGrid } from '@/components/content';
 import { useWatchlist } from '@/stores/watchlist';
+import { trackCategoryView } from '@/lib/analytics';
 import { CURATED_CATEGORIES } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import type { Content, PaginatedResponse, Category, WatchlistItem } from '@/types';
@@ -109,6 +110,15 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
     },
     [category.slug, filter]
   );
+
+  // Track category view on mount
+  const hasTracked = useRef(false);
+  useEffect(() => {
+    if (!hasTracked.current) {
+      trackCategoryView(category.slug);
+      hasTracked.current = true;
+    }
+  }, [category.slug]);
 
   // Initial fetch and refetch on filter change
   useEffect(() => {
