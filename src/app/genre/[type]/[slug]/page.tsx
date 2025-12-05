@@ -5,6 +5,9 @@ import { GenrePageContent } from './GenrePageContent';
 import { SkeletonGrid } from '@/components/ui';
 import { MOVIE_GENRES, TV_GENRES, GENRE_SLUGS } from '@/lib/constants';
 
+// ISR: Revalidate every 6 hours - genre content changes moderately
+export const revalidate = 21600;
+
 // ==========================================================================
 // Types
 // ==========================================================================

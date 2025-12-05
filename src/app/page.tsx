@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { Search, Sparkles, Zap } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { Search, Sparkles } from 'lucide-react';
+import { generateWebsiteJsonLd, generateOrganizationJsonLd } from '@/lib/jsonld';
 import {
   getTrendingMovies,
   getTrendingTVShows,
@@ -24,9 +26,27 @@ import {
 import { JustReleasedRow } from '@/components/content/JustReleasedRow';
 import { JustReleasedTVRow } from '@/components/content/JustReleasedTVRow';
 import { CategoryGrid } from '@/components/browse';
-import { StreamingTabs } from '@/components/streaming';
+import { SkeletonRow } from '@/components/ui';
 import { GENRE_PILLS } from '@/lib/constants';
 import type { Content, Movie, TVShow } from '@/types';
+
+// Dynamic import for StreamingTabs - loads only when in viewport
+const StreamingTabs = dynamic(
+  () => import('@/components/streaming/StreamingTabs').then((mod) => mod.StreamingTabs),
+  {
+    loading: () => (
+      <section>
+        <div className="mb-4 h-8 w-48 animate-pulse rounded bg-bg-tertiary sm:mb-6" />
+        <div className="mb-6 flex gap-2 overflow-x-auto">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-10 w-24 animate-pulse rounded-full bg-bg-tertiary" />
+          ))}
+        </div>
+        <SkeletonRow count={6} />
+      </section>
+    ),
+  }
+);
 
 // Revalidate every hour
 export const revalidate = 3600;
@@ -363,8 +383,21 @@ export default async function HomePage() {
     popularAnime,
   } = await getHomepageData();
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+
   return (
     <div className="bg-bg-primary">
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([
+            generateWebsiteJsonLd(siteUrl),
+            generateOrganizationJsonLd(siteUrl),
+          ]),
+        }}
+      />
+
       {/* Hero Spotlight */}
       <HeroSpotlight items={heroItems} />
 

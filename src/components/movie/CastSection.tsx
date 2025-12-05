@@ -9,6 +9,7 @@ import { useRef } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { getProfileUrl } from '@/lib/utils';
+import { SkeletonCastRow } from '@/components/ui';
 import type { CastMember } from '@/types';
 
 // ==========================================================================
@@ -16,18 +17,35 @@ import type { CastMember } from '@/types';
 // ==========================================================================
 
 interface CastSectionProps {
-  cast: CastMember[];
+  cast?: CastMember[];
   maxItems?: number;
   className?: string;
+  isLoading?: boolean;
+  loadingCount?: number;
 }
 
 // ==========================================================================
 // Cast Section Component
 // ==========================================================================
 
-export function CastSection({ cast, maxItems = 20, className = '' }: CastSectionProps) {
+export function CastSection({
+  cast = [],
+  maxItems = 20,
+  className = '',
+  isLoading = false,
+  loadingCount = 12,
+}: CastSectionProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const displayCast = cast.slice(0, maxItems);
+
+  // Show skeleton while loading
+  if (isLoading) {
+    return (
+      <div className={className}>
+        <SkeletonCastRow count={loadingCount} />
+      </div>
+    );
+  }
 
   if (displayCast.length === 0) {
     return null;

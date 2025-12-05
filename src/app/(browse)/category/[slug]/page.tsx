@@ -5,6 +5,9 @@ import { CategoryPageContent } from './CategoryPageContent';
 import { SkeletonGrid } from '@/components/ui';
 import { CURATED_CATEGORIES } from '@/lib/constants';
 
+// ISR: Revalidate every 2 hours - categories like "trending" change frequently
+export const revalidate = 7200;
+
 // ==========================================================================
 // Types
 // ==========================================================================

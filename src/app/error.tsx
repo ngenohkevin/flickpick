@@ -8,6 +8,7 @@
 import { useEffect } from 'react';
 import { AlertCircle, RefreshCw, Home } from 'lucide-react';
 import Link from 'next/link';
+import { logError, classifyError, getErrorMessage } from '@/lib/error';
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -16,9 +17,12 @@ interface ErrorProps {
 
 export default function Error({ error, reset }: ErrorProps) {
   useEffect(() => {
-    // Log the error to an error reporting service
-    console.error('Application error:', error);
+    // Log the error using centralized error logging
+    logError(error, { component: 'GlobalErrorBoundary' });
   }, [error]);
+
+  const appError = classifyError(error);
+  const userMessage = getErrorMessage(error);
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-4">
@@ -33,8 +37,7 @@ export default function Error({ error, reset }: ErrorProps) {
           Something went wrong
         </h1>
         <p className="mb-8 max-w-md text-text-secondary">
-          We encountered an unexpected error. Please try again or return to the
-          homepage.
+          {userMessage}
         </p>
 
         {/* Action Buttons */}

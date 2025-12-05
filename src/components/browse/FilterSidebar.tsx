@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { MOVIE_GENRES, TV_GENRES, LANGUAGES, STREAMING_PROVIDERS, TMDB_IMAGE_BASE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { SkeletonFilterSidebar } from '@/components/ui';
 
 // ==========================================================================
 // Types
@@ -35,6 +36,7 @@ interface FilterSidebarProps {
   onClearFilters: () => void;
   contentType: 'movie' | 'tv' | 'animation' | 'anime';
   className?: string;
+  isLoading?: boolean;
 }
 
 // ==========================================================================
@@ -47,7 +49,12 @@ export function FilterSidebar({
   onClearFilters,
   contentType,
   className = '',
+  isLoading = false,
 }: FilterSidebarProps) {
+  // Show skeleton while loading
+  if (isLoading) {
+    return <SkeletonFilterSidebar />;
+  }
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['genres', 'year', 'rating'])
   );
@@ -339,6 +346,7 @@ export function FilterSidebar({
                 <button
                   onClick={() => handleGenreToggle(genreId)}
                   className="hover:text-white"
+                  aria-label={`Remove ${genres[genreId]} filter`}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -350,6 +358,7 @@ export function FilterSidebar({
                 <button
                   onClick={() => onFilterChange({ ...filters, yearFrom: null, yearTo: null })}
                   className="hover:text-white"
+                  aria-label="Remove year filter"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -361,6 +370,7 @@ export function FilterSidebar({
                 <button
                   onClick={() => handleRatingChange('')}
                   className="hover:text-white"
+                  aria-label="Remove rating filter"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -372,6 +382,7 @@ export function FilterSidebar({
                 <button
                   onClick={() => handleLanguageChange('')}
                   className="hover:text-white"
+                  aria-label="Remove language filter"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -383,6 +394,7 @@ export function FilterSidebar({
                 <button
                   onClick={() => handleProviderChange(filters.provider!)}
                   className="hover:text-white"
+                  aria-label="Remove streaming provider filter"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -394,6 +406,7 @@ export function FilterSidebar({
                 <button
                   onClick={() => handleRuntimeChange(filters.runtime)}
                   className="hover:text-white"
+                  aria-label="Remove runtime filter"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -425,11 +438,15 @@ function FilterSection({
   count = 0,
   children,
 }: FilterSectionProps) {
+  const sectionId = `filter-section-${title.toLowerCase().replace(/\s+/g, '-')}`;
+
   return (
     <div className="border-b border-border-subtle pb-4">
       <button
         onClick={onToggle}
         className="flex w-full items-center justify-between py-2"
+        aria-expanded={isExpanded}
+        aria-controls={sectionId}
       >
         <span className="flex items-center gap-2">
           <span className="text-sm font-medium text-text-primary">{title}</span>
@@ -445,7 +462,7 @@ function FilterSection({
           <ChevronDown className="h-4 w-4 text-text-tertiary" />
         )}
       </button>
-      {isExpanded && <div className="pt-3">{children}</div>}
+      {isExpanded && <div id={sectionId} className="pt-3">{children}</div>}
     </div>
   );
 }

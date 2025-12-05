@@ -1,4 +1,9 @@
 import type { NextConfig } from 'next';
+import bundleAnalyzer from '@next/bundle-analyzer';
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
 
 const nextConfig: NextConfig = {
   // Enable standalone output for Docker deployment
@@ -52,6 +57,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  // Experimental features for performance
+  experimental: {
+    // Enable optimized package imports for smaller bundles
+    optimizePackageImports: ['lucide-react'],
+  },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);

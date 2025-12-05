@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 // ==========================================================================
 // Modal Component
-// Accessible modal dialog with portal rendering
+// Accessible modal dialog with portal rendering and animations
 // ==========================================================================
 
 interface ModalProps {
@@ -36,35 +36,57 @@ export function Modal({
 }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
 
   // Handle escape key
   const handleEscape = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && closeOnEscape) {
-        onClose();
+      if (e.key === 'Escape' && closeOnEscape && !isAnimating) {
+        handleClose();
       }
     },
-    [onClose, closeOnEscape]
+    [closeOnEscape, isAnimating]
   );
+
+  // Handle close with animation
+  const handleClose = useCallback(() => {
+    if (isAnimating) return;
+    setIsAnimating(true);
+
+    // Wait for animation to complete before closing
+    setTimeout(() => {
+      setIsAnimating(false);
+      onClose();
+    }, 150); // Match animation duration
+  }, [onClose, isAnimating]);
 
   // Handle backdrop click
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (closeOnBackdrop && e.target === e.currentTarget) {
-      onClose();
+    if (closeOnBackdrop && e.target === e.currentTarget && !isAnimating) {
+      handleClose();
     }
   };
 
-  // Focus trap and scroll lock
+  // Handle open/close state
   useEffect(() => {
     if (isOpen) {
+      setShouldRender(true);
+      setIsAnimating(false);
+    }
+  }, [isOpen]);
+
+  // Focus trap and scroll lock
+  useEffect(() => {
+    if (isOpen && shouldRender) {
       // Store previously focused element
       previousActiveElement.current = document.activeElement as HTMLElement;
 
       // Lock body scroll
       document.body.style.overflow = 'hidden';
 
-      // Focus the modal
-      modalRef.current?.focus();
+      // Focus the modal after a brief delay for animation
+      setTimeout(() => modalRef.current?.focus(), 50);
 
       // Add escape listener
       document.addEventListener('keydown', handleEscape);
@@ -79,9 +101,16 @@ export function Modal({
         previousActiveElement.current.focus();
       }
     };
-  }, [isOpen, handleEscape]);
+  }, [isOpen, shouldRender, handleEscape]);
 
-  if (!isOpen) return null;
+  // Reset render state when fully closed
+  useEffect(() => {
+    if (!isOpen && !isAnimating) {
+      setShouldRender(false);
+    }
+  }, [isOpen, isAnimating]);
+
+  if (!shouldRender) return null;
 
   const sizeStyles = {
     sm: 'max-w-sm',
@@ -99,18 +128,22 @@ export function Modal({
       aria-labelledby={title ? 'modal-title' : undefined}
       aria-describedby={description ? 'modal-description' : undefined}
     >
-      {/* Backdrop */}
+      {/* Backdrop with fade animation */}
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className={`absolute inset-0 bg-black/70 backdrop-blur-sm ${
+          isAnimating ? 'animate-backdrop-out' : 'animate-backdrop-in'
+        }`}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
 
-      {/* Modal Panel */}
+      {/* Modal Panel with scale animation */}
       <div
         ref={modalRef}
         tabIndex={-1}
-        className={`relative w-full ${sizeStyles[size]} rounded-xl bg-bg-secondary shadow-xl ring-1 ring-border-subtle animate-fade-in ${className}`}
+        className={`relative w-full ${sizeStyles[size]} rounded-xl bg-bg-secondary shadow-xl ring-1 ring-border-subtle ${
+          isAnimating ? 'animate-scale-out' : 'animate-scale-in'
+        } ${className}`}
       >
         {/* Header */}
         {(title || showCloseButton) && (
@@ -136,8 +169,8 @@ export function Modal({
 
             {showCloseButton && (
               <button
-                onClick={onClose}
-                className="rounded-full p-1 text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+                onClick={handleClose}
+                className="rounded-full p-1 text-text-tertiary transition-all hover:bg-bg-tertiary hover:text-text-primary hover:scale-110 btn-press"
                 aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
@@ -216,14 +249,14 @@ export function ConfirmModal({
         <button
           onClick={onClose}
           disabled={isLoading}
-          className="rounded-md border border-border-default bg-bg-tertiary px-4 py-2 font-medium text-text-primary transition-colors hover:bg-border-default disabled:opacity-50"
+          className="rounded-md border border-border-default bg-bg-tertiary px-4 py-2 font-medium text-text-primary transition-all hover:bg-border-default disabled:opacity-50 btn-press"
         >
           {cancelLabel}
         </button>
         <button
           onClick={onConfirm}
           disabled={isLoading}
-          className={`rounded-md px-4 py-2 font-medium text-white transition-colors disabled:opacity-50 ${
+          className={`rounded-md px-4 py-2 font-medium text-white transition-all disabled:opacity-50 btn-press ${
             variant === 'danger'
               ? 'bg-error hover:bg-error/90'
               : 'bg-accent-primary hover:bg-accent-hover'

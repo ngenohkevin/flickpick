@@ -104,7 +104,7 @@ export function ContentCard({
             <Tooltip content="Find Similar" position="top">
               <button
                 onClick={handleSimilarClick}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-colors hover:bg-accent-primary"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition-all hover:bg-accent-primary hover:scale-110 btn-press"
                 aria-label="Find similar content"
               >
                 <Plus className="h-5 w-5" />
@@ -116,14 +116,14 @@ export function ContentCard({
               <button
                 onClick={handleWatchlistClick}
                 className={cn(
-                  'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
+                  'flex h-10 w-10 items-center justify-center rounded-full transition-all hover:scale-110 btn-press',
                   isInWatchlist
                     ? 'bg-accent-primary text-white'
                     : 'bg-white/20 text-white hover:bg-white/30'
                 )}
                 aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
               >
-                <Heart className={cn('h-5 w-5', isInWatchlist && 'fill-current')} />
+                <Heart className={cn('h-5 w-5 transition-transform', isInWatchlist && 'fill-current scale-110')} />
               </button>
             </Tooltip>
           </div>

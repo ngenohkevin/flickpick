@@ -124,7 +124,7 @@
   /* Text */
   --text-primary: #09090b;
   --text-secondary: #52525b;
-  --text-tertiary: #a1a1aa;
+  --text-tertiary: #71717a; /* Darkened from #a1a1aa for WCAG AA compliance (4.6:1 ratio) */
   --text-inverse: #ffffff;
 
   /* Accent */
@@ -246,12 +246,16 @@ p {
 }
 
 a {
-  color: var(--accent-primary);
   text-decoration: none;
   transition: color var(--duration-fast) var(--ease-out);
 }
 
-a:hover {
+/* Only apply accent color to links without explicit text color classes */
+a:not([class*="text-"]) {
+  color: var(--accent-primary);
+}
+
+a:not([class*="text-"]):hover {
   color: var(--accent-hover);
 }
 
@@ -262,6 +266,51 @@ a:hover {
 :focus-visible {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
+}
+
+/* Enhanced focus for buttons and interactive elements */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Focus ring for input elements */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 0;
+  border-color: var(--accent-primary);
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Make sr-only content visible when focused (for skip links) */
+.sr-only:focus,
+.sr-only:focus-visible {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
 }
 
 /* ==========================================================================
@@ -299,6 +348,7 @@ a:hover {
 
 /* ==========================================================================
    Reduced Motion (Accessibility)
+   Respects user preference for reduced motion
    ========================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
@@ -309,6 +359,60 @@ a:hover {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Allow essential loading indicators with reduced animation */
+  .skeleton,
+  .animate-shimmer {
+    animation: none !important;
+    background: var(--bg-tertiary) !important;
+  }
+
+  /* Remove transform-based animations */
+  .card-hover:hover,
+  .card-interactive:hover,
+  .btn-press:active {
+    transform: none !important;
+  }
+
+  /* Keep opacity changes instant but still visible */
+  .animate-fade-in,
+  .animate-fade-in-up,
+  .animate-fade-in-down,
+  .animate-slide-in-right,
+  .animate-slide-out-right,
+  .animate-slide-in-left,
+  .animate-slide-in-bottom,
+  .animate-scale-in,
+  .animate-scale-out,
+  .animate-backdrop-in,
+  .animate-backdrop-out,
+  .animate-bounce-in {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Disable hover transforms on images */
+  .image-zoom:hover {
+    transform: none !important;
+  }
+}
+
+/* Utility class to check for motion preference in JS */
+.motion-safe {
+  /* Applied when motion is OK */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe {
+    --motion-ok: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .motion-safe {
+    --motion-ok: 1;
   }
 }
 
@@ -383,6 +487,10 @@ a:hover {
   transform: scale(1.05);
 }
 
+/* ==========================================================================
+   Animation Keyframes
+   ========================================================================== */
+
 /* Fade in animation */
 @keyframes fade-in {
   from {
@@ -395,8 +503,272 @@ a:hover {
   }
 }
 
+/* Fade in up (for cards, content) */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in down (for dropdowns, tooltips) */
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide in from right (for toasts, sidebars) */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide out to right (for dismissing toasts) */
+@keyframes slide-out-right {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+/* Slide in from left (for mobile nav) */
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide in from bottom (for mobile sheets) */
+@keyframes slide-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scale in (for modals, popovers) */
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Scale out (for closing modals) */
+@keyframes scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* Backdrop fade */
+@keyframes backdrop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdrop-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Pulse (for loading states, attention) */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Bounce (for notifications, badges) */
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Subtle bounce (for buttons on click) */
+@keyframes press {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Shimmer (enhanced skeleton loading) */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Spin (for loaders) */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Wiggle (for attention/error states) */
+@keyframes wiggle {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/* ==========================================================================
+   Animation Utility Classes
+   ========================================================================== */
+
 .animate-fade-in {
   animation: fade-in var(--duration-slow) var(--ease-out);
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up var(--duration-slow) var(--ease-out);
+}
+
+.animate-fade-in-down {
+  animation: fade-in-down var(--duration-normal) var(--ease-out);
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right var(--duration-slow) var(--ease-out);
+}
+
+.animate-slide-out-right {
+  animation: slide-out-right var(--duration-normal) var(--ease-out) forwards;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left var(--duration-slow) var(--ease-out);
+}
+
+.animate-slide-in-bottom {
+  animation: slide-in-bottom var(--duration-slow) var(--ease-out);
+}
+
+.animate-scale-in {
+  animation: scale-in var(--duration-normal) var(--ease-out);
+}
+
+.animate-scale-out {
+  animation: scale-out var(--duration-fast) var(--ease-out) forwards;
+}
+
+.animate-backdrop-in {
+  animation: backdrop-fade-in var(--duration-normal) var(--ease-out);
+}
+
+.animate-backdrop-out {
+  animation: backdrop-fade-out var(--duration-fast) var(--ease-out) forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s var(--ease-in-out) infinite;
+}
+
+.animate-bounce-in {
+  animation: bounce-in var(--duration-slow) var(--ease-out);
+}
+
+.animate-press {
+  animation: press var(--duration-fast) var(--ease-out);
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-elevated) 50%,
+    var(--bg-tertiary) 75%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-wiggle {
+  animation: wiggle var(--duration-normal) var(--ease-out);
 }
 
 /* Stagger animation delay utilities */
@@ -405,6 +777,61 @@ a:hover {
 .stagger-3 { animation-delay: 150ms; }
 .stagger-4 { animation-delay: 200ms; }
 .stagger-5 { animation-delay: 250ms; }
+.stagger-6 { animation-delay: 300ms; }
+.stagger-7 { animation-delay: 350ms; }
+.stagger-8 { animation-delay: 400ms; }
+
+/* Animation fill modes */
+.fill-forwards {
+  animation-fill-mode: forwards;
+}
+
+.fill-backwards {
+  animation-fill-mode: backwards;
+}
+
+.fill-both {
+  animation-fill-mode: both;
+}
+
+/* ==========================================================================
+   Interactive State Classes
+   ========================================================================== */
+
+/* Button press effect */
+.btn-press {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.btn-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Card interactive state */
+.card-interactive {
+  transition: transform var(--duration-normal) var(--ease-out),
+              box-shadow var(--duration-normal) var(--ease-out),
+              border-color var(--duration-normal) var(--ease-out);
+}
+
+.card-interactive:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.card-interactive:active {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Focus ring animation */
+.focus-ring {
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--accent-primary);
+}
 
 /* ==========================================================================
    Container

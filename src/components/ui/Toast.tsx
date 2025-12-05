@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
@@ -18,8 +18,12 @@ interface Toast {
   duration?: number;
 }
 
+interface ToastState extends Toast {
+  isExiting: boolean;
+}
+
 interface ToastContextValue {
-  toasts: Toast[];
+  toasts: ToastState[];
   addToast: (toast: Omit<Toast, 'id'>) => void;
   removeToast: (id: string) => void;
 }
@@ -43,25 +47,56 @@ export function useToast() {
 // ==========================================================================
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toasts, setToasts] = useState<ToastState[]>([]);
+  const timersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).substring(2, 9);
-    const newToast = { ...toast, id };
+    const newToast: ToastState = { ...toast, id, isExiting: false };
 
     setToasts((prev) => [...prev, newToast]);
 
     // Auto-remove after duration
     const duration = toast.duration ?? 5000;
     if (duration > 0) {
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
+      const timer = setTimeout(() => {
+        // Start exit animation
+        setToasts((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, isExiting: true } : t))
+        );
+        // Remove after animation completes
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== id));
+          timersRef.current.delete(id);
+        }, 200); // Match animation duration
       }, duration);
+      timersRef.current.set(id, timer);
     }
   }, []);
 
   const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+    // Clear any existing timer
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+
+    // Start exit animation
+    setToasts((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, isExiting: true } : t))
+    );
+    // Remove after animation completes
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 200);
+  }, []);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timer) => clearTimeout(timer));
+    };
   }, []);
 
   return (
@@ -77,7 +112,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 // ==========================================================================
 
 interface ToastContainerProps {
-  toasts: Toast[];
+  toasts: ToastState[];
   onRemove: (id: string) => void;
 }
 
@@ -103,7 +138,7 @@ function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
 // ==========================================================================
 
 interface ToastItemProps {
-  toast: Toast;
+  toast: ToastState;
   onRemove: (id: string) => void;
 }
 
@@ -126,7 +161,9 @@ function ToastItem({ toast, onRemove }: ToastItemProps) {
 
   return (
     <div
-      className={`flex min-w-[300px] max-w-md items-start gap-3 rounded-lg p-4 shadow-lg animate-fade-in ${colors[toast.type]}`}
+      className={`flex min-w-[300px] max-w-md items-start gap-3 rounded-lg p-4 shadow-xl ${
+        toast.isExiting ? 'animate-slide-out-right' : 'animate-slide-in-right'
+      } ${colors[toast.type]}`}
       role="alert"
     >
       <Icon className="h-5 w-5 flex-shrink-0" />
@@ -140,7 +177,7 @@ function ToastItem({ toast, onRemove }: ToastItemProps) {
 
       <button
         onClick={() => onRemove(toast.id)}
-        className="rounded-full p-1 opacity-70 transition-opacity hover:opacity-100"
+        className="rounded-full p-1 opacity-70 transition-all hover:opacity-100 hover:scale-110 btn-press"
         aria-label="Dismiss notification"
       >
         <X className="h-4 w-4" />

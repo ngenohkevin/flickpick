@@ -8,7 +8,7 @@ import { Home, Search, Film } from 'lucide-react';
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center px-4">
+    <div className="flex min-h-[80vh] items-center justify-center px-4 py-24">
       <div className="text-center">
         {/* 404 Illustration */}
         <div className="mb-8">
@@ -33,16 +33,16 @@ export default function NotFound() {
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 rounded-md bg-accent-primary px-6 py-3 font-medium text-white transition-colors hover:bg-accent-hover"
+            className="inline-flex items-center gap-2 rounded-lg bg-accent-primary px-6 py-3 font-semibold text-white shadow-md transition-all hover:bg-accent-hover hover:shadow-lg"
           >
-            <Home className="h-4 w-4" />
+            <Home className="h-5 w-5" />
             Go home
           </Link>
           <Link
             href="/discover"
-            className="inline-flex items-center gap-2 rounded-md border border-border-default bg-bg-tertiary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-border-default"
+            className="inline-flex items-center gap-2 rounded-lg border border-border-default bg-bg-secondary px-6 py-3 font-semibold text-text-primary transition-all hover:bg-bg-tertiary hover:border-border-strong"
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-5 w-5" />
             Discover movies
           </Link>
         </div>
