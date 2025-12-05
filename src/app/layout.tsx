@@ -17,6 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site'),
   title: {
     default: 'FlickPick - Discover Your Next Favorite Watch',
     template: '%s | FlickPick',
