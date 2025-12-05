@@ -4,7 +4,6 @@
 // ==========================================================================
 
 import Link from 'next/link';
-import { Github, Heart } from 'lucide-react';
 
 // ==========================================================================
 // Footer Links
@@ -65,18 +64,6 @@ export function Footer() {
               recommendations, mood-based discovery, and streaming availability.
             </p>
 
-            {/* Social Links */}
-            <div className="mt-6 flex gap-4">
-              <a
-                href="https://github.com/ngenohkevin"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-text-tertiary transition-colors hover:text-text-primary"
-                aria-label="GitHub"
-              >
-                <Github className="h-5 w-5" />
-              </a>
-            </div>
           </div>
 
           {/* Link Sections */}
@@ -102,26 +89,11 @@ export function Footer() {
         </div>
 
         {/* Bottom Section */}
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border-subtle pt-8 text-center md:flex-row md:text-left">
+        <div className="mt-12 border-t border-border-subtle pt-8 text-center">
           {/* TMDB Attribution */}
-          <div className="flex items-center gap-4">
-            <p className="text-xs text-text-tertiary">
-              This product uses the TMDB API but is not endorsed or certified by
-              TMDB.
-            </p>
-          </div>
-
-          {/* Built by */}
-          <p className="flex items-center gap-1 text-xs text-text-tertiary">
-            Built with <Heart className="h-3 w-3 fill-red-500 text-red-500" /> by{' '}
-            <a
-              href="https://github.com/ngenohkevin"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-text-secondary hover:text-accent-primary"
-            >
-              Kevin
-            </a>
+          <p className="text-xs text-text-tertiary">
+            This product uses the TMDB API but is not endorsed or certified by
+            TMDB.
           </p>
         </div>
       </div>
