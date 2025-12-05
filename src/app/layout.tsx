@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
-import { Header, Footer, ThemeProvider } from '@/components/layout';
-import { ToastProvider } from '@/components/ui';
+import { Header, Footer, ThemeProvider, ClientProviders } from '@/components/layout';
+import { Analytics } from '@/components/analytics';
 import './globals.css';
 
 const inter = Inter({
@@ -60,9 +60,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Preconnect to critical external domains for faster loading */}
+        <link rel="preconnect" href="https://image.tmdb.org" />
+        <link rel="dns-prefetch" href="https://image.tmdb.org" />
+        <link rel="preconnect" href="https://www.youtube.com" />
+        <link rel="dns-prefetch" href="https://www.youtube.com" />
+        <link rel="preconnect" href="https://img.youtube.com" />
+        <link rel="dns-prefetch" href="https://img.youtube.com" />
+      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
+        <Analytics />
         <ThemeProvider>
-          <ToastProvider>
+          <ClientProviders>
             {/* Skip to main content link for accessibility */}
             <a
               href="#main-content"
@@ -78,7 +88,7 @@ export default function RootLayout({
               </main>
               <Footer />
             </div>
-          </ToastProvider>
+          </ClientProviders>
         </ThemeProvider>
       </body>
     </html>

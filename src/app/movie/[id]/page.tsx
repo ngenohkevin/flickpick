@@ -3,6 +3,9 @@
 // /movie/[id] - Shows full movie information with trailer, similar, cast
 // ==========================================================================
 
+// ISR: Revalidate every 24 hours - movie details don't change frequently
+export const revalidate = 86400;
+
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
@@ -11,11 +14,26 @@ import { Star, Clock, Calendar, Play, ExternalLink, Globe, DollarSign, Film, Cla
 import { getMovieDetailsExtended, getRelatedMovies } from '@/lib/tmdb/movies';
 import { getPosterUrl, getBackdropUrl, formatRuntime, extractYear, cn } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
+import dynamic from 'next/dynamic';
 import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
-import { TrailerEmbed } from '@/components/movie/TrailerEmbed';
 import { WatchlistButton } from '@/components/ui';
+
+// Dynamic import for TrailerEmbed - loads YouTube player only when needed
+const TrailerEmbed = dynamic(
+  () => import('@/components/movie/TrailerEmbed').then((mod) => mod.TrailerEmbed),
+  {
+    loading: () => (
+      <section id="trailer">
+        <div className="mb-4 sm:mb-6">
+          <div className="h-7 w-24 animate-pulse rounded bg-bg-tertiary" />
+        </div>
+        <div className="aspect-video animate-pulse rounded-xl bg-bg-tertiary" />
+      </section>
+    ),
+  }
+);
 import { hasTrailer } from '@/lib/video-utils';
 import type { ContentType, Content } from '@/types';
 
@@ -521,6 +539,8 @@ export default async function MoviePage({ params }: MoviePageProps) {
         <StreamingProviders
           providers={movie.providers}
           title={movie.title}
+          contentId={movie.id}
+          contentType="movie"
           className="mt-16"
         />
 

@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
+import { trackWatchlistAdd, trackWatchlistRemove, trackWatchlistPickRandom } from '@/lib/analytics';
 import type { WatchlistItem, MediaType, ContentType } from '@/types';
 
 // ==========================================================================
@@ -42,14 +43,24 @@ export const useWatchlist = create<WatchlistState>()(
         set((state) => ({
           items: [newItem, ...state.items],
         }));
+        // Track watchlist add
+        trackWatchlistAdd(item.id, item.media_type, item.title);
       },
 
       removeItem: (id, mediaType) => {
+        // Get the item title before removing for tracking
+        const itemToRemove = get().items.find(
+          (item) => item.id === id && item.media_type === mediaType
+        );
         set((state) => ({
           items: state.items.filter(
             (item) => !(item.id === id && item.media_type === mediaType)
           ),
         }));
+        // Track watchlist remove
+        if (itemToRemove) {
+          trackWatchlistRemove(id, mediaType, itemToRemove.title);
+        }
       },
 
       toggleItem: (item) => {
@@ -81,7 +92,12 @@ export const useWatchlist = create<WatchlistState>()(
         const items = get().getFilteredItems(filter);
         if (items.length === 0) return null;
         const randomIndex = Math.floor(Math.random() * items.length);
-        return items[randomIndex] ?? null;
+        const pickedItem = items[randomIndex] ?? null;
+        // Track random pick
+        if (pickedItem) {
+          trackWatchlistPickRandom(filter, pickedItem.id, pickedItem.title);
+        }
+        return pickedItem;
       },
     }),
     {

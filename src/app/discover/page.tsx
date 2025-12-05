@@ -14,6 +14,7 @@ import {
 } from '@/components/discover';
 import { useWatchlist, useWatchlistIdArray } from '@/stores/watchlist';
 import { usePromptHistory } from '@/stores/promptHistory';
+import { trackDiscoverSearch } from '@/lib/analytics';
 import type { DiscoverResponse, DiscoverError, EnrichedRecommendation } from '@/lib/ai/types';
 import type { ContentType, Content } from '@/types';
 
@@ -87,6 +88,14 @@ export default function DiscoverPage() {
       setResults(successData.results);
       setProvider(successData.provider);
       setIsFallback(successData.isFallback);
+
+      // Track AI discovery usage
+      trackDiscoverSearch(
+        promptToUse.trim(),
+        contentTypes.length === 1 && contentTypes[0] ? contentTypes[0] : 'all',
+        successData.provider as 'gemini' | 'tastedive' | 'tmdb',
+        successData.results.length
+      );
 
       // Add to history with result count
       addPrompt(promptToUse.trim(), successData.results.length);

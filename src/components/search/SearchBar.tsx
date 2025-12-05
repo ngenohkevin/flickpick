@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import { Search, X, Clock, Film, Tv, Sparkles, Loader2 } from 'lucide-react';
 import { useDebounce, useLocalStorage } from '@/lib/hooks';
 import { cn, getPosterUrl, extractYear } from '@/lib/utils';
+import { trackSearch, trackSearchResultClick } from '@/lib/analytics';
+import { SkeletonSearchResults } from '@/components/ui';
 import type { SearchResult, ContentType } from '@/types';
 
 // ==========================================================================
@@ -104,7 +106,10 @@ export function SearchBar({
         );
         if (response.ok) {
           const data = await response.json();
-          setResults(data.results || []);
+          const searchResults = data.results || [];
+          setResults(searchResults);
+          // Track search event
+          trackSearch(debouncedQuery, 'all', searchResults.length);
         }
       } catch (error) {
         console.error('Search error:', error);
@@ -161,10 +166,13 @@ export function SearchBar({
   );
 
   const handleSelect = useCallback(
-    (result: SearchResult) => {
+    (result: SearchResult, position: number) => {
       addRecentSearch(query);
       setIsOpen(false);
       setQuery('');
+
+      // Track search result click
+      trackSearchResultClick(query, result.id, result.media_type, position);
 
       // Navigate to content detail page
       const path = result.media_type === 'movie' ? `/movie/${result.id}` : `/tv/${result.id}`;
@@ -214,7 +222,7 @@ export function SearchBar({
           e.preventDefault();
           if (selectedIndex >= 0) {
             if (results.length > 0 && results[selectedIndex]) {
-              handleSelect(results[selectedIndex]);
+              handleSelect(results[selectedIndex], selectedIndex);
             } else if (recentSearches[selectedIndex]) {
               handleRecentSelect(recentSearches[selectedIndex].query);
             }
@@ -319,16 +327,14 @@ export function SearchBar({
           {showResults && (
             <div className="py-2">
               {isLoading && results.length === 0 ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-text-tertiary" />
-                </div>
+                <SkeletonSearchResults count={6} />
               ) : results.length > 0 ? (
                 results.map((result, index) => (
                   <SearchResultItem
                     key={`${result.media_type}-${result.id}`}
                     result={result}
                     isSelected={index === selectedIndex}
-                    onSelect={() => handleSelect(result)}
+                    onSelect={() => handleSelect(result, index)}
                   />
                 ))
               ) : query.length >= 2 && !isLoading ? (

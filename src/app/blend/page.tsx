@@ -15,6 +15,7 @@ import {
 } from '@/components/blend';
 import type { SelectedTitle, BlendResultItem } from '@/components/blend';
 import { useWatchlist, useWatchlistIdArray } from '@/stores/watchlist';
+import { trackBlendSearch } from '@/lib/analytics';
 import type { Content } from '@/types';
 
 // ==========================================================================
@@ -143,6 +144,12 @@ export default function BlendPage() {
       const successData = data as BlendResponse;
       setResults(successData.results);
       setProvider(successData.provider);
+
+      // Track blend search
+      trackBlendSearch(
+        selectedTitles.map((t) => t.title),
+        successData.results.length
+      );
     } catch (err) {
       console.error('Blend error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');

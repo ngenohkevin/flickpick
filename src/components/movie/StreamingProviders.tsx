@@ -9,6 +9,7 @@ import Image from 'next/image';
 import { ExternalLink } from 'lucide-react';
 import { usePreferences } from '@/stores/preferences';
 import { CountrySelector } from '@/components/streaming';
+import { trackProviderClick } from '@/lib/analytics';
 import type { ProvidersByCountry, Provider } from '@/types';
 
 // ==========================================================================
@@ -18,6 +19,8 @@ import type { ProvidersByCountry, Provider } from '@/types';
 interface StreamingProvidersProps {
   providers: ProvidersByCountry;
   title: string;
+  contentId?: number;
+  contentType?: 'movie' | 'tv';
   className?: string;
 }
 
@@ -34,6 +37,8 @@ const PROVIDER_IMAGE_BASE = 'https://image.tmdb.org/t/p/w92';
 export function StreamingProviders({
   providers,
   title,
+  contentId,
+  contentType = 'movie',
   className = '',
 }: StreamingProvidersProps) {
   const country = usePreferences((state) => state.country);
@@ -104,6 +109,9 @@ export function StreamingProviders({
             providers={flatrate}
             link={link}
             movieTitle={title}
+            contentId={contentId}
+            contentType={contentType}
+            watchType="stream"
           />
         )}
 
@@ -114,6 +122,9 @@ export function StreamingProviders({
             providers={ads}
             link={link}
             movieTitle={title}
+            contentId={contentId}
+            contentType={contentType}
+            watchType="stream"
           />
         )}
 
@@ -124,6 +135,9 @@ export function StreamingProviders({
             providers={rent}
             link={link}
             movieTitle={title}
+            contentId={contentId}
+            contentType={contentType}
+            watchType="rent"
           />
         )}
 
@@ -134,6 +148,9 @@ export function StreamingProviders({
             providers={buy}
             link={link}
             movieTitle={title}
+            contentId={contentId}
+            contentType={contentType}
+            watchType="buy"
           />
         )}
       </div>
@@ -155,9 +172,32 @@ interface ProviderCategoryProps {
   providers: Provider[];
   link?: string;
   movieTitle: string;
+  contentId?: number;
+  contentType: 'movie' | 'tv';
+  watchType: 'stream' | 'rent' | 'buy';
 }
 
-function ProviderCategory({ title, providers, link, movieTitle }: ProviderCategoryProps) {
+function ProviderCategory({
+  title,
+  providers,
+  link,
+  movieTitle,
+  contentId,
+  contentType,
+  watchType,
+}: ProviderCategoryProps) {
+  const handleProviderClick = (provider: Provider) => {
+    if (contentId) {
+      trackProviderClick(
+        provider.provider_name,
+        provider.provider_id,
+        contentId,
+        contentType,
+        watchType
+      );
+    }
+  };
+
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-secondary p-4">
       <h3 className="mb-3 text-sm font-medium text-text-tertiary">{title}</h3>
@@ -173,6 +213,7 @@ function ProviderCategory({ title, providers, link, movieTitle }: ProviderCatego
               rel="noopener noreferrer"
               title={`Watch ${movieTitle} on ${provider.provider_name}`}
               className="group relative"
+              onClick={() => handleProviderClick(provider)}
             >
               <div className="relative h-12 w-12 overflow-hidden rounded-lg transition-transform group-hover:scale-105">
                 <Image

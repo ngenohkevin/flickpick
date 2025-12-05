@@ -3,6 +3,9 @@
 // /tv/[id] - Shows full TV show information with seasons, trailer, cast
 // ==========================================================================
 
+// ISR: Revalidate every 12 hours - TV shows may have new episodes
+export const revalidate = 43200;
+
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
@@ -11,11 +14,26 @@ import { Star, Calendar, Play, ExternalLink, Tv, Film, Globe, Users } from 'luci
 import { getTVShowDetailsExtended, getRelatedTVShows } from '@/lib/tmdb/tv';
 import { getPosterUrl, getBackdropUrl, extractYear, cn } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
+import dynamic from 'next/dynamic';
 import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
-import { TrailerEmbed } from '@/components/movie/TrailerEmbed';
 import { hasTrailer } from '@/lib/video-utils';
+
+// Dynamic import for TrailerEmbed - loads YouTube player only when needed
+const TrailerEmbed = dynamic(
+  () => import('@/components/movie/TrailerEmbed').then((mod) => mod.TrailerEmbed),
+  {
+    loading: () => (
+      <section id="trailer">
+        <div className="mb-4 sm:mb-6">
+          <div className="h-7 w-24 animate-pulse rounded bg-bg-tertiary" />
+        </div>
+        <div className="aspect-video animate-pulse rounded-xl bg-bg-tertiary" />
+      </section>
+    ),
+  }
+);
 import { SeasonList } from '@/components/tv/SeasonList';
 import { ShowStatus } from '@/components/tv/ShowStatus';
 import { WatchlistButton } from '@/components/ui';
@@ -622,6 +640,8 @@ export default async function TVShowPage({ params }: TVPageProps) {
         <StreamingProviders
           providers={show.providers}
           title={show.name}
+          contentId={show.id}
+          contentType="tv"
           className="mt-16"
         />
 
