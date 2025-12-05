@@ -110,7 +110,7 @@ export interface TrailerPlayEvent extends AnalyticsEvent {
   name: 'trailer_play';
   data: {
     content_id: number;
-    content_type: 'movie' | 'tv';
+    content_type: 'movie' | 'tv' | 'animation' | 'anime';
     title: string;
     video_key: string;
   };

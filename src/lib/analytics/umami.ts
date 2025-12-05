@@ -196,7 +196,7 @@ export function trackContentView(
  */
 export function trackTrailerPlay(
   contentId: number,
-  contentType: 'movie' | 'tv',
+  contentType: 'movie' | 'tv' | 'animation' | 'anime',
   title: string,
   videoKey: string
 ): void {
