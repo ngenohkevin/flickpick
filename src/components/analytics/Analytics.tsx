@@ -26,10 +26,10 @@ export function Analytics() {
 
   return (
     <Script
+      defer
       src={scriptUrl}
       data-website-id={websiteId}
       strategy="lazyOnload"
-      data-domains={process.env.NEXT_PUBLIC_SITE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '')}
     />
   );
 }
