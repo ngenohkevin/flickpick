@@ -92,8 +92,13 @@ export default function RootLayout({
             </div>
           </ClientProviders>
         </ThemeProvider>
-        {/* Monetag Ad Scripts - only loads if ads are enabled via env vars */}
-        <MonetAgScripts />
+        {/* Monetag MultiTag Ad Script */}
+        <script
+          src="https://quge5.com/88/tag.min.js"
+          data-zone="190929"
+          async
+          data-cfasync="false"
+        />
       </body>
     </html>
   );
