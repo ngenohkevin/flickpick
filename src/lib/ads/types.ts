@@ -207,7 +207,7 @@ export interface AdConfig {
   enabled: boolean;
 
   /** Which provider to use */
-  provider: 'placeholder' | 'google-ima' | 'custom';
+  provider: 'placeholder' | 'monetag' | 'google-ima' | 'custom';
 
   /** Default skip time in seconds (0 = no skip) */
   defaultSkipAfter: number;

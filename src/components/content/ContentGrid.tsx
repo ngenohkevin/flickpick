@@ -1,8 +1,11 @@
 'use client';
 
+import { Fragment } from 'react';
 import { ContentCard } from './ContentCard';
 import { SkeletonGrid } from '@/components/ui';
+import { DisplayAdSlot } from '@/components/ads';
 import { useInfiniteScroll } from '@/lib/hooks';
+import { shouldShowDisplayAds, DISPLAY_AD_CONFIG } from '@/lib/ads/config';
 import type { Content } from '@/types';
 
 // ==========================================================================
@@ -21,6 +24,8 @@ interface ContentGridProps {
   watchlistIds?: Set<number>;
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
+  /** Enable display ads in the grid (default: false - opt-in only) */
+  showAds?: boolean;
 }
 
 export function ContentGrid({
@@ -34,6 +39,7 @@ export function ContentGrid({
   watchlistIds,
   onWatchlistToggle,
   className = '',
+  showAds = false,
 }: ContentGridProps) {
   // Column class mapping for responsive design
   const columnClasses = {
@@ -43,6 +49,10 @@ export function ContentGrid({
     5: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5',
     6: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
   };
+
+  // Determine if ads should be shown (both globally enabled AND opt-in for this grid)
+  const displayAds = showAds && shouldShowDisplayAds();
+  const adFrequency = DISPLAY_AD_CONFIG.frequency; // Default: 24 items
 
   if (isLoading) {
     return <SkeletonGrid count={loadingCount} columns={columns} />;
@@ -62,16 +72,25 @@ export function ContentGrid({
   return (
     <div className={`grid gap-4 sm:gap-6 ${columnClasses[columns]} ${className}`}>
       {items.map((item, index) => (
-        <ContentCard
-          key={item.id}
-          content={item}
-          priority={index < 6} // Prioritize first row for LCP
-          showTypeBadge={showTypeBadge}
-          showRating={showRating}
-          showYear={showYear}
-          isInWatchlist={watchlistIds?.has(item.id)}
-          onWatchlistToggle={onWatchlistToggle}
-        />
+        <Fragment key={item.id}>
+          <ContentCard
+            content={item}
+            priority={index < 6} // Prioritize first row for LCP
+            showTypeBadge={showTypeBadge}
+            showRating={showRating}
+            showYear={showYear}
+            isInWatchlist={watchlistIds?.has(item.id)}
+            onWatchlistToggle={onWatchlistToggle}
+          />
+          {/* Show ad slot after every N items (only if enabled) */}
+          {displayAds && (index + 1) % adFrequency === 0 && (
+            <DisplayAdSlot
+              placement="content_grid"
+              index={index}
+              className="col-span-2 sm:col-span-2 md:col-span-2"
+            />
+          )}
+        </Fragment>
       ))}
     </div>
   );
@@ -95,6 +114,8 @@ interface InfiniteContentGridProps extends ContentGridProps {
   maxAutoLoadPages?: number;
   /** Current page number (used with maxAutoLoadPages) */
   currentPage?: number;
+  /** Enable display ads in the grid (default: false - opt-in only) */
+  showAds?: boolean;
 }
 
 export function InfiniteContentGrid({
@@ -116,6 +137,7 @@ export function InfiniteContentGrid({
   enableInfiniteScroll = true,
   maxAutoLoadPages = 3,
   currentPage = 1,
+  showAds = false,
 }: InfiniteContentGridProps) {
   // Determine if we should auto-load or show manual button
   // After maxAutoLoadPages, switch to manual "Load More" to allow footer access
@@ -142,6 +164,7 @@ export function InfiniteContentGrid({
         loadingCount={loadingCount}
         watchlistIds={watchlistIds}
         onWatchlistToggle={onWatchlistToggle}
+        showAds={showAds}
       />
 
       {/* Loading indicator - shows when loading more content */}

@@ -5,6 +5,7 @@
 import type { AdProvider } from './types';
 import { AD_PROVIDER } from './config';
 import { PlaceholderAdProvider } from './providers/placeholder';
+import { MonetAgProvider } from './providers/monetag';
 
 // ==========================================================================
 // Provider Registry
@@ -16,6 +17,7 @@ import { PlaceholderAdProvider } from './providers/placeholder';
  */
 const PROVIDERS: Record<string, AdProvider> = {
   placeholder: PlaceholderAdProvider,
+  monetag: MonetAgProvider,
   // 'google-ima': GoogleIMAProvider,  // Future
   // 'custom': CustomProvider,          // Future
 };

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { Header, Footer, ThemeProvider, ClientProviders } from '@/components/layout';
 import { Analytics } from '@/components/analytics';
+import { MonetAgScripts } from '@/components/ads';
 import './globals.css';
 
 const inter = Inter({
@@ -91,6 +92,8 @@ export default function RootLayout({
             </div>
           </ClientProviders>
         </ThemeProvider>
+        {/* Monetag Ad Scripts - only loads if ads are enabled via env vars */}
+        <MonetAgScripts />
       </body>
     </html>
   );

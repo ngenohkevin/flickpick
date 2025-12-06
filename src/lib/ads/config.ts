@@ -17,10 +17,11 @@ export const ADS_ENABLED = process.env.NEXT_PUBLIC_ADS_ENABLED === 'true';
 
 /**
  * Which ad provider to use
- * Options: 'placeholder' | 'google-ima' | 'custom'
+ * Options: 'placeholder' | 'monetag' | 'google-ima' | 'custom'
  */
 export const AD_PROVIDER = (process.env.NEXT_PUBLIC_AD_PROVIDER || 'placeholder') as
   | 'placeholder'
+  | 'monetag'
   | 'google-ima'
   | 'custom';
 
@@ -51,8 +52,8 @@ export const DEFAULT_AD_CONFIG: AdConfig = {
   // Show display ads in content grids
   showDisplayAds: true,
 
-  // Show a display ad every 12 items in grids
-  displayAdFrequency: 12,
+  // Show a display ad every 24 items in grids (respectful frequency)
+  displayAdFrequency: 24,
 
   // Minimum 5 minutes between video ads per session
   videoAdCooldown: 300,
@@ -80,8 +81,8 @@ export const PREROLL_CONFIG = {
  * Display ad configuration
  */
 export const DISPLAY_AD_CONFIG = {
-  /** Show ad after every N content cards */
-  frequency: 12,
+  /** Show ad after every N content cards (respectful, non-spammy) */
+  frequency: 24,
 
   /** Supported sizes */
   sizes: {

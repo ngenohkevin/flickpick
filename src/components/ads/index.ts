@@ -3,7 +3,6 @@
 // ==========================================================================
 
 export { AdPlayer } from './AdPlayer';
-
-// Future components:
-// export { DisplayAd } from './DisplayAd';
-// export { NativeAd } from './NativeAd';
+export { MonetAgScripts } from './MonetAgScripts';
+export { MonetAgBanner, type MonetAgBannerType } from './MonetAgBanner';
+export { DisplayAdSlot, type DisplayAdPlacement } from './DisplayAdSlot';
