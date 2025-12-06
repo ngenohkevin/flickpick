@@ -2,9 +2,11 @@
 
 // ==========================================================================
 // Monetag Scripts Component
-// DISABLED - All Monetag ad formats are too aggressive
+// Loads Vignette Banner ads (Better Ads Standards compliant)
 // ==========================================================================
 
+import Script from 'next/script';
+import { useEffect, useState } from 'react';
 import { shouldShowAds } from '@/lib/ads/config';
 
 interface MonetAgScriptsProps {
@@ -14,18 +16,39 @@ interface MonetAgScriptsProps {
 /**
  * MonetAgScripts
  *
- * Currently DISABLED because all Monetag formats are too intrusive:
- * - MultiTag: Auto-enables popunders, interstitials, etc.
- * - Popunders: Click anywhere opens new window (BAD UX)
- * - Interstitials: Full-page blocking ads
- * - Vignettes: Full-page transition ads
- * - In-Page Push: Floating notifications
- *
- * Consider using Google AdSense or similar for respectful banner ads.
+ * Loads Vignette Banner ads which are:
+ * - Compliant with Better Ads Standards
+ * - UX effective with clean ad feed
+ * - Non-intrusive compared to popunders/interstitials
  */
 export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
-  // All Monetag ads disabled - they're too aggressive
-  return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  const adsEnabled = enabled ?? shouldShowAds();
+  if (!adsEnabled) return null;
+
+  // Don't load ads on localhost
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return null;
+  }
+
+  const vignetteZone = process.env.NEXT_PUBLIC_MONETAG_VIGNETTE_ZONE;
+  if (!vignetteZone) return null;
+
+  return (
+    <Script
+      id="monetag-vignette"
+      strategy="lazyOnload"
+    >
+      {`(function(s){s.dataset.zone='${vignetteZone}',s.src='https://gizokraijaw.net/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`}
+    </Script>
+  );
 }
 
 export default MonetAgScripts;
