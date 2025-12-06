@@ -2,57 +2,29 @@
 
 // ==========================================================================
 // Monetag Scripts Component
-// Loads ONLY respectful banner/display ad scripts
-// NO popunders, interstitials, vignettes, or push notifications
+// DISABLED - All Monetag ad formats are too aggressive
 // ==========================================================================
 
-import { useEffect, useState } from 'react';
 import { shouldShowAds } from '@/lib/ads/config';
 
-// ==========================================================================
-// Types
-// ==========================================================================
-
 interface MonetAgScriptsProps {
-  /** Override the default ads enabled check */
   enabled?: boolean;
 }
-
-// ==========================================================================
-// Monetag Scripts Component
-// ==========================================================================
 
 /**
  * MonetAgScripts
  *
- * This component is intentionally minimal to ensure respectful ad experience.
- * We do NOT load:
- * - MultiTag (auto-enables aggressive formats)
- * - Popunders
- * - Interstitials (full-page blocking ads)
- * - Vignettes (full-page transition ads)
- * - Push notifications
+ * Currently DISABLED because all Monetag formats are too intrusive:
+ * - MultiTag: Auto-enables popunders, interstitials, etc.
+ * - Popunders: Click anywhere opens new window (BAD UX)
+ * - Interstitials: Full-page blocking ads
+ * - Vignettes: Full-page transition ads
+ * - In-Page Push: Floating notifications
  *
- * Instead, we only use banner/display ads placed in specific locations
- * via the MonetAgBanner component.
+ * Consider using Google AdSense or similar for respectful banner ads.
  */
 export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Don't render on server or if ads are disabled
-  if (!mounted) return null;
-
-  const adsEnabled = enabled ?? shouldShowAds();
-  if (!adsEnabled) return null;
-
-  // Banner ads are loaded via MonetAgBanner component in specific placements
-  // This component now serves only as a placeholder for any global ad initialization
-  // that might be needed in the future
-
+  // All Monetag ads disabled - they're too aggressive
   return null;
 }
 
