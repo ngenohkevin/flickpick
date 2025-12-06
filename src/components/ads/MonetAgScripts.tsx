@@ -85,8 +85,17 @@ export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
   const adsEnabled = enabled ?? shouldShowAds();
   if (!adsEnabled) return null;
 
+  // Don't load ads on localhost - they only work on verified domains
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[MonetAgScripts] Skipping ad scripts on localhost');
+    }
+    return null;
+  }
+
   const zones = getZoneIds();
-  const hasAnyZone = Object.values(zones).some(Boolean);
+  const multiTagZone = process.env.NEXT_PUBLIC_MONETAG_MULTITAG_ZONE;
+  const hasAnyZone = multiTagZone || Object.values(zones).some(Boolean);
 
   if (!hasAnyZone) {
     if (process.env.NODE_ENV === 'development') {
@@ -99,60 +108,27 @@ export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
 
   return (
     <>
+      {/* MultiTag - Auto-optimized ad formats */}
+      {multiTagZone && (
+        <Script
+          id="monetag-multitag"
+          src="https://quge5.com/88/tag.min.js"
+          data-zone={multiTagZone}
+          strategy="lazyOnload"
+          async
+          data-cfasync="false"
+        />
+      )}
+
       {/* In-Page Push (Banner-style notifications) */}
       {zones.inPagePush && (
         <Script
           id="monetag-ipp"
-          src={`//niphaumeenses.net/vignette.min.js`}
+          src="//niphaumeenses.net/vignette.min.js"
           data-zone={zones.inPagePush}
           strategy="lazyOnload"
           data-cfasync="false"
         />
-      )}
-
-      {/* Popunder/OnClick Ads */}
-      {zones.popunder && (
-        <Script
-          id="monetag-popunder"
-          strategy="lazyOnload"
-          data-cfasync="false"
-        >
-          {`
-            (function(d,z,s){
-              s.src='//'+d+'/tag.min.js?z='+z;
-              s.setAttribute('data-cfasync','false');
-              document.body.appendChild(s);
-            })('thusjumhua.com',${zones.popunder},document.createElement('script'));
-          `}
-        </Script>
-      )}
-
-      {/* Vignette Banner */}
-      {zones.vignette && (
-        <Script
-          id="monetag-vignette"
-          src={`//niphaumeenses.net/vignette.min.js`}
-          data-zone={zones.vignette}
-          strategy="lazyOnload"
-          data-cfasync="false"
-        />
-      )}
-
-      {/* Interstitial Ads */}
-      {zones.interstitial && (
-        <Script
-          id="monetag-interstitial"
-          strategy="lazyOnload"
-          data-cfasync="false"
-        >
-          {`
-            (function(d,z,s){
-              s.src='//'+d+'/vignette.min.js?z='+z;
-              s.setAttribute('data-cfasync','false');
-              document.body.appendChild(s);
-            })('niphaumeenses.net',${zones.interstitial},document.createElement('script'));
-          `}
-        </Script>
       )}
 
       {/* Push Notifications */}
