@@ -2,7 +2,7 @@
 
 // ==========================================================================
 // Monetag Scripts Component
-// Loads Vignette Banner ads (Better Ads Standards compliant)
+// Loads non-intrusive ad formats (no click hijacking)
 // ==========================================================================
 
 import Script from 'next/script';
@@ -16,10 +16,11 @@ interface MonetAgScriptsProps {
 /**
  * MonetAgScripts
  *
- * Loads Vignette Banner ads which are:
- * - Compliant with Better Ads Standards
- * - UX effective with clean ad feed
- * - Non-intrusive compared to popunders/interstitials
+ * Loads respectful ad formats:
+ * - Vignette Banner: Native-like banners (Better Ads Standards compliant)
+ * - In-Page Push: Corner notification ads
+ *
+ * Does NOT load click-hijacking formats (popunders, direct links)
  */
 export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
   const [mounted, setMounted] = useState(false);
@@ -39,15 +40,32 @@ export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
   }
 
   const vignetteZone = process.env.NEXT_PUBLIC_MONETAG_VIGNETTE_ZONE;
-  if (!vignetteZone) return null;
+  const ippZone = process.env.NEXT_PUBLIC_MONETAG_IPP_ZONE;
+
+  if (!vignetteZone && !ippZone) return null;
 
   return (
-    <Script
-      id="monetag-vignette"
-      strategy="lazyOnload"
-    >
-      {`(function(s){s.dataset.zone='${vignetteZone}',s.src='https://gizokraijaw.net/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`}
-    </Script>
+    <>
+      {/* Vignette Banner - Native-like banners */}
+      {vignetteZone && (
+        <Script
+          id="monetag-vignette"
+          strategy="lazyOnload"
+        >
+          {`(function(s){s.dataset.zone='${vignetteZone}',s.src='https://gizokraijaw.net/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`}
+        </Script>
+      )}
+
+      {/* In-Page Push - Corner notification ads */}
+      {ippZone && (
+        <Script
+          id="monetag-ipp"
+          strategy="lazyOnload"
+        >
+          {`(function(s){s.dataset.zone='${ippZone}',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`}
+        </Script>
+      )}
+    </>
   );
 }
 
