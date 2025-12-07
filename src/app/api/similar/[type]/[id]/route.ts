@@ -211,9 +211,20 @@ export async function GET(
 
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
-            // Include all results - don't filter by media_type
-            // Let the client-side filters handle type filtering
-            similarMovies = tasteDiveResults.map((r) => ({
+
+            // Filter results based on source content type
+            // For animation/anime, only show animation/anime content
+            let filteredResults = tasteDiveResults;
+            if (contentType === 'animation' || contentType === 'anime') {
+              filteredResults = tasteDiveResults.filter(
+                (r) => r.content_type === 'animation' || r.content_type === 'anime'
+              );
+              console.log(
+                `[Similar] Filtered ${tasteDiveResults.length} results to ${filteredResults.length} animation/anime for "${details.title}"`
+              );
+            }
+
+            similarMovies = filteredResults.map((r) => ({
               id: r.id,
               title: r.title,
               name: r.media_type === 'tv' ? r.title : undefined,
@@ -316,9 +327,20 @@ export async function GET(
 
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
-            // Include all results - don't filter by media_type
-            // Let the client-side filters handle type filtering
-            similarShows = tasteDiveResults.map((r) => ({
+
+            // Filter results based on source content type
+            // For animation/anime, only show animation/anime content
+            let filteredResults = tasteDiveResults;
+            if (contentType === 'animation' || contentType === 'anime') {
+              filteredResults = tasteDiveResults.filter(
+                (r) => r.content_type === 'animation' || r.content_type === 'anime'
+              );
+              console.log(
+                `[Similar] Filtered ${tasteDiveResults.length} results to ${filteredResults.length} animation/anime for "${details.name}"`
+              );
+            }
+
+            similarShows = filteredResults.map((r) => ({
               id: r.id,
               title: r.media_type === 'movie' ? r.title : undefined,
               name: r.media_type === 'tv' ? r.title : r.title,

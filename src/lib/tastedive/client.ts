@@ -117,6 +117,123 @@ function sanitizeTitle(title: string): string {
 }
 
 /**
+ * Extract base title by removing sequel numbers and common suffixes
+ * e.g., "Zootopia 2" -> "Zootopia", "Toy Story 3" -> "Toy Story"
+ */
+function getBaseTitle(title: string): string | null {
+  // Match patterns like "Title 2", "Title II", "Title: Part 2", "Title - Part Two"
+  const sequelPatterns = [
+    /\s+\d+$/,                          // "Zootopia 2"
+    /\s+[IVXLC]+$/i,                    // "Rocky IV"
+    /\s*[-:]\s*Part\s+\w+$/i,           // "Harry Potter: Part 2"
+    /\s*[-:]\s*Chapter\s+\w+$/i,        // "John Wick: Chapter 4"
+    /\s*[-:]\s*Episode\s+\w+$/i,        // "Star Wars: Episode V"
+    /\s*[-:]\s*Vol\.?\s*\d+$/i,         // "Guardians: Vol. 3"
+    /\s*[-:]\s*Volume\s+\d+$/i,         // "Kill Bill: Volume 2"
+  ];
+
+  for (const pattern of sequelPatterns) {
+    if (pattern.test(title)) {
+      const base = title.replace(pattern, '').trim();
+      // Only return if we got a meaningful base title
+      if (base.length >= 2) {
+        return base;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Calculate title similarity score (0-1)
+ * Used to verify TasteDive found the right content
+ */
+function calculateTitleSimilarity(query: string, found: string): number {
+  const normalize = (s: string) =>
+    s.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const q = normalize(query);
+  const f = normalize(found);
+
+  // Exact match
+  if (q === f) return 1.0;
+
+  // One contains the other
+  if (f.includes(q) || q.includes(f)) {
+    return 0.8;
+  }
+
+  // Check word overlap
+  const qWords = new Set(q.split(' '));
+  const fWords = new Set(f.split(' '));
+  const intersection = [...qWords].filter((w) => fWords.has(w));
+  const union = new Set([...qWords, ...fWords]);
+
+  // Jaccard similarity
+  return intersection.length / union.size;
+}
+
+/**
+ * Validate that TasteDive actually found our requested content
+ * Returns true if TasteDive matched ONLY our content (not polluted with unrelated items)
+ *
+ * TasteDive's fuzzy matching can grab unrelated content (e.g., "Zootopia 2" matches
+ * "Terminator 2" and "Harry Potter Part 2"), polluting recommendations.
+ */
+function validateTasteDiveResponse(
+  queryTitle: string,
+  infoItems: Array<{ name: string; type: string }>,
+  expectedType: 'movie' | 'show'
+): boolean {
+  if (!infoItems || infoItems.length === 0) {
+    return false;
+  }
+
+  const firstMatch = infoItems[0];
+  if (!firstMatch) {
+    return false;
+  }
+
+  // Type should match
+  if (firstMatch.type !== expectedType) {
+    console.log(`[TasteDive] Type mismatch: expected ${expectedType}, got ${firstMatch.type}`);
+    return false;
+  }
+
+  // First item should match our query
+  const primarySimilarity = calculateTitleSimilarity(queryTitle, firstMatch.name);
+  if (primarySimilarity < 0.5) {
+    console.log(
+      `[TasteDive] Title mismatch: queried "${queryTitle}", got "${firstMatch.name}" (similarity: ${primarySimilarity.toFixed(2)})`
+    );
+    return false;
+  }
+
+  // Check if TasteDive added unrelated "pollution" items
+  // This happens when fuzzy matching grabs other content with similar numbers/words
+  if (infoItems.length > 1) {
+    const pollutionItems = infoItems.slice(1).filter((item) => {
+      const sim = calculateTitleSimilarity(queryTitle, item.name);
+      // If an item has low similarity, it's pollution
+      return sim < 0.4;
+    });
+
+    if (pollutionItems.length > 0) {
+      console.log(
+        `[TasteDive] Query pollution detected for "${queryTitle}": TasteDive also matched: ${pollutionItems.map((i) => i.name).join(', ')}`
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Build TasteDive query string from titles
  * @param titles Array of titles to query
  * @param type Type prefix ('movie' or 'show')
@@ -169,6 +286,44 @@ async function fetchTasteDive(params: URLSearchParams): Promise<TasteDiveRespons
 }
 
 /**
+ * Internal function to fetch and validate TasteDive results
+ */
+async function fetchAndValidateTasteDive(
+  title: string,
+  tasteDiveType: 'movie' | 'show',
+  limit: number
+): Promise<{ results: TasteDiveMatch[]; valid: boolean }> {
+  const params = new URLSearchParams({
+    q: buildQuery([title], tasteDiveType),
+    type: tasteDiveType,
+    info: '1',
+    limit: String(limit),
+    k: TASTEDIVE_API_KEY!,
+  });
+
+  const data = await fetchTasteDive(params);
+
+  if (!data.similar?.results || data.similar.results.length === 0) {
+    console.log(`[TasteDive] No matches for "${title}"`);
+    return { results: [], valid: false };
+  }
+
+  // Validate that TasteDive actually found the right content
+  const isValidResponse = validateTasteDiveResponse(
+    title,
+    data.similar.info,
+    tasteDiveType
+  );
+
+  if (!isValidResponse) {
+    console.log(`[TasteDive] Response validation failed for "${title}" - results may be for wrong content`);
+    return { results: data.similar.results.map(toMatch), valid: false };
+  }
+
+  return { results: data.similar.results.map(toMatch), valid: true };
+}
+
+/**
  * Get similar content from TasteDive for a single title
  * @param title The title to find similar content for
  * @param type Content type ('movie' or 'tv')
@@ -202,25 +357,35 @@ export async function getSimilar(
   // Track rate limit
   await incrementRateLimit();
 
-  const params = new URLSearchParams({
-    q: buildQuery([title], tasteDiveType),
-    type: tasteDiveType,
-    info: '1',
-    limit: String(limit),
-    k: TASTEDIVE_API_KEY,
-  });
+  // Try the original title first
+  let { results, valid } = await fetchAndValidateTasteDive(title, tasteDiveType, limit);
 
-  const data = await fetchTasteDive(params);
+  // If TasteDive returned results but for the wrong content (common with sequels),
+  // try the base title instead
+  if (!valid && results.length > 0) {
+    const baseTitle = getBaseTitle(title);
+    if (baseTitle) {
+      console.log(`[TasteDive] Trying base title "${baseTitle}" instead of "${title}"`);
+      await incrementRateLimit(); // This uses another API call
+      const baseResult = await fetchAndValidateTasteDive(baseTitle, tasteDiveType, limit);
 
-  if (!data.similar?.results || data.similar.results.length === 0) {
-    console.log(`[TasteDive] No matches for "${title}" - not caching`);
+      if (baseResult.valid && baseResult.results.length > 0) {
+        console.log(`[TasteDive] Base title "${baseTitle}" returned valid results`);
+        results = baseResult.results;
+        valid = true;
+      }
+    }
+  }
+
+  // If we still don't have valid results, return empty to trigger TMDB fallback
+  if (!valid) {
+    console.log(`[TasteDive] No valid matches for "${title}" - falling back to TMDB`);
     return [];
   }
 
-  const results = data.similar.results.map(toMatch);
   console.log(`[TasteDive] Found ${results.length} similar items for "${title}"`);
 
-  // Only cache non-empty results
+  // Only cache valid, non-empty results
   if (results.length > 0) {
     await setCache(cacheKey, results, TASTEDIVE_CONFIG.CACHE_TTL);
   }
