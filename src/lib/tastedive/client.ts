@@ -179,10 +179,11 @@ function calculateTitleSimilarity(query: string, found: string): number {
 
 /**
  * Validate that TasteDive actually found our requested content
- * Returns true if TasteDive matched ONLY our content (not polluted with unrelated items)
+ * Returns true if the primary match (first info item) matches our query
  *
- * TasteDive's fuzzy matching can grab unrelated content (e.g., "Zootopia 2" matches
- * "Terminator 2" and "Harry Potter Part 2"), polluting recommendations.
+ * Note: Secondary info items are often legitimately related content (e.g.,
+ * "Spartacus: House of Ashur" → "House of the Dragon" is a valid thematic match).
+ * We only validate the primary match, not secondary items.
  */
 function validateTasteDiveResponse(
   queryTitle: string,
@@ -211,23 +212,6 @@ function validateTasteDiveResponse(
       `[TasteDive] Title mismatch: queried "${queryTitle}", got "${firstMatch.name}" (similarity: ${primarySimilarity.toFixed(2)})`
     );
     return false;
-  }
-
-  // Check if TasteDive added unrelated "pollution" items
-  // This happens when fuzzy matching grabs other content with similar numbers/words
-  if (infoItems.length > 1) {
-    const pollutionItems = infoItems.slice(1).filter((item) => {
-      const sim = calculateTitleSimilarity(queryTitle, item.name);
-      // If an item has low similarity, it's pollution
-      return sim < 0.4;
-    });
-
-    if (pollutionItems.length > 0) {
-      console.log(
-        `[TasteDive] Query pollution detected for "${queryTitle}": TasteDive also matched: ${pollutionItems.map((i) => i.name).join(', ')}`
-      );
-      return false;
-    }
   }
 
   return true;
