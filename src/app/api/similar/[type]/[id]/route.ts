@@ -202,29 +202,55 @@ export async function GET(
 
       if (tasteDiveAvailable) {
         try {
-          const tasteDiveResults = await getSimilarEnriched(
+          let tasteDiveResults = await getSimilarEnriched(
             details.title,
             'movie',
             20,
             [contentId]
           );
 
+          // For animation/anime, check if results are actually animated
+          // TasteDive sometimes returns garbage for sequels (e.g., "Zootopia 2" → live action movies)
+          // If so, retry with base title (e.g., "Zootopia")
+          if (
+            (contentType === 'animation' || contentType === 'anime') &&
+            tasteDiveResults.length > 0
+          ) {
+            const animatedCount = tasteDiveResults.filter(
+              (r) => r.content_type === 'animation' || r.content_type === 'anime'
+            ).length;
+            const animatedRatio = animatedCount / tasteDiveResults.length;
+
+            if (animatedRatio < 0.3) {
+              // Less than 30% animated - likely garbage results, try base title
+              const baseTitle = details.title
+                .replace(/\s+\d+$/, '')           // Remove trailing numbers (Zootopia 2)
+                .replace(/\s+[IVXLC]+$/i, '')     // Remove Roman numerals
+                .replace(/\s*[-:]\s*Part\s+\w+$/i, '') // Remove "Part X"
+                .trim();
+
+              if (baseTitle !== details.title && baseTitle.length > 2) {
+                console.log(
+                  `[Similar] Animation "${details.title}" got ${animatedRatio * 100}% animated results, trying base title "${baseTitle}"`
+                );
+                const baseResults = await getSimilarEnriched(baseTitle, 'movie', 20, [contentId]);
+                if (baseResults.length > 0) {
+                  const baseAnimatedCount = baseResults.filter(
+                    (r) => r.content_type === 'animation' || r.content_type === 'anime'
+                  ).length;
+                  if (baseAnimatedCount > animatedCount) {
+                    tasteDiveResults = baseResults;
+                  }
+                }
+              }
+            }
+          }
+
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
 
-            // Filter results based on source content type
-            // For animation/anime, only show animation/anime content
-            let filteredResults = tasteDiveResults;
-            if (contentType === 'animation' || contentType === 'anime') {
-              filteredResults = tasteDiveResults.filter(
-                (r) => r.content_type === 'animation' || r.content_type === 'anime'
-              );
-              console.log(
-                `[Similar] Filtered ${tasteDiveResults.length} results to ${filteredResults.length} animation/anime for "${details.title}"`
-              );
-            }
-
-            similarMovies = filteredResults.map((r) => ({
+            // Return all TasteDive results (movies and shows mixed)
+            similarMovies = tasteDiveResults.map((r) => ({
               id: r.id,
               title: r.title,
               name: r.media_type === 'tv' ? r.title : undefined,
@@ -328,19 +354,8 @@ export async function GET(
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
 
-            // Filter results based on source content type
-            // For animation/anime, only show animation/anime content
-            let filteredResults = tasteDiveResults;
-            if (contentType === 'animation' || contentType === 'anime') {
-              filteredResults = tasteDiveResults.filter(
-                (r) => r.content_type === 'animation' || r.content_type === 'anime'
-              );
-              console.log(
-                `[Similar] Filtered ${tasteDiveResults.length} results to ${filteredResults.length} animation/anime for "${details.name}"`
-              );
-            }
-
-            similarShows = filteredResults.map((r) => ({
+            // Return all TasteDive results (movies and shows mixed)
+            similarShows = tasteDiveResults.map((r) => ({
               id: r.id,
               title: r.media_type === 'movie' ? r.title : undefined,
               name: r.media_type === 'tv' ? r.title : r.title,
