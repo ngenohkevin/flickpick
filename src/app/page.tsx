@@ -14,16 +14,12 @@ import {
   toTVShow,
   type TMDBTVShow,
 } from '@/lib/tmdb';
-import {
-  filterAvailableMovies,
-  type MovieWithAvailability,
-} from '@/lib/torrentio';
 import { tmdbFetch } from '@/lib/tmdb/client';
 import {
-  HeroSpotlight,
   ContentRow,
+  HeroWithJustReleased,
+  JustReleasedSection,
 } from '@/components/content';
-import { JustReleasedRow } from '@/components/content/JustReleasedRow';
 import { JustReleasedTVRow } from '@/components/content/JustReleasedTVRow';
 import { CategoryGrid } from '@/components/browse';
 import { SkeletonRow } from '@/components/ui';
@@ -76,63 +72,8 @@ async function getNewMoviesThisWeek(): Promise<Movie[]> {
   }));
 }
 
-/**
- * Get "Just Released" movies - verified available via Torrentio
- * These are movies that have actual digital releases available
- * OPTIMIZED: Reduced API calls and candidates for faster loading
- */
-async function getJustReleasedMovies(): Promise<MovieWithAvailability[]> {
-  const today = new Date();
-  const ninetyDaysAgo = new Date(today);
-  ninetyDaysAgo.setDate(today.getDate() - 90);
-
-  // Get candidate movies (reduced to 2 pages)
-  const [page1, page2] = await Promise.all([
-    discoverMovies({
-      page: 1,
-      sort_by: 'popularity.desc',
-      'primary_release_date.lte': today.toISOString().split('T')[0],
-      'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
-      'vote_count.gte': 50,
-      'vote_average.gte': 5.5,
-    }),
-    discoverMovies({
-      page: 2,
-      sort_by: 'popularity.desc',
-      'primary_release_date.lte': today.toISOString().split('T')[0],
-      'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
-      'vote_count.gte': 50,
-      'vote_average.gte': 5.5,
-    }),
-  ]);
-
-  // Combine results (reduced to 40 candidates)
-  const allResults = [
-    ...(page1.results ?? []),
-    ...(page2.results ?? []),
-  ];
-
-  const candidateMovies = allResults.slice(0, 40).map((m) => ({
-    ...toMovie(m),
-    media_type: 'movie' as const,
-  }));
-
-  // Filter to only those with Torrentio availability
-  // Add timeout to prevent blocking the page
-  try {
-    const timeoutPromise = new Promise<MovieWithAvailability[]>((resolve) => {
-      setTimeout(() => resolve([]), 15000); // 15 second timeout
-    });
-    const availableMovies = await Promise.race([
-      filterAvailableMovies(candidateMovies, 20),
-      timeoutPromise,
-    ]);
-    return availableMovies;
-  } catch (error) {
-    console.error('Failed to fetch Torrentio availability:', error);
-    return [];
-  }
-}
+// NOTE: Just Released movies with Torrentio verification is now loaded
+// on the client side via JustReleasedRowLazy to avoid blocking page load
 
 // ==========================================================================
 // Just Released TV Shows Types (no Torrentio - raw TMDB data)
@@ -312,20 +253,19 @@ async function getPopularAnime(): Promise<Content[]> {
 
 /**
  * Get all homepage data
+ * NOTE: Torrentio-verified movies are loaded on client side to avoid blocking
  */
 async function getHomepageData() {
   const [
     trendingMoviesRes,
     trendingTVRes,
     newMovies,
-    justReleasedMovies,
     justReleasedTVShows,
     popularAnime,
   ] = await Promise.all([
     getTrendingMovies('day', 1),
     getTrendingTVShows('day', 1),
     getNewMoviesThisWeek(),
-    getJustReleasedMovies(),
     getJustReleasedTVShows(),
     getPopularAnime(),
   ]);
@@ -333,36 +273,29 @@ async function getHomepageData() {
   const trendingMovies = (trendingMoviesRes.results ?? []).slice(0, 12).map(toMovie);
   const trendingTV = (trendingTVRes.results ?? []).slice(0, 12).map(toTVShow);
 
-  // For hero: mix just released movies with trending TV shows
+  // For hero: use trending movies and TV shows (fast, no Torrentio)
   // Show 12 slides total for good rotation
-  const justReleasedWithBackdrops = justReleasedMovies.filter((item) => item.backdrop_path);
+  const trendingMoviesWithBackdrops = trendingMovies.filter((m) => m.backdrop_path);
   const trendingTVWithBackdrops = trendingTV.filter((t) => t.backdrop_path);
 
-  // Take 8 just released movies and 4 trending TV shows for a good mix
-  const heroMovies = justReleasedWithBackdrops.slice(0, 8) as Content[];
-  const heroTVShows = trendingTVWithBackdrops.slice(0, 4) as Content[];
-
-  // Interleave movies and TV shows for variety
+  // Interleave trending movies and TV shows for variety
   const heroItems: Content[] = [];
-  const maxLen = Math.max(heroMovies.length, heroTVShows.length);
-  for (let i = 0; i < maxLen; i++) {
-    // Add 2 movies then 1 TV show for 2:1 ratio
-    if (i < heroMovies.length) heroItems.push(heroMovies[i]!);
-    if (i + heroMovies.length / 2 < heroMovies.length && heroMovies[i + Math.floor(heroMovies.length / 2)]) {
-      heroItems.push(heroMovies[i + Math.floor(heroMovies.length / 2)]!);
+  const maxLen = Math.max(trendingMoviesWithBackdrops.length, trendingTVWithBackdrops.length);
+  for (let i = 0; i < maxLen && heroItems.length < 12; i++) {
+    // Add 1 movie then 1 TV show for balanced mix
+    if (i < trendingMoviesWithBackdrops.length) {
+      heroItems.push(trendingMoviesWithBackdrops[i] as Content);
     }
-    if (i < heroTVShows.length) heroItems.push(heroTVShows[i]!);
+    if (i < trendingTVWithBackdrops.length) {
+      heroItems.push(trendingTVWithBackdrops[i] as Content);
+    }
   }
 
-  // Deduplicate and limit to 12
-  const uniqueHeroItems = Array.from(new Map(heroItems.map(item => [item.id, item])).values()).slice(0, 12);
-
   return {
-    heroItems: uniqueHeroItems,
+    heroItems: heroItems.slice(0, 12),
     trendingMovies,
     trendingTV,
     newMovies,
-    justReleasedMovies,
     justReleasedTVShows,
     popularAnime,
   };
@@ -378,7 +311,6 @@ export default async function HomePage() {
     trendingMovies,
     trendingTV,
     newMovies,
-    justReleasedMovies,
     justReleasedTVShows,
     popularAnime,
   } = await getHomepageData();
@@ -398,8 +330,8 @@ export default async function HomePage() {
         }}
       />
 
-      {/* Hero Spotlight */}
-      <HeroSpotlight items={heroItems} />
+      {/* Hero Spotlight + Just Released (Torrentio loads in background, updates hero when ready) */}
+      <HeroWithJustReleased trendingItems={heroItems} />
 
       {/* Main Content */}
       <main className="container space-y-12 py-12 sm:space-y-16 sm:py-16">
@@ -444,14 +376,10 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* Just Released Movies - Torrentio Verified (4K Only) */}
-        {justReleasedMovies.length > 0 && (
-          <JustReleasedRow
-            movies={justReleasedMovies}
-          />
-        )}
+        {/* Just Released Movies - Torrentio Verified (loads in background) */}
+        <JustReleasedSection />
 
-        {/* Just Released TV Shows - Torrentio Verified */}
+        {/* Just Released TV Shows */}
         {justReleasedTVShows.length > 0 && (
           <JustReleasedTVRow
             shows={justReleasedTVShows}

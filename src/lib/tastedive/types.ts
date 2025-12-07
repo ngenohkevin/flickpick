@@ -9,35 +9,36 @@
 
 /**
  * TasteDive API response wrapper
- * Note: TasteDive API returns capitalized keys (Similar, Info, Results)
+ * Note: TasteDive API returns lowercase keys (similar, info, results)
  */
 export interface TasteDiveResponse {
-  Similar: {
-    Info: TasteDiveInfoItem[];
-    Results: TasteDiveResult[];
+  similar: {
+    info: TasteDiveInfoItem[];
+    results: TasteDiveResult[];
   };
 }
 
 /**
  * Info about the queried item(s)
- * Note: TasteDive API returns capitalized Name and Type keys
+ * Note: TasteDive API returns lowercase name and type keys
  */
 export interface TasteDiveInfoItem {
-  Name: string;
-  Type: TasteDiveType;
+  name: string;
+  type: TasteDiveType;
 }
 
 /**
  * Individual result from TasteDive
- * Note: TasteDive API returns capitalized Name and Type keys
+ * Note: TasteDive API returns lowercase keys
  */
 export interface TasteDiveResult {
-  Name: string;
-  Type: TasteDiveType;
-  wTeaser?: string;       // Wikipedia description
-  wUrl?: string;          // Wikipedia URL
-  yUrl?: string;          // YouTube trailer URL
-  yID?: string;           // YouTube video ID
+  name: string;
+  type: TasteDiveType;
+  wTeaser?: string;       // Wikipedia description (may be missing)
+  wUrl?: string | null;   // Wikipedia URL
+  yUrl?: string | null;   // YouTube trailer URL
+  yID?: string | null;    // YouTube video ID
+  description?: string | null; // Sometimes returned instead of wTeaser
 }
 
 /**

@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Track prompt popularity (for automatic caching of popular searches)
-    const shouldCache = await trackPromptPopularity(prompt);
+    // Track prompt popularity (for analytics)
+    await trackPromptPopularity(prompt);
 
     // Get AI recommendations
     const result = await getRecommendations(
@@ -151,12 +151,11 @@ export async function POST(request: NextRequest) {
       excludeIds
     );
 
-    // Cache the results if:
-    // 1. This is an example prompt (always cache), OR
-    // 2. This prompt has become popular (searched multiple times)
-    if (canUseCache && (isExamplePrompt || shouldCache)) {
-      // Example prompts get longer TTL (24h), popular prompts get 12h
-      await cachePromptResults(prompt, result, isExamplePrompt ? 86400 : 43200);
+    // Cache ALL successful results (if we can use cache)
+    // TTL: Example prompts 24h, regular prompts 6h
+    if (canUseCache && result.results.length > 0) {
+      const cacheTTL = isExamplePrompt ? 86400 : 21600; // 24h or 6h
+      await cachePromptResults(prompt, result, cacheTTL);
     }
 
     const response: DiscoverResponse = {
@@ -167,7 +166,7 @@ export async function POST(request: NextRequest) {
     };
 
     const duration = Date.now() - startTime;
-    const cacheStatus = isExamplePrompt ? ' (cached as example)' : shouldCache ? ' (cached as popular)' : '';
+    const cacheStatus = canUseCache && result.results.length > 0 ? ' (cached)' : '';
     console.log(
       `[Discover] Completed in ${duration}ms - ${result.results.length} results from ${result.provider}${cacheStatus}`
     );

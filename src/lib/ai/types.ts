@@ -111,7 +111,7 @@ export interface DiscoverError {
  */
 export const AI_SYSTEM_PROMPT = `You are FlickPick, an expert movie and TV recommendation engine.
 
-TASK: Given the user's description, recommend exactly 10 titles (movies or TV shows).
+TASK: Given the user's description, recommend up to 15 titles (movies or TV shows).
 
 CONTENT TYPES:
 - movie: Feature films

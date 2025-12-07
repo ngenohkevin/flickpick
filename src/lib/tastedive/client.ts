@@ -3,7 +3,7 @@
 // Functions for fetching similar content recommendations
 // ==========================================================================
 
-import { getCached, getRedisClient } from '@/lib/redis';
+import { getCache, setCache, getRedisClient } from '@/lib/redis';
 import type {
   TasteDiveResponse,
   TasteDiveResult,
@@ -91,16 +91,16 @@ function normalizeType(type: string): NormalizedType {
 
 /**
  * Convert TasteDive result to our match format
- * Note: TasteDive API returns capitalized Name and Type keys
+ * Note: TasteDive API returns lowercase keys
  */
 function toMatch(result: TasteDiveResult): TasteDiveMatch {
   return {
-    name: result.Name,
-    type: normalizeType(result.Type),
-    description: result.wTeaser,
-    wikipediaUrl: result.wUrl,
-    youtubeUrl: result.yUrl,
-    youtubeId: result.yID,
+    name: result.name,
+    type: normalizeType(result.type),
+    description: result.wTeaser || result.description || undefined,
+    wikipediaUrl: result.wUrl || undefined,
+    youtubeUrl: result.yUrl || undefined,
+    youtubeId: result.yID || undefined,
   };
 }
 
@@ -193,30 +193,39 @@ export async function getSimilar(
   const cacheKey = tasteDiveCacheKeys.similar(type, title);
   const tasteDiveType = type === 'tv' ? 'show' : 'movie';
 
-  return getCached(
-    cacheKey,
-    async () => {
-      // Track rate limit
-      await incrementRateLimit();
+  // Check cache first
+  const cached = await getCache<TasteDiveMatch[]>(cacheKey);
+  if (cached && cached.length > 0) {
+    return cached;
+  }
 
-      const params = new URLSearchParams({
-        q: buildQuery([title], tasteDiveType),
-        type: tasteDiveType,
-        info: '1',
-        limit: String(limit),
-        k: TASTEDIVE_API_KEY,
-      });
+  // Track rate limit
+  await incrementRateLimit();
 
-      const data = await fetchTasteDive(params);
+  const params = new URLSearchParams({
+    q: buildQuery([title], tasteDiveType),
+    type: tasteDiveType,
+    info: '1',
+    limit: String(limit),
+    k: TASTEDIVE_API_KEY,
+  });
 
-      if (!data.Similar?.Results) {
-        return [];
-      }
+  const data = await fetchTasteDive(params);
 
-      return data.Similar.Results.map(toMatch);
-    },
-    TASTEDIVE_CONFIG.CACHE_TTL
-  );
+  if (!data.similar?.results || data.similar.results.length === 0) {
+    console.log(`[TasteDive] No matches for "${title}" - not caching`);
+    return [];
+  }
+
+  const results = data.similar.results.map(toMatch);
+  console.log(`[TasteDive] Found ${results.length} similar items for "${title}"`);
+
+  // Only cache non-empty results
+  if (results.length > 0) {
+    await setCache(cacheKey, results, TASTEDIVE_CONFIG.CACHE_TTL);
+  }
+
+  return results;
 }
 
 /**
@@ -248,30 +257,39 @@ export async function getBlend(
   const cacheKey = tasteDiveCacheKeys.blend(titles);
   const tasteDiveType = type === 'tv' ? 'show' : 'movie';
 
-  return getCached(
-    cacheKey,
-    async () => {
-      // Track rate limit
-      await incrementRateLimit();
+  // Check cache first
+  const cached = await getCache<TasteDiveMatch[]>(cacheKey);
+  if (cached && cached.length > 0) {
+    return cached;
+  }
 
-      const params = new URLSearchParams({
-        q: buildQuery(titles, tasteDiveType),
-        type: tasteDiveType,
-        info: '1',
-        limit: String(limit),
-        k: TASTEDIVE_API_KEY,
-      });
+  // Track rate limit
+  await incrementRateLimit();
 
-      const data = await fetchTasteDive(params);
+  const params = new URLSearchParams({
+    q: buildQuery(titles, tasteDiveType),
+    type: tasteDiveType,
+    info: '1',
+    limit: String(limit),
+    k: TASTEDIVE_API_KEY,
+  });
 
-      if (!data.Similar?.Results) {
-        return [];
-      }
+  const data = await fetchTasteDive(params);
 
-      return data.Similar.Results.map(toMatch);
-    },
-    TASTEDIVE_CONFIG.CACHE_TTL
-  );
+  if (!data.similar?.results || data.similar.results.length === 0) {
+    console.log(`[TasteDive] No blend results for "${titles.join(', ')}" - not caching`);
+    return [];
+  }
+
+  const results = data.similar.results.map(toMatch);
+  console.log(`[TasteDive] Found ${results.length} blend results for "${titles.join(', ')}"`);
+
+  // Only cache non-empty results
+  if (results.length > 0) {
+    await setCache(cacheKey, results, TASTEDIVE_CONFIG.CACHE_TTL);
+  }
+
+  return results;
 }
 
 /**

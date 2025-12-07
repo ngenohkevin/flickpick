@@ -165,6 +165,7 @@ export const cacheKeys = {
   movieVideos: (id: number) => `movie:${id}:videos`,
   movieProviders: (id: number) => `movie:${id}:providers`,
   movieSimilar: (id: number) => `movie:${id}:similar`,
+  movieImdbId: (id: number) => `movie:${id}:imdb`,
 
   tv: (id: number) => `tv:${id}`,
   tvCredits: (id: number) => `tv:${id}:credits`,
@@ -172,6 +173,13 @@ export const cacheKeys = {
   tvProviders: (id: number) => `tv:${id}:providers`,
   tvSimilar: (id: number) => `tv:${id}:similar`,
   tvSeason: (showId: number, season: number) => `tv:${showId}:season:${season}`,
+  tvImdbId: (id: number) => `tv:${id}:imdb`,
+
+  // Torrentio availability
+  torrentioMovie: (imdbId: string) => `torrentio:movie:${imdbId}`,
+  torrentioTV: (imdbId: string, season: number, episode: number) =>
+    `torrentio:tv:${imdbId}:${season}:${episode}`,
+  justReleasedMovies: () => `just-released:movies`,
 
   search: (query: string, page: number) => `search:${query}:${page}`,
   trending: (type: string, window: string, page: number) =>

@@ -3,8 +3,8 @@
 // Match TasteDive results to TMDB for posters, ratings, and full metadata
 // ==========================================================================
 
-import { searchMovies, searchTVShows } from '@/lib/tmdb/search';
-import { getCached } from '@/lib/redis';
+import { searchMulti, type TMDBMultiSearchResult } from '@/lib/tmdb/search';
+import { getCache, setCache } from '@/lib/redis';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import type { TasteDiveMatch, EnrichedTasteDiveResult, NormalizedType } from './types';
 import { tasteDiveCacheKeys, TASTEDIVE_CONFIG } from './types';
@@ -33,132 +33,109 @@ function getContentType(
 }
 
 /**
- * Search TMDB for a movie by title
+ * Search TMDB for content by title using multi-search
+ * This searches BOTH movies and TV shows and picks the best match
+ * based on exact title match, popularity, and vote count
  */
-async function findMovieInTMDB(
+async function findInTMDB(
   title: string
 ): Promise<EnrichedTasteDiveResult | null> {
   try {
-    const results = await searchMovies({ query: title });
+    const response = await searchMulti(title);
+    const results = response.results?.filter(
+      (r): r is TMDBMultiSearchResult & { media_type: 'movie' | 'tv' } =>
+        r.media_type === 'movie' || r.media_type === 'tv'
+    );
 
-    if (!results.results || results.results.length === 0) {
+    if (!results || results.length === 0) {
       return null;
     }
 
-    // Find best match (prefer exact title match)
-    const exactMatch = results.results.find(
-      (m) => m.title?.toLowerCase() === title.toLowerCase()
+    // Get title from result for comparison
+    const getResultTitle = (r: TMDBMultiSearchResult): string =>
+      r.media_type === 'movie' ? (r.title ?? '') : (r.name ?? '');
+
+    // Find exact title matches first
+    const exactMatches = results.filter(
+      (r) => getResultTitle(r).toLowerCase() === title.toLowerCase()
     );
-    const match = exactMatch ?? results.results[0];
 
-    if (!match) return null;
+    // If we have exact matches, pick the most popular one
+    // Otherwise, score all results and pick the best
+    let bestMatch: TMDBMultiSearchResult;
 
-    const genreIds = match.genre_ids ?? [];
-    const releaseYear = match.release_date
-      ? new Date(match.release_date).getFullYear()
-      : 0;
+    if (exactMatches.length > 0) {
+      // Among exact matches, prefer the one with most votes (more reliable)
+      bestMatch = exactMatches.reduce((best, curr) =>
+        (curr.vote_count ?? 0) > (best.vote_count ?? 0) ? curr : best
+      );
+    } else {
+      // No exact match - score by title similarity, popularity, and vote count
+      // Prefer results where title starts with our search term
+      const scored = results.map((r) => {
+        const resultTitle = getResultTitle(r).toLowerCase();
+        const searchTitle = title.toLowerCase();
 
-    return {
-      id: match.id,
-      title: match.title,
-      year: releaseYear,
-      media_type: 'movie',
-      content_type: getContentType(genreIds, undefined, match.original_language, 'movie'),
-      poster_path: match.poster_path ?? null,
-      backdrop_path: match.backdrop_path ?? null,
-      vote_average: match.vote_average ?? 0,
-      vote_count: match.vote_count ?? 0,
-      overview: match.overview ?? '',
-      popularity: match.popularity ?? 0,
-      genre_ids: genreIds,
-      original_language: match.original_language ?? 'en',
-    };
-  } catch (error) {
-    console.error(`Error searching TMDB for movie "${title}":`, error);
-    return null;
-  }
-}
+        let score = 0;
+        // Title starts with search term
+        if (resultTitle.startsWith(searchTitle)) score += 100;
+        // Search term appears in title
+        else if (resultTitle.includes(searchTitle)) score += 50;
 
-/**
- * Search TMDB for a TV show by title
- */
-async function findTVShowInTMDB(
-  title: string
-): Promise<EnrichedTasteDiveResult | null> {
-  try {
-    const results = await searchTVShows({ query: title });
+        // Add popularity and vote count as tiebreakers
+        score += Math.log10((r.popularity ?? 1) + 1) * 10;
+        score += Math.log10((r.vote_count ?? 1) + 1) * 5;
 
-    if (!results.results || results.results.length === 0) {
-      return null;
+        return { result: r, score };
+      });
+
+      scored.sort((a, b) => b.score - a.score);
+      if (scored.length === 0 || !scored[0]) {
+        return null;
+      }
+      bestMatch = scored[0].result;
     }
 
-    // Find best match (prefer exact title match)
-    const exactMatch = results.results.find(
-      (s) => s.name?.toLowerCase() === title.toLowerCase()
-    );
-    const match = exactMatch ?? results.results[0];
-
-    if (!match) return null;
-
-    const genreIds = match.genre_ids ?? [];
-    const originCountry = match.origin_country ?? [];
-    const firstAirYear = match.first_air_date
-      ? new Date(match.first_air_date).getFullYear()
-      : 0;
+    const isMovie = bestMatch.media_type === 'movie';
+    const genreIds = bestMatch.genre_ids ?? [];
+    const originCountry = isMovie ? undefined : (bestMatch.origin_country ?? []);
+    const year = isMovie
+      ? (bestMatch.release_date ? new Date(bestMatch.release_date).getFullYear() : 0)
+      : (bestMatch.first_air_date ? new Date(bestMatch.first_air_date).getFullYear() : 0);
 
     return {
-      id: match.id,
-      title: match.name,
-      year: firstAirYear,
-      media_type: 'tv',
-      content_type: getContentType(genreIds, originCountry, match.original_language, 'tv'),
-      poster_path: match.poster_path ?? null,
-      backdrop_path: match.backdrop_path ?? null,
-      vote_average: match.vote_average ?? 0,
-      vote_count: match.vote_count ?? 0,
-      overview: match.overview ?? '',
-      popularity: match.popularity ?? 0,
+      id: bestMatch.id,
+      title: isMovie ? bestMatch.title! : bestMatch.name!,
+      year,
+      media_type: bestMatch.media_type as 'movie' | 'tv',
+      content_type: getContentType(genreIds, originCountry, bestMatch.original_language, bestMatch.media_type as 'movie' | 'tv'),
+      poster_path: bestMatch.poster_path ?? null,
+      backdrop_path: bestMatch.backdrop_path ?? null,
+      vote_average: bestMatch.vote_average ?? 0,
+      vote_count: bestMatch.vote_count ?? 0,
+      overview: bestMatch.overview ?? '',
+      popularity: bestMatch.popularity ?? 0,
       genre_ids: genreIds,
-      original_language: match.original_language ?? 'en',
+      original_language: bestMatch.original_language ?? 'en',
     };
   } catch (error) {
-    console.error(`Error searching TMDB for TV show "${title}":`, error);
+    console.error(`Error searching TMDB for "${title}":`, error);
     return null;
   }
 }
 
 /**
  * Enrich a single TasteDive match with TMDB data
+ * Uses multi-search to find the best match across movies and TV shows
+ * (TasteDive often misclassifies content types, so we search both)
  */
 async function enrichMatch(
   match: TasteDiveMatch
 ): Promise<EnrichedTasteDiveResult | null> {
-  let result: EnrichedTasteDiveResult | null = null;
-
-  if (match.type === 'movie') {
-    result = await findMovieInTMDB(match.name);
-  } else {
-    result = await findTVShowInTMDB(match.name);
-  }
+  const result = await findInTMDB(match.name);
 
   if (result) {
     // Add TasteDive-specific data
-    return {
-      ...result,
-      tastedive_description: match.description,
-      youtube_url: match.youtubeUrl,
-    };
-  }
-
-  // If not found with original type, try the opposite
-  // (TasteDive sometimes misclassifies movies as shows or vice versa)
-  if (match.type === 'movie') {
-    result = await findTVShowInTMDB(match.name);
-  } else {
-    result = await findMovieInTMDB(match.name);
-  }
-
-  if (result) {
     return {
       ...result,
       tastedive_description: match.description,
@@ -179,11 +156,15 @@ export async function enrichTasteDiveResults(
   matches: TasteDiveMatch[],
   excludeIds?: number[]
 ): Promise<EnrichedTasteDiveResult[]> {
+  console.log(`[TasteDive Enrich] Enriching ${matches.length} matches:`, matches.map(m => m.name).slice(0, 5));
   const excludeSet = new Set(excludeIds ?? []);
 
   // Process in parallel for speed
   const enrichedPromises = matches.map((match) => enrichMatch(match));
   const enrichedResults = await Promise.all(enrichedPromises);
+
+  const foundCount = enrichedResults.filter(r => r !== null).length;
+  console.log(`[TasteDive Enrich] TMDB found ${foundCount}/${matches.length} matches`);
 
   // Filter out nulls (not found) and excluded IDs
   const validResults = enrichedResults.filter(
@@ -218,22 +199,33 @@ export async function getSimilarEnriched(
 ): Promise<EnrichedTasteDiveResult[]> {
   const cacheKey = tasteDiveCacheKeys.similarEnriched(type, title);
 
-  return getCached<EnrichedTasteDiveResult[]>(
-    cacheKey,
-    async () => {
-      // Import here to avoid circular dependency
-      const { getSimilar } = await import('./client');
+  // Check cache first
+  const cached = await getCache<EnrichedTasteDiveResult[]>(cacheKey);
+  if (cached && cached.length > 0) {
+    console.log(`[TasteDive] Cache hit for "${title}" (${cached.length} results)`);
+    return cached;
+  }
 
-      const matches = await getSimilar(title, type, limit);
+  // Fetch fresh data
+  const { getSimilar } = await import('./client');
+  const matches = await getSimilar(title, type, limit);
 
-      if (matches.length === 0) {
-        return [];
-      }
+  if (matches.length === 0) {
+    console.log(`[TasteDive] No matches for "${title}" - not caching`);
+    return [];
+  }
 
-      return enrichTasteDiveResults(matches, excludeIds);
-    },
-    TASTEDIVE_CONFIG.ENRICHED_CACHE_TTL
-  );
+  const enriched = await enrichTasteDiveResults(matches, excludeIds);
+
+  // Only cache if we got results (don't cache empty arrays)
+  if (enriched.length > 0) {
+    await setCache(cacheKey, enriched, TASTEDIVE_CONFIG.ENRICHED_CACHE_TTL);
+    console.log(`[TasteDive] Cached ${enriched.length} enriched results for "${title}"`);
+  } else {
+    console.log(`[TasteDive] Enrichment returned 0 results for "${title}" - not caching`);
+  }
+
+  return enriched;
 }
 
 /**
@@ -249,20 +241,31 @@ export async function getBlendEnriched(
 ): Promise<EnrichedTasteDiveResult[]> {
   const cacheKey = tasteDiveCacheKeys.blendEnriched(titles);
 
-  return getCached<EnrichedTasteDiveResult[]>(
-    cacheKey,
-    async () => {
-      // Import here to avoid circular dependency
-      const { getBlend } = await import('./client');
+  // Check cache first
+  const cached = await getCache<EnrichedTasteDiveResult[]>(cacheKey);
+  if (cached && cached.length > 0) {
+    console.log(`[TasteDive] Cache hit for blend (${cached.length} results)`);
+    return cached;
+  }
 
-      const matches = await getBlend(titles, type, limit);
+  // Fetch fresh data
+  const { getBlend } = await import('./client');
+  const matches = await getBlend(titles, type, limit);
 
-      if (matches.length === 0) {
-        return [];
-      }
+  if (matches.length === 0) {
+    console.log(`[TasteDive] No blend matches - not caching`);
+    return [];
+  }
 
-      return enrichTasteDiveResults(matches, excludeIds);
-    },
-    TASTEDIVE_CONFIG.ENRICHED_CACHE_TTL
-  );
+  const enriched = await enrichTasteDiveResults(matches, excludeIds);
+
+  // Only cache if we got results
+  if (enriched.length > 0) {
+    await setCache(cacheKey, enriched, TASTEDIVE_CONFIG.ENRICHED_CACHE_TTL);
+    console.log(`[TasteDive] Cached ${enriched.length} enriched blend results`);
+  } else {
+    console.log(`[TasteDive] Blend enrichment returned 0 results - not caching`);
+  }
+
+  return enriched;
 }

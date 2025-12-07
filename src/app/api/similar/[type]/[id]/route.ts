@@ -211,23 +211,25 @@ export async function GET(
 
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
-            similarMovies = tasteDiveResults
-              .filter((r) => r.media_type === 'movie')
-              .map((r) => ({
-                id: r.id,
-                title: r.title,
-                original_title: r.title,
-                overview: r.overview,
-                poster_path: r.poster_path,
-                backdrop_path: r.backdrop_path,
-                release_date: r.year ? `${r.year}-01-01` : '',
-                vote_average: r.vote_average,
-                vote_count: r.vote_count,
-                popularity: r.popularity,
-                genre_ids: r.genre_ids,
-                original_language: r.original_language,
-                media_type: 'movie' as const,
-              }));
+            // Include all results - don't filter by media_type
+            // Let the client-side filters handle type filtering
+            similarMovies = tasteDiveResults.map((r) => ({
+              id: r.id,
+              title: r.title,
+              name: r.media_type === 'tv' ? r.title : undefined,
+              original_title: r.title,
+              overview: r.overview,
+              poster_path: r.poster_path,
+              backdrop_path: r.backdrop_path,
+              release_date: r.media_type === 'movie' && r.year ? `${r.year}-01-01` : undefined,
+              first_air_date: r.media_type === 'tv' && r.year ? `${r.year}-01-01` : undefined,
+              vote_average: r.vote_average,
+              vote_count: r.vote_count,
+              popularity: r.popularity,
+              genre_ids: r.genre_ids,
+              original_language: r.original_language,
+              media_type: r.media_type,
+            }));
           }
         } catch (error) {
           console.warn('TasteDive failed, falling back to TMDB:', error);
@@ -314,23 +316,25 @@ export async function GET(
 
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
-            similarShows = tasteDiveResults
-              .filter((r) => r.media_type === 'tv')
-              .map((r) => ({
-                id: r.id,
-                name: r.title,
-                original_name: r.title,
-                overview: r.overview,
-                poster_path: r.poster_path,
-                backdrop_path: r.backdrop_path,
-                first_air_date: r.year ? `${r.year}-01-01` : '',
-                vote_average: r.vote_average,
-                vote_count: r.vote_count,
-                popularity: r.popularity,
-                genre_ids: r.genre_ids,
-                original_language: r.original_language,
-                media_type: 'tv' as const,
-              }));
+            // Include all results - don't filter by media_type
+            // Let the client-side filters handle type filtering
+            similarShows = tasteDiveResults.map((r) => ({
+              id: r.id,
+              title: r.media_type === 'movie' ? r.title : undefined,
+              name: r.media_type === 'tv' ? r.title : r.title,
+              original_name: r.title,
+              overview: r.overview,
+              poster_path: r.poster_path,
+              backdrop_path: r.backdrop_path,
+              release_date: r.media_type === 'movie' && r.year ? `${r.year}-01-01` : undefined,
+              first_air_date: r.media_type === 'tv' && r.year ? `${r.year}-01-01` : undefined,
+              vote_average: r.vote_average,
+              vote_count: r.vote_count,
+              popularity: r.popularity,
+              genre_ids: r.genre_ids,
+              original_language: r.original_language,
+              media_type: r.media_type,
+            }));
           }
         } catch (error) {
           console.warn('TasteDive failed, falling back to TMDB:', error);

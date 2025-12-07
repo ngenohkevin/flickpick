@@ -88,11 +88,11 @@ export function JustReleasedRow({
       <div className="mb-4 flex items-center justify-between sm:mb-6">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-semibold text-text-primary sm:text-2xl">
-            Just Released
+            Out Now in 4K
           </h2>
           <span className="flex items-center gap-1.5 rounded-full bg-success/20 px-2.5 py-1 text-xs font-medium text-success">
             <Zap className="h-3 w-3" />
-            Available Now
+            Digital Release
           </span>
         </div>
       </div>

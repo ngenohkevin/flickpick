@@ -1,10 +1,13 @@
 // ==========================================================================
 // Content Availability Functions
 // Combines TMDB data with Torrentio availability checking
+// Optimized with Redis caching for IMDB IDs and availability results
 // ==========================================================================
 
 import { tmdbFetch } from '@/lib/tmdb/client';
 import { checkMovieAvailability, checkTVAvailability } from './client';
+import { getCached, getCache, setCache, cacheKeys } from '@/lib/redis';
+import { CACHE_TTL } from '@/lib/constants';
 import type { AvailabilityStatus } from './types';
 import type { Movie, TVShow, Content } from '@/types';
 
@@ -52,21 +55,63 @@ export type ContentWithAvailability = MovieWithAvailability | TVShowWithAvailabi
 
 /**
  * Get external IDs (including IMDB) for a movie
+ * Cached for 30 days (IMDB IDs never change)
  */
 export async function getMovieExternalIds(movieId: number): Promise<ExternalIdsResponse> {
-  return tmdbFetch<ExternalIdsResponse>(`/movie/${movieId}/external_ids`);
+  return getCached(
+    cacheKeys.movieImdbId(movieId),
+    () => tmdbFetch<ExternalIdsResponse>(`/movie/${movieId}/external_ids`),
+    CACHE_TTL.IMDB_ID
+  );
 }
 
 /**
  * Get external IDs (including IMDB) for a TV show
+ * Cached for 30 days (IMDB IDs never change)
  */
 export async function getTVExternalIds(showId: number): Promise<ExternalIdsResponse> {
-  return tmdbFetch<ExternalIdsResponse>(`/tv/${showId}/external_ids`);
+  return getCached(
+    cacheKeys.tvImdbId(showId),
+    () => tmdbFetch<ExternalIdsResponse>(`/tv/${showId}/external_ids`),
+    CACHE_TTL.IMDB_ID
+  );
 }
 
 // ==========================================================================
 // Availability Checking
 // ==========================================================================
+
+const UNAVAILABLE: AvailabilityStatus = {
+  available: false,
+  streamCount: 0,
+  bestQuality: null,
+  sources: [],
+  audioCodec: null,
+  videoCodec: null,
+  hasHDR: false,
+};
+
+/**
+ * Check Torrentio availability for a movie with caching
+ * Cached for 1 hour
+ */
+async function getCachedMovieAvailability(imdbId: string): Promise<AvailabilityStatus> {
+  const cacheKey = cacheKeys.torrentioMovie(imdbId);
+
+  // Try cache first
+  const cached = await getCache<AvailabilityStatus>(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Fetch fresh
+  const availability = await checkMovieAvailability(imdbId);
+
+  // Cache result (even unavailable ones to avoid re-checking)
+  await setCache(cacheKey, availability, CACHE_TTL.TORRENTIO);
+
+  return availability;
+}
 
 /**
  * Check availability for a single movie
@@ -82,19 +127,11 @@ export async function getMovieWithAvailability(
       return {
         ...movie,
         imdb_id: null,
-        availability: {
-          available: false,
-          streamCount: 0,
-          bestQuality: null,
-          sources: [],
-          audioCodec: null,
-          videoCodec: null,
-          hasHDR: false,
-        },
+        availability: UNAVAILABLE,
       };
     }
 
-    const availability = await checkMovieAvailability(imdbId);
+    const availability = await getCachedMovieAvailability(imdbId);
 
     return {
       ...movie,
@@ -106,17 +143,35 @@ export async function getMovieWithAvailability(
     return {
       ...movie,
       imdb_id: null,
-      availability: {
-        available: false,
-        streamCount: 0,
-        bestQuality: null,
-        sources: [],
-        audioCodec: null,
-        videoCodec: null,
-        hasHDR: false,
-      },
+      availability: UNAVAILABLE,
     };
   }
+}
+
+/**
+ * Check Torrentio availability for a TV show with caching
+ * Cached for 1 hour
+ */
+async function getCachedTVAvailability(
+  imdbId: string,
+  season: number,
+  episode: number
+): Promise<AvailabilityStatus> {
+  const cacheKey = cacheKeys.torrentioTV(imdbId, season, episode);
+
+  // Try cache first
+  const cached = await getCache<AvailabilityStatus>(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
+  // Fetch fresh
+  const availability = await checkTVAvailability(imdbId, season, episode);
+
+  // Cache result
+  await setCache(cacheKey, availability, CACHE_TTL.TORRENTIO);
+
+  return availability;
 }
 
 /**
@@ -135,19 +190,11 @@ export async function getTVShowWithAvailability(
       return {
         ...show,
         imdb_id: null,
-        availability: {
-          available: false,
-          streamCount: 0,
-          bestQuality: null,
-          sources: [],
-          audioCodec: null,
-          videoCodec: null,
-          hasHDR: false,
-        },
+        availability: UNAVAILABLE,
       };
     }
 
-    const availability = await checkTVAvailability(imdbId, season, episode);
+    const availability = await getCachedTVAvailability(imdbId, season, episode);
 
     return {
       ...show,
@@ -159,15 +206,7 @@ export async function getTVShowWithAvailability(
     return {
       ...show,
       imdb_id: null,
-      availability: {
-        available: false,
-        streamCount: 0,
-        bestQuality: null,
-        sources: [],
-        audioCodec: null,
-        videoCodec: null,
-        hasHDR: false,
-      },
+      availability: UNAVAILABLE,
     };
   }
 }
@@ -175,6 +214,9 @@ export async function getTVShowWithAvailability(
 /**
  * Filter movies to only those available (with valid streams)
  * Returns movies with availability info attached
+ *
+ * OPTIMIZED: Uses parallel IMDB ID fetching and larger batch sizes
+ * with Redis caching for both IMDB IDs and Torrentio results
  */
 export async function filterAvailableMovies(
   movies: Movie[],
@@ -182,12 +224,13 @@ export async function filterAvailableMovies(
 ): Promise<MovieWithAvailability[]> {
   const availableMovies: MovieWithAvailability[] = [];
 
-  // Process in smaller batches to avoid network congestion
-  const BATCH_SIZE = 5; // Reduced from 8
+  // Larger batch size since we have caching now
+  const BATCH_SIZE = 10;
 
   for (let i = 0; i < movies.length && availableMovies.length < limit; i += BATCH_SIZE) {
     const batch = movies.slice(i, i + BATCH_SIZE);
 
+    // Process all movies in batch in parallel
     const results = await Promise.all(
       batch.map((movie) => getMovieWithAvailability(movie))
     );

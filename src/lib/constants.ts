@@ -385,6 +385,9 @@ export const CACHE_TTL = {
   BLEND: 86400, // 24 hours (Blend results)
   PROVIDERS: 21600, // 6 hours
   GENRES: 604800, // 7 days
+  IMDB_ID: 2592000, // 30 days (IMDB IDs never change)
+  TORRENTIO: 3600, // 1 hour (availability can change)
+  JUST_RELEASED: 1800, // 30 minutes (final results)
 } as const;
 
 // ==========================================================================

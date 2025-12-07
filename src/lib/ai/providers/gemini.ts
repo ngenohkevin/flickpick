@@ -7,6 +7,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { markAIProviderLimited, isAIProviderLimited } from '@/lib/redis';
 import type { AIProvider, AIRecommendation } from '../types';
 import { buildPrompt } from '../types';
+import { parseAIResponse } from '../parser';
 import type { ContentType } from '@/types';
 
 // ==========================================================================
@@ -17,7 +18,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL_NAME = 'gemini-2.0-flash';
 const PROVIDER_NAME = 'gemini';
 
-// Rate limit tracking (mark as limited for 60 seconds after 429)
+// Configuration
+const MAX_OUTPUT_TOKENS = 4096;  // Increased for better responses
+const TEMPERATURE = 0.7;
 const RATE_LIMIT_TTL = 60;
 
 // ==========================================================================
@@ -37,76 +40,6 @@ function getClient(): GoogleGenerativeAI | null {
   }
 
   return genAI;
-}
-
-// ==========================================================================
-// Response Parsing
-// ==========================================================================
-
-/**
- * Parse the AI response into structured recommendations
- * Handles various response formats (with/without markdown code blocks)
- */
-function parseResponse(text: string): AIRecommendation[] {
-  // Remove markdown code blocks if present
-  let cleanedText = text.trim();
-
-  // Handle ```json ... ``` format
-  if (cleanedText.startsWith('```')) {
-    const jsonMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch && jsonMatch[1]) {
-      cleanedText = jsonMatch[1].trim();
-    }
-  }
-
-  // Try to find JSON array in the response
-  const arrayMatch = cleanedText.match(/\[[\s\S]*\]/);
-  if (!arrayMatch) {
-    throw new Error('No JSON array found in response');
-  }
-
-  try {
-    const parsed = JSON.parse(arrayMatch[0]);
-
-    if (!Array.isArray(parsed)) {
-      throw new Error('Response is not an array');
-    }
-
-    // Validate and clean each recommendation
-    const recommendations: AIRecommendation[] = [];
-
-    for (const item of parsed) {
-      if (
-        typeof item.title === 'string' &&
-        typeof item.year === 'number' &&
-        typeof item.type === 'string' &&
-        typeof item.reason === 'string'
-      ) {
-        // Normalize type to valid values
-        let type: 'movie' | 'tv' | 'anime' = 'movie';
-        const itemType = item.type.toLowerCase();
-
-        if (itemType === 'tv' || itemType === 'series' || itemType === 'show') {
-          type = 'tv';
-        } else if (itemType === 'anime') {
-          type = 'anime';
-        }
-
-        recommendations.push({
-          title: item.title.trim(),
-          year: item.year,
-          type,
-          reason: item.reason.trim(),
-        });
-      }
-    }
-
-    return recommendations;
-  } catch (error) {
-    console.error('Failed to parse Gemini response:', error);
-    console.error('Raw response:', text);
-    throw new Error('Failed to parse AI response');
-  }
 }
 
 // ==========================================================================
@@ -164,10 +97,11 @@ export const GeminiProvider: AIProvider = {
         },
       ],
       generationConfig: {
-        temperature: 0.7,
+        temperature: TEMPERATURE,
         topK: 40,
         topP: 0.95,
-        maxOutputTokens: 2048,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        responseMimeType: 'application/json',
       },
     });
 
@@ -182,7 +116,15 @@ export const GeminiProvider: AIProvider = {
         throw new Error('Empty response from Gemini');
       }
 
-      return parseResponse(text);
+      console.log('[Gemini] Response received, parsing...');
+      const recommendations = parseAIResponse(text, PROVIDER_NAME);
+
+      if (recommendations.length === 0) {
+        throw new Error('Gemini returned no valid recommendations');
+      }
+
+      console.log(`[Gemini] Parsed ${recommendations.length} recommendations`);
+      return recommendations;
     } catch (error: unknown) {
       // Check for rate limiting (429 status)
       if (

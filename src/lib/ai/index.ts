@@ -4,6 +4,8 @@
 // ==========================================================================
 
 import { GeminiProvider } from './providers/gemini';
+import { groqProvider } from './providers/groq';
+import { deepseekProvider } from './providers/deepseek';
 import { TasteDiveProvider } from './providers/tastedive';
 import { TMDBProvider } from './providers/tmdb';
 import { searchMovies, searchTVShows } from '@/lib/tmdb/search';
@@ -21,15 +23,75 @@ import type { ContentType } from '@/types';
  * When primary fails, try the next one
  *
  * Chain order:
- * 1. Gemini - Primary AI for natural language understanding
- * 2. TasteDive - Secondary, extracts titles and finds similar content
- * 3. TMDB - Ultimate fallback, uses keyword→genre mapping + discover
+ * 1. Groq - Primary AI (truly free, 14,400 req/day, very fast)
+ * 2. DeepSeek - Secondary (requires balance but cheap)
+ * 3. Gemini - Tertiary (free tier hits limits quickly)
+ * 4. TasteDive - Extracts titles and finds similar content
+ * 5. TMDB - Ultimate fallback, uses keyword→genre mapping + discover
  */
 const AI_PROVIDERS: AIProvider[] = [
+  groqProvider,
+  deepseekProvider,
   GeminiProvider,
   TasteDiveProvider,
   TMDBProvider,
 ];
+
+// ==========================================================================
+// Retry Configuration
+// ==========================================================================
+
+const RETRY_CONFIG = {
+  maxRetries: 2,           // Retry up to 2 times per provider
+  initialDelayMs: 500,     // Start with 500ms delay
+  maxDelayMs: 3000,        // Max 3 second delay
+  backoffMultiplier: 2,    // Double delay each retry
+};
+
+/**
+ * Sleep for a specified duration
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Retry a function with exponential backoff
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  providerName: string,
+  config = RETRY_CONFIG
+): Promise<T> {
+  let lastError: Error | null = null;
+  let delay = config.initialDelayMs;
+
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Don't retry on certain errors
+      const errorMessage = lastError.message.toLowerCase();
+      if (
+        errorMessage.includes('not configured') ||
+        errorMessage.includes('api key') ||
+        errorMessage.includes('insufficient balance')
+      ) {
+        throw lastError;
+      }
+
+      if (attempt < config.maxRetries) {
+        console.log(`[${providerName}] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+        await sleep(delay);
+        delay = Math.min(delay * config.backoffMultiplier, config.maxDelayMs);
+      }
+    }
+  }
+
+  throw lastError ?? new Error('All retry attempts failed');
+}
 
 // ==========================================================================
 // TMDB Enrichment
@@ -242,6 +304,7 @@ export interface DiscoveryResult {
 /**
  * Get AI-powered recommendations for a prompt
  * - Tries each provider in the chain until one succeeds
+ * - Retries failed providers with exponential backoff
  * - Enriches results with TMDB data
  * - Filters out excluded IDs
  */
@@ -251,7 +314,7 @@ export async function getRecommendations(
   excludeIds?: number[]
 ): Promise<DiscoveryResult> {
   let lastError: Error | null = null;
-  let isFallback = false;
+  const startTime = Date.now();
 
   // Try each provider in order
   for (let i = 0; i < AI_PROVIDERS.length; i++) {
@@ -262,47 +325,51 @@ export async function getRecommendations(
       // Check if provider is available
       const isAvailable = await provider.isAvailable();
       if (!isAvailable) {
-        console.log(`Provider ${provider.name} not available, trying next...`);
-        isFallback = true;
+        console.log(`[AI] Provider ${provider.name} not available, trying next...`);
         continue;
       }
 
-      console.log(`Using AI provider: ${provider.name}`);
+      console.log(`[AI] Using provider: ${provider.name}`);
 
-      // Get raw recommendations from AI
-      const rawRecommendations = await provider.getRecommendations(prompt, contentTypes);
+      // Get raw recommendations with retry logic
+      const rawRecommendations = await withRetry(
+        () => provider.getRecommendations(prompt, contentTypes),
+        provider.name
+      );
 
       if (!rawRecommendations || rawRecommendations.length === 0) {
-        console.warn(`Provider ${provider.name} returned no recommendations`);
-        isFallback = true;
+        console.warn(`[AI] Provider ${provider.name} returned no recommendations`);
         continue;
       }
 
-      console.log(`Got ${rawRecommendations.length} recommendations from ${provider.name}`);
+      console.log(`[AI] Got ${rawRecommendations.length} raw recommendations from ${provider.name}`);
 
-      // Enrich with TMDB data
+      // Enrich with TMDB data (with its own error handling)
       const enrichedResults = await enrichRecommendations(rawRecommendations, excludeIds);
 
       if (enrichedResults.length === 0) {
-        console.warn(`No recommendations could be matched in TMDB`);
-        isFallback = true;
+        console.warn(`[AI] No recommendations could be matched in TMDB, trying next provider...`);
         continue;
       }
+
+      const duration = Date.now() - startTime;
+      console.log(`[AI] Success: ${enrichedResults.length} results from ${provider.name} in ${duration}ms`);
 
       return {
         results: enrichedResults,
         provider: provider.name,
-        isFallback: i > 0, // It's a fallback if we're not on the first provider
+        isFallback: i > 0,
       };
     } catch (error) {
-      console.error(`Provider ${provider.name} failed:`, error);
+      console.error(`[AI] Provider ${provider.name} failed after retries:`, error);
       lastError = error instanceof Error ? error : new Error(String(error));
-      isFallback = true;
       // Continue to next provider
     }
   }
 
   // All providers failed
+  const duration = Date.now() - startTime;
+  console.error(`[AI] All providers failed after ${duration}ms`);
   throw lastError ?? new Error('All AI providers failed');
 }
 
@@ -357,5 +424,7 @@ export async function isPrimaryAIAvailable(): Promise<boolean> {
 export * from './types';
 export * from './intent-parser';
 export { GeminiProvider } from './providers/gemini';
+export { groqProvider } from './providers/groq';
+export { deepseekProvider } from './providers/deepseek';
 export { TasteDiveProvider } from './providers/tastedive';
 export { TMDBProvider } from './providers/tmdb';
