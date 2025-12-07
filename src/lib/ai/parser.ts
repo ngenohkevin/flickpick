@@ -30,17 +30,31 @@ export function parseAIResponse(text: string, providerName: string): AIRecommend
   if (cleanedText.startsWith('{')) {
     try {
       const wrapper = JSON.parse(cleanedText);
-      // Look for common wrapper keys
+      // Look for common wrapper keys (models use various names)
       const arrayValue =
         wrapper.recommendations ||
         wrapper.results ||
         wrapper.movies ||
         wrapper.shows ||
         wrapper.data ||
-        wrapper.items;
+        wrapper.items ||
+        wrapper.output ||
+        wrapper.response ||
+        wrapper.answer ||
+        wrapper.content ||
+        wrapper.suggestions ||
+        wrapper.titles ||
+        wrapper.list;
 
       if (Array.isArray(arrayValue)) {
         cleanedText = JSON.stringify(arrayValue);
+      } else {
+        // Fallback: find any array value in the object
+        const values = Object.values(wrapper);
+        const arrayVal = values.find((v) => Array.isArray(v));
+        if (arrayVal) {
+          cleanedText = JSON.stringify(arrayVal);
+        }
       }
     } catch {
       // Not a valid wrapper, continue with original
