@@ -6,7 +6,7 @@
 // ==========================================================================
 
 import Link from 'next/link';
-import { Heart, Search, Sparkles, Film } from 'lucide-react';
+import { Heart, Search, Sparkles, Film, Upload } from 'lucide-react';
 
 // ==========================================================================
 // Types
@@ -14,13 +14,14 @@ import { Heart, Search, Sparkles, Film } from 'lucide-react';
 
 interface WatchlistEmptyProps {
   className?: string;
+  onImport?: () => void;
 }
 
 // ==========================================================================
 // Watchlist Empty Component
 // ==========================================================================
 
-export function WatchlistEmpty({ className = '' }: WatchlistEmptyProps) {
+export function WatchlistEmpty({ className = '', onImport }: WatchlistEmptyProps) {
   return (
     <div className={`flex flex-col items-center justify-center py-16 text-center ${className}`}>
       {/* Icon */}
@@ -74,6 +75,18 @@ export function WatchlistEmpty({ className = '' }: WatchlistEmptyProps) {
           <Search className="h-4 w-4" />
           Search for titles
         </Link>
+        {onImport && (
+          <>
+            <span className="hidden text-text-tertiary sm:inline">•</span>
+            <button
+              onClick={onImport}
+              className="flex items-center gap-2 text-sm text-text-secondary transition-colors hover:text-accent-primary"
+            >
+              <Upload className="h-4 w-4" />
+              Import watchlist
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

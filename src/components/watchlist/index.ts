@@ -5,3 +5,4 @@
 
 export { WatchlistButton } from './WatchlistButton';
 export { WatchlistEmpty } from './WatchlistEmpty';
+export { ImportWatchlistModal } from './ImportWatchlistModal';

@@ -1,8 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import { Header, Footer, ThemeProvider, ClientProviders } from '@/components/layout';
 import { Analytics } from '@/components/analytics';
 import { MonetAgScripts } from '@/components/ads';
+import { ServiceWorkerRegistration, InstallPWAPrompt } from '@/components/pwa';
 import './globals.css';
 
 const inter = Inter({
@@ -35,6 +36,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'FlickPick' }],
   creator: 'FlickPick',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'FlickPick',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -55,6 +62,16 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0b' },
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+  ],
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -70,9 +87,12 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://www.youtube.com" />
         <link rel="preconnect" href="https://img.youtube.com" />
         <link rel="dns-prefetch" href="https://img.youtube.com" />
+        {/* PWA Apple Touch Icon */}
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <Analytics />
+        <ServiceWorkerRegistration />
         <ThemeProvider>
           <ClientProviders>
             {/* Skip to main content link for accessibility */}
@@ -90,6 +110,9 @@ export default function RootLayout({
               </main>
               <Footer />
             </div>
+
+            {/* PWA Install Prompt */}
+            <InstallPWAPrompt />
           </ClientProviders>
         </ThemeProvider>
         {/* Monetag Ad Scripts - loaded via MonetAgScripts component */}

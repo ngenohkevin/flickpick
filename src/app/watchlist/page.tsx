@@ -8,10 +8,10 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Heart, Trash2, Shuffle, X, Film, Tv, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { Heart, Trash2, Shuffle, X, Film, Tv, Sparkles, Eye, EyeOff, Download, Upload } from 'lucide-react';
 import { useWatchlist } from '@/stores/watchlist';
 import { useSeenHistory, useIsSeen } from '@/stores/seenHistory';
-import { WatchlistEmpty } from '@/components/watchlist';
+import { WatchlistEmpty, ImportWatchlistModal } from '@/components/watchlist';
 import { useToast } from '@/components/ui';
 import { getPosterUrl, cn } from '@/lib/utils';
 import type { ContentType, WatchlistItem } from '@/types';
@@ -44,14 +44,17 @@ export default function WatchlistPage() {
   const removeItem = useWatchlist((state) => state.removeItem);
   const clearWatchlist = useWatchlist((state) => state.clearWatchlist);
   const getRandomItem = useWatchlist((state) => state.getRandomItem);
+  const exportWatchlist = useWatchlist((state) => state.exportWatchlist);
   const seenItems = useSeenHistory((state) => state.items);
   const isSeen = useSeenHistory((state) => state.isSeen);
+  const { addToast } = useToast();
 
   const [filter, setFilter] = useState<FilterOption>('all');
   const [seenFilter, setSeenFilter] = useState<SeenFilterOption>('all');
   const [sort, setSort] = useState<SortOption>('added_desc');
   const [pickedItem, setPickedItem] = useState<WatchlistItem | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Filter and sort items
   const filteredItems = useMemo(() => {
@@ -121,6 +124,26 @@ export default function WatchlistPage() {
     setPickedItem(null);
   };
 
+  // Handle export
+  const handleExport = () => {
+    const data = exportWatchlist();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `flickpick-watchlist-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    addToast({
+      type: 'success',
+      title: 'Watchlist exported',
+      message: `${items.length} items saved to file`,
+      duration: 3000,
+    });
+  };
+
   // Empty state
   if (items.length === 0) {
     return (
@@ -128,7 +151,11 @@ export default function WatchlistPage() {
         <h1 className="mb-6 text-2xl font-bold text-text-primary sm:mb-8 sm:text-3xl md:text-4xl">
           My Watchlist
         </h1>
-        <WatchlistEmpty />
+        <WatchlistEmpty onImport={() => setShowImportModal(true)} />
+        <ImportWatchlistModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+        />
       </main>
     );
   }
@@ -156,11 +183,27 @@ export default function WatchlistPage() {
             Pick for me
           </button>
           <button
+            onClick={handleExport}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary sm:gap-2 sm:px-4 sm:text-base"
+            title="Export watchlist to JSON file"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Export</span>
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary sm:gap-2 sm:px-4 sm:text-base"
+            title="Import watchlist from JSON file"
+          >
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">Import</span>
+          </button>
+          <button
             onClick={() => setShowClearConfirm(true)}
             className="inline-flex items-center gap-1.5 rounded-md border border-border-default bg-bg-secondary px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-error sm:gap-2 sm:px-4 sm:text-base"
           >
             <Trash2 className="h-4 w-4" />
-            Clear all
+            <span className="hidden sm:inline">Clear all</span>
           </button>
         </div>
       </div>
@@ -368,6 +411,12 @@ export default function WatchlistPage() {
           </div>
         </div>
       )}
+
+      {/* Import Modal */}
+      <ImportWatchlistModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+      />
     </main>
   );
 }
