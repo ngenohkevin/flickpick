@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { getBlendEnriched, isTasteDiveAvailable } from '@/lib/tastedive';
 import { getMovieDetails } from '@/lib/tmdb/movies';
 import { getTVShowDetails } from '@/lib/tmdb/tv';
+import { getMovieProviders, getTVProviders, getStreamingProviders } from '@/lib/tmdb/providers';
+import { DEFAULT_COUNTRY } from '@/lib/constants';
 import type { EnrichedTasteDiveResult } from '@/lib/tastedive';
 
 // ==========================================================================
@@ -46,6 +48,7 @@ interface BlendResult {
   overview: string;
   year: number;
   blend_reason: string;
+  providers?: number[]; // Streaming provider IDs for filtering
 }
 
 interface BlendResponse {
@@ -88,6 +91,28 @@ async function fetchTitle(
   } catch (error) {
     console.error(`Error fetching ${type} ${id}:`, error);
     return null;
+  }
+}
+
+/**
+ * Fetch streaming provider IDs for a title
+ */
+async function getProviderIds(
+  mediaType: 'movie' | 'tv',
+  id: number
+): Promise<number[]> {
+  try {
+    const response =
+      mediaType === 'movie' ? await getMovieProviders(id) : await getTVProviders(id);
+
+    const countryProviders = response.results[DEFAULT_COUNTRY];
+    if (!countryProviders) return [];
+
+    const streamingProviders = getStreamingProviders(countryProviders);
+    return streamingProviders.map((p) => p.provider_id);
+  } catch (error) {
+    console.warn(`Failed to fetch providers for ${mediaType}/${id}:`, error);
+    return [];
   }
 }
 
@@ -239,9 +264,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Fetch streaming providers for each result (in parallel, batched)
+    const resultsWithProviders = await Promise.all(
+      results.map(async (result) => {
+        const providers = await getProviderIds(result.media_type, result.id);
+        return { ...result, providers };
+      })
+    );
+
     const response: BlendResponse = {
       source_items: sourceItems,
-      results,
+      results: resultsWithProviders,
       provider,
     };
 

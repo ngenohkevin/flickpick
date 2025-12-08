@@ -26,6 +26,7 @@ export interface BlendResultItem {
   vote_average: number;
   overview: string;
   blend_reason: string;
+  providers?: number[]; // Streaming provider IDs for filtering
 }
 
 interface BlendResultsProps {

@@ -234,8 +234,9 @@ async function fetchAndValidateTasteDive(
 ): Promise<{ results: TasteDiveMatch[]; valid: boolean }> {
   // Fetch both movies and TV shows in parallel for cross-type results
   // Split the limit between the two types, favoring the requested type
-  const primaryLimit = Math.ceil(limit * 0.7);
-  const secondaryLimit = Math.floor(limit * 0.3);
+  // TasteDive API has a max limit of 20 per request
+  const primaryLimit = Math.min(20, Math.ceil(limit * 0.7));
+  const secondaryLimit = Math.min(20, Math.floor(limit * 0.3));
   const secondaryType = tasteDiveType === 'movie' ? 'show' : 'movie';
 
   console.log(`[TasteDive] Fetching cross-type results: ${primaryLimit} ${tasteDiveType}s + ${secondaryLimit} ${secondaryType}s`);
@@ -375,8 +376,9 @@ export async function getBlend(
   await incrementRateLimit();
 
   // Fetch both movies and TV shows in parallel for cross-type results
-  const primaryLimit = Math.ceil(limit * 0.7);
-  const secondaryLimit = Math.floor(limit * 0.3);
+  // TasteDive API has a max limit of 20 per request
+  const primaryLimit = Math.min(20, Math.ceil(limit * 0.7));
+  const secondaryLimit = Math.min(20, Math.floor(limit * 0.3));
   const secondaryType = tasteDiveType === 'movie' ? 'show' : 'movie';
 
   console.log(`[TasteDive Blend] Fetching cross-type results: ${primaryLimit} ${tasteDiveType}s + ${secondaryLimit} ${secondaryType}s`);

@@ -13,10 +13,11 @@ import {
   BlendResults,
   BlendEmptyState,
 } from '@/components/blend';
+import { ContentTypeSelector, StreamingFilter } from '@/components/discover';
 import type { SelectedTitle, BlendResultItem } from '@/components/blend';
 import { useWatchlist, useWatchlistIdArray } from '@/stores/watchlist';
 import { trackBlendSearch } from '@/lib/analytics';
-import type { Content } from '@/types';
+import type { Content, ContentType } from '@/types';
 
 // ==========================================================================
 // Types
@@ -69,6 +70,10 @@ const EXAMPLE_BLENDS = [
 export default function BlendPage() {
   // Selected titles state
   const [selectedTitles, setSelectedTitles] = useState<SelectedTitle[]>([]);
+
+  // Filter state
+  const [contentTypes, setContentTypes] = useState<ContentType[]>([]);
+  const [streamingFilter, setStreamingFilter] = useState<number[]>([]);
 
   // Results state
   const [results, setResults] = useState<BlendResultItem[]>([]);
@@ -192,6 +197,29 @@ export default function BlendPage() {
   const showResults = hasSearched && (results.length > 0 || isLoading);
   const excludeIds = selectedTitles.map((t) => t.id);
 
+  // Filter results by content type and streaming provider
+  const filteredResults = useMemo(() => {
+    let filtered = results;
+
+    // Filter by content type
+    if (contentTypes.length > 0) {
+      filtered = filtered.filter((result) => contentTypes.includes(result.content_type as ContentType));
+    }
+
+    // Filter by streaming provider
+    if (streamingFilter.length > 0) {
+      filtered = filtered.filter((result) => {
+        // Check if result has provider data
+        if (!result.providers || result.providers.length === 0) {
+          return false;
+        }
+        return result.providers.some((p) => streamingFilter.includes(p));
+      });
+    }
+
+    return filtered;
+  }, [results, contentTypes, streamingFilter]);
+
   // ==========================================================================
   // Render
   // ==========================================================================
@@ -275,6 +303,15 @@ export default function BlendPage() {
               </div>
             )}
 
+            {/* Content Type Filter */}
+            <div className="mb-6">
+              <ContentTypeSelector
+                selected={contentTypes}
+                onChange={setContentTypes}
+                disabled={isLoading}
+              />
+            </div>
+
             {/* Blend Button */}
             <button
               onClick={handleBlend}
@@ -335,16 +372,33 @@ export default function BlendPage() {
           </div>
         )}
 
+        {/* Streaming filter - Show when we have results */}
+        {showResults && results.length > 0 && !isLoading && (
+          <div className="mb-6">
+            <StreamingFilter
+              selected={streamingFilter}
+              onChange={setStreamingFilter}
+              disabled={isLoading}
+            />
+          </div>
+        )}
+
         {/* Results or empty state */}
         {isLoading ? (
           <BlendResults results={[]} isLoading={true} />
-        ) : results.length > 0 ? (
+        ) : filteredResults.length > 0 ? (
           <BlendResults
-            results={results}
+            results={filteredResults}
             provider={provider}
             watchlistIds={watchlistIds}
             onWatchlistToggle={handleWatchlistToggle}
           />
+        ) : hasSearched && results.length > 0 && filteredResults.length === 0 ? (
+          <div className="rounded-xl border border-border-subtle bg-bg-secondary/50 p-8 text-center">
+            <p className="text-text-secondary">
+              No results match your filters. Try adjusting the content type or streaming provider filters.
+            </p>
+          </div>
         ) : (
           <BlendEmptyState hasSearched={hasSearched && !error} />
         )}
