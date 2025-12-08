@@ -184,11 +184,11 @@ export async function POST(request: NextRequest) {
         // Get titles for TasteDive query
         const titles = sourceItems.map((s) => s.title);
 
-        // Fetch blended results from TasteDive
+        // Fetch blended results from TasteDive (request 30 for more variety)
         const enrichedResults = await getBlendEnriched(
           titles,
           predominantType,
-          15,
+          30,
           excludeIds
         );
 
