@@ -18,7 +18,7 @@ import dynamic from 'next/dynamic';
 import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
-import { WatchlistButton } from '@/components/ui';
+import { WatchlistButton, ShareButton } from '@/components/ui';
 import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
 import {
   generateMovieJsonLd,
@@ -89,8 +89,24 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
     // Canonical URL
     const canonicalUrl = `${BASE_URL}/movie/${movieId}`;
 
-    // OG image
-    const ogImage = movie.backdrop_path
+    // Generate custom OG image URL
+    const ogParams = new URLSearchParams({
+      title: movie.title,
+      type: getMovieContentTypeForMeta(movie),
+      ...(movie.vote_average > 0 && { rating: movie.vote_average.toFixed(1) }),
+      ...(year && { year: year.toString() }),
+      ...(movie.tagline && { subtitle: movie.tagline }),
+      ...(movie.poster_path && {
+        poster: `https://image.tmdb.org/t/p/w342${movie.poster_path}`,
+      }),
+      ...(movie.backdrop_path && {
+        backdrop: `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`,
+      }),
+    });
+    const ogImage = `${BASE_URL}/api/og?${ogParams.toString()}`;
+
+    // Fallback OG image (TMDB backdrop)
+    const fallbackOgImage = movie.backdrop_path
       ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
       : movie.poster_path
         ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
@@ -119,22 +135,30 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
         url: canonicalUrl,
         siteName: 'FlickPick',
         type: 'video.movie',
-        images: ogImage
-          ? [
-              {
-                url: ogImage,
-                width: 1280,
-                height: 720,
-                alt: `${movie.title} movie poster`,
-              },
-            ]
-          : undefined,
+        images: [
+          {
+            url: ogImage,
+            width: 1200,
+            height: 630,
+            alt: `${movie.title} on FlickPick`,
+          },
+          ...(fallbackOgImage
+            ? [
+                {
+                  url: fallbackOgImage,
+                  width: 1280,
+                  height: 720,
+                  alt: `${movie.title} backdrop`,
+                },
+              ]
+            : []),
+        ],
       },
       twitter: {
         card: 'summary_large_image',
         title: `${movie.title}${year ? ` (${year})` : ''} | FlickPick`,
         description: description.slice(0, 200),
-        images: ogImage ? [ogImage] : undefined,
+        images: [ogImage],
       },
       robots: {
         index: true,
@@ -468,6 +492,14 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 >
                   Find Similar
                 </Link>
+
+                {/* Share Button */}
+                <ShareButton
+                  title={movie.title}
+                  text={movie.tagline || `Check out ${movie.title} on FlickPick`}
+                  url={pageUrl}
+                  variant="hero"
+                />
               </div>
             </div>
           </div>
@@ -692,6 +724,21 @@ interface TMDBMovieWithGenres {
 }
 
 function getMovieContentType(movie: TMDBMovieWithGenres): ContentType {
+  const genreIds = movie.genre_ids ?? movie.genres?.map((g) => g.id) ?? [];
+  const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
+  const isJapanese = movie.original_language === 'ja';
+
+  if (isAnimation && isJapanese) return 'anime';
+  if (isAnimation) return 'animation';
+  return 'movie';
+}
+
+// Helper for generating metadata content type
+function getMovieContentTypeForMeta(movie: {
+  genre_ids?: number[];
+  genres?: { id: number; name: string }[];
+  original_language: string;
+}): string {
   const genreIds = movie.genre_ids ?? movie.genres?.map((g) => g.id) ?? [];
   const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
   const isJapanese = movie.original_language === 'ja';

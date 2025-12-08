@@ -79,3 +79,6 @@ export {
   TMDBContentFallback,
   TMDBRowFallback,
 } from './TMDBFallback';
+
+// Share Components
+export { ShareButton, ShareModal } from './ShareButton';

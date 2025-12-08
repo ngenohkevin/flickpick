@@ -1,16 +1,40 @@
 // ==========================================================================
 // useOnlineStatus Hook
-// Detects online/offline status changes
+// Detects online/offline status changes with actual connectivity verification
 // ==========================================================================
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface OnlineStatus {
   isOnline: boolean;
   wasOffline: boolean;
   lastOnline: Date | null;
+}
+
+// Verify actual connectivity by attempting a fetch
+// Uses a lightweight endpoint that should always be available
+async function checkActualConnectivity(): Promise<boolean> {
+  try {
+    // Try to fetch a tiny resource with a short timeout
+    // Using the site's own favicon or a HEAD request to avoid CORS issues
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch('/api/health', {
+      method: 'HEAD',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch {
+    // If fetch fails, try one more check with navigator.onLine
+    // Only report offline if both checks fail
+    return navigator.onLine;
+  }
 }
 
 export function useOnlineStatus(): OnlineStatus & { isMounted: boolean } {
@@ -22,32 +46,72 @@ export function useOnlineStatus(): OnlineStatus & { isMounted: boolean } {
     lastOnline: null,
   });
   const [isMounted, setIsMounted] = useState(false);
+  const checkInProgress = useRef(false);
+
+  const verifyAndSetOnlineStatus = useCallback(async (navigatorSaysOffline: boolean) => {
+    // If navigator says we're online, trust it
+    if (!navigatorSaysOffline) {
+      setStatus((prev) => ({
+        isOnline: true,
+        wasOffline: !prev.isOnline,
+        lastOnline: new Date(),
+      }));
+      return;
+    }
+
+    // If navigator says offline, verify with an actual request
+    // This prevents false positives on mobile browsers
+    if (checkInProgress.current) return;
+    checkInProgress.current = true;
+
+    const actuallyOnline = await checkActualConnectivity();
+    checkInProgress.current = false;
+
+    if (actuallyOnline) {
+      // navigator.onLine was wrong, we're actually online
+      setStatus((prev) => ({
+        isOnline: true,
+        wasOffline: prev.wasOffline,
+        lastOnline: new Date(),
+      }));
+    } else {
+      // Confirmed offline
+      setStatus((prev) => ({
+        ...prev,
+        isOnline: false,
+      }));
+    }
+  }, []);
 
   const handleOnline = useCallback(() => {
     setStatus((prev) => ({
       isOnline: true,
-      wasOffline: !prev.isOnline, // Was offline before this event
+      wasOffline: !prev.isOnline,
       lastOnline: new Date(),
     }));
   }, []);
 
   const handleOffline = useCallback(() => {
-    setStatus((prev) => ({
-      ...prev,
-      isOnline: false,
-    }));
-  }, []);
+    // Don't immediately trust the offline event - verify first
+    verifyAndSetOnlineStatus(true);
+  }, [verifyAndSetOnlineStatus]);
 
   useEffect(() => {
     // Use requestAnimationFrame to avoid synchronous setState in effect
     const frameId = requestAnimationFrame(() => {
-      // Mark as mounted and set actual online status
       setIsMounted(true);
-      setStatus({
-        isOnline: navigator.onLine,
-        wasOffline: false,
-        lastOnline: navigator.onLine ? new Date() : null,
-      });
+      // On mount, only check if navigator reports offline
+      // If online, trust it. If offline, verify.
+      if (navigator.onLine) {
+        setStatus({
+          isOnline: true,
+          wasOffline: false,
+          lastOnline: new Date(),
+        });
+      } else {
+        // Verify the offline status
+        verifyAndSetOnlineStatus(true);
+      }
     });
 
     window.addEventListener('online', handleOnline);
@@ -58,7 +122,7 @@ export function useOnlineStatus(): OnlineStatus & { isMounted: boolean } {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [handleOnline, handleOffline]);
+  }, [handleOnline, handleOffline, verifyAndSetOnlineStatus]);
 
   return { ...status, isMounted };
 }

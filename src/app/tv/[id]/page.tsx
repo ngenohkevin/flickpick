@@ -42,7 +42,7 @@ const TrailerEmbed = dynamic(
 );
 import { SeasonList } from '@/components/tv/SeasonList';
 import { ShowStatus } from '@/components/tv/ShowStatus';
-import { WatchlistButton } from '@/components/ui';
+import { WatchlistButton, ShareButton } from '@/components/ui';
 import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
 import type { ContentType, Content, TVShow as TVShowType, Season } from '@/types';
 
@@ -91,8 +91,24 @@ export async function generateMetadata({ params }: TVPageProps): Promise<Metadat
     // Canonical URL
     const canonicalUrl = `${BASE_URL}/tv/${showId}`;
 
-    // OG image
-    const ogImage = show.backdrop_path
+    // Generate custom OG image URL
+    const ogParams = new URLSearchParams({
+      title: show.name,
+      type: getTVShowContentTypeForMeta(show),
+      ...(show.vote_average > 0 && { rating: show.vote_average.toFixed(1) }),
+      ...(startYear && { year: yearRange || startYear.toString() }),
+      ...(show.tagline && { subtitle: show.tagline }),
+      ...(show.poster_path && {
+        poster: `https://image.tmdb.org/t/p/w342${show.poster_path}`,
+      }),
+      ...(show.backdrop_path && {
+        backdrop: `https://image.tmdb.org/t/p/w1280${show.backdrop_path}`,
+      }),
+    });
+    const ogImage = `${BASE_URL}/api/og?${ogParams.toString()}`;
+
+    // Fallback OG image (TMDB backdrop)
+    const fallbackOgImage = show.backdrop_path
       ? `https://image.tmdb.org/t/p/w1280${show.backdrop_path}`
       : show.poster_path
         ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
@@ -122,22 +138,30 @@ export async function generateMetadata({ params }: TVPageProps): Promise<Metadat
         url: canonicalUrl,
         siteName: 'FlickPick',
         type: 'video.tv_show',
-        images: ogImage
-          ? [
-              {
-                url: ogImage,
-                width: 1280,
-                height: 720,
-                alt: `${show.name} TV show poster`,
-              },
-            ]
-          : undefined,
+        images: [
+          {
+            url: ogImage,
+            width: 1200,
+            height: 630,
+            alt: `${show.name} on FlickPick`,
+          },
+          ...(fallbackOgImage
+            ? [
+                {
+                  url: fallbackOgImage,
+                  width: 1280,
+                  height: 720,
+                  alt: `${show.name} backdrop`,
+                },
+              ]
+            : []),
+        ],
       },
       twitter: {
         card: 'summary_large_image',
         title: `${show.name}${yearRange ? ` (${yearRange})` : ''} | FlickPick`,
         description: description.slice(0, 200),
-        images: ogImage ? [ogImage] : undefined,
+        images: [ogImage],
       },
       robots: {
         index: true,
@@ -531,6 +555,14 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 >
                   Find Similar
                 </Link>
+
+                {/* Share Button */}
+                <ShareButton
+                  title={show.name}
+                  text={show.tagline || `Check out ${show.name} on FlickPick`}
+                  url={pageUrl}
+                  variant="hero"
+                />
               </div>
             </div>
           </div>
@@ -814,6 +846,23 @@ interface TMDBTVShowWithGenres {
 }
 
 function getTVShowContentType(show: TMDBTVShowWithGenres): ContentType {
+  const genreIds = show.genre_ids ?? show.genres?.map((g) => g.id) ?? [];
+  const originCountry = show.origin_country ?? [];
+  const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
+  const isJapanese = originCountry.includes('JP') || show.original_language === 'ja';
+
+  if (isAnimation && isJapanese) return 'anime';
+  if (isAnimation) return 'animation';
+  return 'tv';
+}
+
+// Helper for generating metadata content type
+function getTVShowContentTypeForMeta(show: {
+  genre_ids?: number[];
+  genres?: { id: number; name: string }[];
+  origin_country?: string[];
+  original_language: string;
+}): string {
   const genreIds = show.genre_ids ?? show.genres?.map((g) => g.id) ?? [];
   const originCountry = show.origin_country ?? [];
   const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
