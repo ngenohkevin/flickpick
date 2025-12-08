@@ -3,6 +3,7 @@
 // Tracks content the user has watched with localStorage persistence
 // ==========================================================================
 
+import { useState, useEffect } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
@@ -238,13 +239,31 @@ export const useIsEpisodeSeen = (
     )
   );
 
-// Returns just the count of seen episodes (primitive value, no re-render issues)
-export const useSeenEpisodeCount = (showId: number, seasonNumber: number) =>
-  useSeenHistory((state) =>
-    state.episodes.filter(
-      (ep) => ep.showId === showId && ep.seasonNumber === seasonNumber
-    ).length
-  );
+// SSR-safe hook that returns episode count after client hydration
+// Avoids infinite loop from SSR/hydration mismatch with persist middleware
+export function useSeenEpisodeCount(showId: number, seasonNumber: number) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    // Get count from store
+    const getCount = () =>
+      useSeenHistory.getState().episodes.filter(
+        (ep) => ep.showId === showId && ep.seasonNumber === seasonNumber
+      ).length;
+
+    // Set initial value after mount
+    setCount(getCount());
+
+    // Subscribe to store changes
+    const unsubscribe = useSeenHistory.subscribe(() => {
+      setCount(getCount());
+    });
+
+    return unsubscribe;
+  }, [showId, seasonNumber]);
+
+  return count;
+}
 
 // Helper function to calculate progress (use in component with useMemo if needed)
 export function calculateSeasonProgress(seen: number, total: number) {
