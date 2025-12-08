@@ -25,22 +25,26 @@ interface MonetAgScriptsProps {
 export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
   const [mounted, setMounted] = useState(false);
 
+  const adsEnabled = enabled ?? shouldShowAds();
+  const vignetteZone = process.env.NEXT_PUBLIC_MONETAG_VIGNETTE_ZONE;
+  const ippZone = process.env.NEXT_PUBLIC_MONETAG_IPP_ZONE;
+
   useEffect(() => {
-    setMounted(true);
+    // Use requestAnimationFrame to avoid synchronous setState in effect
+    const frameId = requestAnimationFrame(() => {
+      setMounted(true);
+    });
+    return () => cancelAnimationFrame(frameId);
   }, []);
 
+  // All early returns after hooks
   if (!mounted) return null;
-
-  const adsEnabled = enabled ?? shouldShowAds();
   if (!adsEnabled) return null;
 
   // Don't load ads on localhost
   if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
     return null;
   }
-
-  const vignetteZone = process.env.NEXT_PUBLIC_MONETAG_VIGNETTE_ZONE;
-  const ippZone = process.env.NEXT_PUBLIC_MONETAG_IPP_ZONE;
 
   if (!vignetteZone && !ippZone) return null;
 

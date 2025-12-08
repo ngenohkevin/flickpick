@@ -249,6 +249,11 @@ export async function GET(
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
 
+            // Log cross-type results
+            const movieCount = tasteDiveResults.filter(r => r.media_type === 'movie').length;
+            const tvCount = tasteDiveResults.filter(r => r.media_type === 'tv').length;
+            console.log(`[Similar API] Movie "${details.title}": TasteDive returned ${tasteDiveResults.length} results (${movieCount} movies, ${tvCount} TV shows)`);
+
             // Return all TasteDive results (movies and shows mixed)
             similarMovies = tasteDiveResults.map((r) => ({
               id: r.id,
@@ -353,6 +358,11 @@ export async function GET(
 
           if (tasteDiveResults.length > 0) {
             provider = 'tastedive';
+
+            // Log cross-type results
+            const movieCount = tasteDiveResults.filter(r => r.media_type === 'movie').length;
+            const tvCount = tasteDiveResults.filter(r => r.media_type === 'tv').length;
+            console.log(`[Similar API] TV "${details.name}": TasteDive returned ${tasteDiveResults.length} results (${movieCount} movies, ${tvCount} TV shows)`);
 
             // Return all TasteDive results (movies and shows mixed)
             similarShows = tasteDiveResults.map((r) => ({

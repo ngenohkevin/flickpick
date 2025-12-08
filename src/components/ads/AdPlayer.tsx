@@ -42,16 +42,18 @@ export function AdPlayer({ ad, onAdComplete, onAdError, className }: AdPlayerPro
 
   // Refs
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(0);
 
   // ==========================================================================
   // Timer Logic
   // ==========================================================================
 
   useEffect(() => {
-    // Start playing immediately
-    setState((prev) => ({ ...prev, status: 'playing' }));
-    startTimeRef.current = Date.now();
+    // Start playing immediately (use requestAnimationFrame to avoid sync setState)
+    const frameId = requestAnimationFrame(() => {
+      setState((prev) => ({ ...prev, status: 'playing' }));
+      startTimeRef.current = Date.now();
+    });
 
     // Track impression
     adProvider.trackImpression(ad);
@@ -91,6 +93,7 @@ export function AdPlayer({ ad, onAdComplete, onAdError, className }: AdPlayerPro
     }, 1000);
 
     return () => {
+      cancelAnimationFrame(frameId);
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }

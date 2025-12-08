@@ -314,8 +314,8 @@ function SkeletonFilterSection() {
       {/* Content */}
       <div className="pt-3">
         <div className="flex flex-wrap gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" width={60 + Math.random() * 30} height={32} />
+          {[70, 85, 65, 80, 75, 90].map((width, i) => (
+            <Skeleton key={i} variant="rounded" width={width} height={32} />
           ))}
         </div>
       </div>

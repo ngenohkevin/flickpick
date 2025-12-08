@@ -4,7 +4,7 @@
 // Uses Intersection Observer for performant scroll detection
 // ==========================================================================
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 interface UseInfiniteScrollOptions {
   /** Callback to load more content */
@@ -37,7 +37,7 @@ export function useInfiniteScroll({
   enabled = true,
 }: UseInfiniteScrollOptions): UseInfiniteScrollReturn {
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const isIntersectingRef = useRef(false);
+  const [isIntersecting, setIsIntersecting] = useState(false);
 
   // Memoize the callback to prevent unnecessary re-subscriptions
   const handleIntersect = useCallback(
@@ -45,7 +45,7 @@ export function useInfiniteScroll({
       const entry = entries[0];
       if (!entry) return;
 
-      isIntersectingRef.current = entry.isIntersecting;
+      setIsIntersecting(entry.isIntersecting);
 
       // Trigger load if:
       // - Element is intersecting
@@ -81,7 +81,7 @@ export function useInfiniteScroll({
 
   return {
     sentinelRef,
-    isIntersecting: isIntersectingRef.current,
+    isIntersecting,
   };
 }
 

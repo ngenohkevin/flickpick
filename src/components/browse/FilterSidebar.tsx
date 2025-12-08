@@ -52,13 +52,15 @@ export function FilterSidebar({
   className = '',
   isLoading = false,
 }: FilterSidebarProps) {
+  // Hooks must be called before any conditional returns
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(['genres', 'year', 'rating'])
+  );
+
   // Show skeleton while loading
   if (isLoading) {
     return <SkeletonFilterSidebar />;
   }
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['genres', 'year', 'rating'])
-  );
 
   // Get appropriate genre list based on content type
   const genres = contentType === 'tv' ? TV_GENRES : MOVIE_GENRES;

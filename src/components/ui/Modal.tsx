@@ -39,17 +39,7 @@ export function Modal({
   const [isAnimating, setIsAnimating] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
 
-  // Handle escape key
-  const handleEscape = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && closeOnEscape && !isAnimating) {
-        handleClose();
-      }
-    },
-    [closeOnEscape, isAnimating]
-  );
-
-  // Handle close with animation
+  // Handle close with animation (defined first so it can be referenced)
   const handleClose = useCallback(() => {
     if (isAnimating) return;
     setIsAnimating(true);
@@ -61,6 +51,16 @@ export function Modal({
     }, 150); // Match animation duration
   }, [onClose, isAnimating]);
 
+  // Handle escape key
+  const handleEscape = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && closeOnEscape && !isAnimating) {
+        handleClose();
+      }
+    },
+    [closeOnEscape, isAnimating, handleClose]
+  );
+
   // Handle backdrop click
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (closeOnBackdrop && e.target === e.currentTarget && !isAnimating) {
@@ -71,9 +71,14 @@ export function Modal({
   // Handle open/close state
   useEffect(() => {
     if (isOpen) {
-      setShouldRender(true);
-      setIsAnimating(false);
+      // Use requestAnimationFrame to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => {
+        setShouldRender(true);
+        setIsAnimating(false);
+      });
+      return () => cancelAnimationFrame(frameId);
     }
+    return undefined;
   }, [isOpen]);
 
   // Focus trap and scroll lock
@@ -106,8 +111,13 @@ export function Modal({
   // Reset render state when fully closed
   useEffect(() => {
     if (!isOpen && !isAnimating) {
-      setShouldRender(false);
+      // Use requestAnimationFrame to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => {
+        setShouldRender(false);
+      });
+      return () => cancelAnimationFrame(frameId);
     }
+    return undefined;
   }, [isOpen, isAnimating]);
 
   if (!shouldRender) return null;

@@ -22,12 +22,18 @@ export function OfflineBanner({ className }: OfflineBannerProps) {
   // Show "reconnected" message briefly when coming back online
   useEffect(() => {
     if (isMounted && isOnline && wasOffline) {
-      setShowReconnected(true);
-      setDismissed(false);
+      // Use requestAnimationFrame to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => {
+        setShowReconnected(true);
+        setDismissed(false);
+      });
       const timer = setTimeout(() => {
         setShowReconnected(false);
       }, 3000);
-      return () => clearTimeout(timer);
+      return () => {
+        cancelAnimationFrame(frameId);
+        clearTimeout(timer);
+      };
     }
     return undefined;
   }, [isOnline, wasOffline, isMounted]);
@@ -35,8 +41,13 @@ export function OfflineBanner({ className }: OfflineBannerProps) {
   // Reset dismissed state when going offline
   useEffect(() => {
     if (isMounted && !isOnline) {
-      setDismissed(false);
+      // Use requestAnimationFrame to avoid synchronous setState in effect
+      const frameId = requestAnimationFrame(() => {
+        setDismissed(false);
+      });
+      return () => cancelAnimationFrame(frameId);
     }
+    return undefined;
   }, [isOnline, isMounted]);
 
   // Don't show anything until mounted (prevents hydration mismatch)

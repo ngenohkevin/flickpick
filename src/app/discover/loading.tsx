@@ -18,8 +18,8 @@ export default function DiscoverLoading() {
       <div className="mx-auto mb-8 max-w-2xl">
         <Skeleton variant="rounded" className="h-32 w-full" />
         <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" width={100 + Math.random() * 60} height={32} />
+          {[110, 130, 100, 140].map((width, i) => (
+            <Skeleton key={i} variant="rounded" width={width} height={32} />
           ))}
         </div>
         <div className="mt-6 flex justify-center">

@@ -156,15 +156,35 @@ export async function enrichTasteDiveResults(
   matches: TasteDiveMatch[],
   excludeIds?: number[]
 ): Promise<EnrichedTasteDiveResult[]> {
-  console.log(`[TasteDive Enrich] Enriching ${matches.length} matches:`, matches.map(m => m.name).slice(0, 5));
+  // Log incoming TasteDive results with type breakdown
+  const incomingByType = matches.reduce((acc, m) => {
+    acc[m.type] = (acc[m.type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  console.log(`[TasteDive Enrich] Incoming ${matches.length} matches:`, incomingByType);
+  console.log(`[TasteDive Enrich] Titles:`, matches.map(m => `${m.name} (${m.type})`).join(', '));
+
   const excludeSet = new Set(excludeIds ?? []);
 
   // Process in parallel for speed
   const enrichedPromises = matches.map((match) => enrichMatch(match));
   const enrichedResults = await Promise.all(enrichedPromises);
 
-  const foundCount = enrichedResults.filter(r => r !== null).length;
-  console.log(`[TasteDive Enrich] TMDB found ${foundCount}/${matches.length} matches`);
+  // Log what was found vs missed
+  const found: string[] = [];
+  const missed: string[] = [];
+  matches.forEach((match, i) => {
+    if (enrichedResults[i]) {
+      found.push(`${match.name} → ${enrichedResults[i]!.title} (${enrichedResults[i]!.media_type})`);
+    } else {
+      missed.push(match.name);
+    }
+  });
+
+  console.log(`[TasteDive Enrich] TMDB matched ${found.length}/${matches.length}`);
+  if (missed.length > 0) {
+    console.log(`[TasteDive Enrich] TMDB missed:`, missed.join(', '));
+  }
 
   // Filter out nulls (not found) and excluded IDs
   const validResults = enrichedResults.filter(
@@ -175,13 +195,32 @@ export async function enrichTasteDiveResults(
   // Deduplicate by ID (TasteDive sometimes returns duplicates)
   const seenIds = new Set<number>();
   const uniqueResults: EnrichedTasteDiveResult[] = [];
+  const duplicates: string[] = [];
 
   for (const result of validResults) {
     if (!seenIds.has(result.id)) {
       seenIds.add(result.id);
       uniqueResults.push(result);
+    } else {
+      duplicates.push(result.title);
     }
   }
+
+  if (duplicates.length > 0) {
+    console.log(`[TasteDive Enrich] Removed ${duplicates.length} duplicates:`, duplicates.join(', '));
+  }
+
+  // Log final breakdown by type
+  const finalByType = uniqueResults.reduce((acc, r) => {
+    acc[r.media_type] = (acc[r.media_type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const finalByContentType = uniqueResults.reduce((acc, r) => {
+    acc[r.content_type] = (acc[r.content_type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  console.log(`[TasteDive Enrich] Final ${uniqueResults.length} results - by media_type:`, finalByType, '- by content_type:', finalByContentType);
 
   return uniqueResults;
 }

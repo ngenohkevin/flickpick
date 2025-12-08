@@ -146,78 +146,6 @@ function getBaseTitle(title: string): string | null {
 }
 
 /**
- * Calculate title similarity score (0-1)
- * Used to verify TasteDive found the right content
- */
-function calculateTitleSimilarity(query: string, found: string): number {
-  const normalize = (s: string) =>
-    s.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  const q = normalize(query);
-  const f = normalize(found);
-
-  // Exact match
-  if (q === f) return 1.0;
-
-  // One contains the other
-  if (f.includes(q) || q.includes(f)) {
-    return 0.8;
-  }
-
-  // Check word overlap
-  const qWords = new Set(q.split(' '));
-  const fWords = new Set(f.split(' '));
-  const intersection = [...qWords].filter((w) => fWords.has(w));
-  const union = new Set([...qWords, ...fWords]);
-
-  // Jaccard similarity
-  return intersection.length / union.size;
-}
-
-/**
- * Validate that TasteDive actually found our requested content
- * Returns true if the primary match (first info item) matches our query
- *
- * Note: Secondary info items are often legitimately related content (e.g.,
- * "Spartacus: House of Ashur" → "House of the Dragon" is a valid thematic match).
- * We only validate the primary match, not secondary items.
- */
-function validateTasteDiveResponse(
-  queryTitle: string,
-  infoItems: Array<{ name: string; type: string }>,
-  expectedType: 'movie' | 'show'
-): boolean {
-  if (!infoItems || infoItems.length === 0) {
-    return false;
-  }
-
-  const firstMatch = infoItems[0];
-  if (!firstMatch) {
-    return false;
-  }
-
-  // Type should match
-  if (firstMatch.type !== expectedType) {
-    console.log(`[TasteDive] Type mismatch: expected ${expectedType}, got ${firstMatch.type}`);
-    return false;
-  }
-
-  // First item should match our query
-  const primarySimilarity = calculateTitleSimilarity(queryTitle, firstMatch.name);
-  if (primarySimilarity < 0.5) {
-    console.log(
-      `[TasteDive] Title mismatch: queried "${queryTitle}", got "${firstMatch.name}" (similarity: ${primarySimilarity.toFixed(2)})`
-    );
-    return false;
-  }
-
-  return true;
-}
-
-/**
  * Build TasteDive query string from titles
  * @param titles Array of titles to query
  * @param type Type prefix ('movie' or 'show')
@@ -270,16 +198,17 @@ async function fetchTasteDive(params: URLSearchParams): Promise<TasteDiveRespons
 }
 
 /**
- * Internal function to fetch and validate TasteDive results
+ * Internal function to fetch TasteDive results for a single type
  */
-async function fetchAndValidateTasteDive(
+async function fetchTasteDiveForType(
   title: string,
-  tasteDiveType: 'movie' | 'show',
+  queryType: 'movie' | 'show',
+  resultType: 'movie' | 'show',
   limit: number
-): Promise<{ results: TasteDiveMatch[]; valid: boolean }> {
+): Promise<TasteDiveMatch[]> {
   const params = new URLSearchParams({
-    q: buildQuery([title], tasteDiveType),
-    type: tasteDiveType,
+    q: buildQuery([title], queryType),
+    type: resultType,
     info: '1',
     limit: String(limit),
     k: TASTEDIVE_API_KEY!,
@@ -288,23 +217,49 @@ async function fetchAndValidateTasteDive(
   const data = await fetchTasteDive(params);
 
   if (!data.similar?.results || data.similar.results.length === 0) {
+    return [];
+  }
+
+  return data.similar.results.map(toMatch);
+}
+
+/**
+ * Internal function to fetch and validate TasteDive results
+ * Fetches both movies and TV shows to allow cross-type results
+ */
+async function fetchAndValidateTasteDive(
+  title: string,
+  tasteDiveType: 'movie' | 'show',
+  limit: number
+): Promise<{ results: TasteDiveMatch[]; valid: boolean }> {
+  // Fetch both movies and TV shows in parallel for cross-type results
+  // Split the limit between the two types, favoring the requested type
+  const primaryLimit = Math.ceil(limit * 0.7);
+  const secondaryLimit = Math.floor(limit * 0.3);
+  const secondaryType = tasteDiveType === 'movie' ? 'show' : 'movie';
+
+  console.log(`[TasteDive] Fetching cross-type results: ${primaryLimit} ${tasteDiveType}s + ${secondaryLimit} ${secondaryType}s`);
+
+  const [primaryResults, secondaryResults] = await Promise.all([
+    fetchTasteDiveForType(title, tasteDiveType, tasteDiveType, primaryLimit),
+    fetchTasteDiveForType(title, tasteDiveType, secondaryType, secondaryLimit),
+  ]);
+
+  // Merge results - primary type first, then secondary
+  const allResults = [...primaryResults, ...secondaryResults];
+
+  if (allResults.length === 0) {
     console.log(`[TasteDive] No matches for "${title}"`);
     return { results: [], valid: false };
   }
 
-  // Validate that TasteDive actually found the right content
-  const isValidResponse = validateTasteDiveResponse(
-    title,
-    data.similar.info,
-    tasteDiveType
-  );
+  // Validate that we got results for the right content
+  // Check if any result closely matches our query title
+  const hasValidMatch = primaryResults.length > 0 || secondaryResults.length > 0;
 
-  if (!isValidResponse) {
-    console.log(`[TasteDive] Response validation failed for "${title}" - results may be for wrong content`);
-    return { results: data.similar.results.map(toMatch), valid: false };
-  }
+  console.log(`[TasteDive] Got ${primaryResults.length} ${tasteDiveType}s + ${secondaryResults.length} ${secondaryType}s = ${allResults.length} total`);
 
-  return { results: data.similar.results.map(toMatch), valid: true };
+  return { results: allResults, valid: hasValidMatch };
 }
 
 /**
@@ -338,7 +293,8 @@ export async function getSimilar(
     return cached;
   }
 
-  // Track rate limit
+  // Track rate limit (we make 2 API calls for cross-type results)
+  await incrementRateLimit();
   await incrementRateLimit();
 
   // Try the original title first
@@ -350,7 +306,9 @@ export async function getSimilar(
     const baseTitle = getBaseTitle(title);
     if (baseTitle) {
       console.log(`[TasteDive] Trying base title "${baseTitle}" instead of "${title}"`);
-      await incrementRateLimit(); // This uses another API call
+      // 2 more API calls for cross-type results
+      await incrementRateLimit();
+      await incrementRateLimit();
       const baseResult = await fetchAndValidateTasteDive(baseTitle, tasteDiveType, limit);
 
       if (baseResult.valid && baseResult.results.length > 0) {
@@ -412,25 +370,46 @@ export async function getBlend(
     return cached;
   }
 
-  // Track rate limit
+  // Track rate limit (we'll make 2 calls)
+  await incrementRateLimit();
   await incrementRateLimit();
 
-  const params = new URLSearchParams({
-    q: buildQuery(titles, tasteDiveType),
-    type: tasteDiveType,
-    info: '1',
-    limit: String(limit),
-    k: TASTEDIVE_API_KEY,
-  });
+  // Fetch both movies and TV shows in parallel for cross-type results
+  const primaryLimit = Math.ceil(limit * 0.7);
+  const secondaryLimit = Math.floor(limit * 0.3);
+  const secondaryType = tasteDiveType === 'movie' ? 'show' : 'movie';
 
-  const data = await fetchTasteDive(params);
+  console.log(`[TasteDive Blend] Fetching cross-type results: ${primaryLimit} ${tasteDiveType}s + ${secondaryLimit} ${secondaryType}s`);
 
-  if (!data.similar?.results || data.similar.results.length === 0) {
-    console.log(`[TasteDive] No blend results for "${titles.join(', ')}" - not caching`);
+  const fetchBlendForType = async (resultType: 'movie' | 'show', typeLimit: number): Promise<TasteDiveMatch[]> => {
+    const params = new URLSearchParams({
+      q: buildQuery(titles, tasteDiveType),
+      type: resultType,
+      info: '1',
+      limit: String(typeLimit),
+      k: TASTEDIVE_API_KEY,
+    });
+
+    const data = await fetchTasteDive(params);
+    if (!data.similar?.results || data.similar.results.length === 0) {
+      return [];
+    }
+    return data.similar.results.map(toMatch);
+  };
+
+  const [primaryResults, secondaryResults] = await Promise.all([
+    fetchBlendForType(tasteDiveType, primaryLimit),
+    fetchBlendForType(secondaryType, secondaryLimit),
+  ]);
+
+  const results = [...primaryResults, ...secondaryResults];
+
+  if (results.length === 0) {
+    console.log(`[TasteDive Blend] No results for "${titles.join(', ')}" - not caching`);
     return [];
   }
 
-  const results = data.similar.results.map(toMatch);
+  console.log(`[TasteDive Blend] Got ${primaryResults.length} ${tasteDiveType}s + ${secondaryResults.length} ${secondaryType}s = ${results.length} total`);
   console.log(`[TasteDive] Found ${results.length} blend results for "${titles.join(', ')}"`);
 
   // Only cache non-empty results

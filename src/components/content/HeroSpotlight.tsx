@@ -43,6 +43,7 @@ export function HeroSpotlight({
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const { addToast } = useToast(); // Must be called before any conditional returns
 
   const itemCount = items.length;
   const currentItem = items[currentIndex];
@@ -86,7 +87,6 @@ export function HeroSpotlight({
   const detailUrl = isTV ? `/tv/${currentItem.id}` : `/movie/${currentItem.id}`;
   const similarUrl = isTV ? `/similar/tv/${currentItem.id}` : `/similar/movie/${currentItem.id}`;
   const isInWatchlist = watchlistIds?.has(currentItem.id);
-  const { addToast } = useToast();
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();

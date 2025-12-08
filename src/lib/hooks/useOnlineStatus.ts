@@ -39,18 +39,22 @@ export function useOnlineStatus(): OnlineStatus & { isMounted: boolean } {
   }, []);
 
   useEffect(() => {
-    // Mark as mounted and set actual online status
-    setIsMounted(true);
-    setStatus({
-      isOnline: navigator.onLine,
-      wasOffline: false,
-      lastOnline: navigator.onLine ? new Date() : null,
+    // Use requestAnimationFrame to avoid synchronous setState in effect
+    const frameId = requestAnimationFrame(() => {
+      // Mark as mounted and set actual online status
+      setIsMounted(true);
+      setStatus({
+        isOnline: navigator.onLine,
+        wasOffline: false,
+        lastOnline: navigator.onLine ? new Date() : null,
+      });
     });
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
     return () => {
+      cancelAnimationFrame(frameId);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };

@@ -49,10 +49,12 @@ export function TrailerEmbed({
 }: TrailerEmbedProps) {
   const [playerState, setPlayerState] = useState<PlayerState>('idle');
   const [currentAd, setCurrentAd] = useState<Ad | null>(null);
-  const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(null);
 
   const trailer = getBestTrailer(videos);
   const posterUrl = posterPath ? `https://image.tmdb.org/t/p/w780${posterPath}` : null;
+
+  // Initialize thumbnail with poster URL
+  const [thumbnailSrc, setThumbnailSrc] = useState<string | null>(() => posterUrl);
 
   // Try to load YouTube thumbnail, fall back to poster if it fails or shows placeholder
   useEffect(() => {
@@ -76,12 +78,8 @@ export function TrailerEmbed({
         setThumbnailSrc(posterUrl);
       }
     };
-    img.src = youtubeThumb;
 
-    // Default to poster while checking
-    if (posterUrl) {
-      setThumbnailSrc(posterUrl);
-    }
+    img.src = youtubeThumb;
   }, [trailer, posterUrl]);
 
   // ==========================================================================
