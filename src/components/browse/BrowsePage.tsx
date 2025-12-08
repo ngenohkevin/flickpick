@@ -286,14 +286,21 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="flex gap-8">
           {/* Desktop Filter Sidebar */}
-          <aside className="hidden w-64 flex-shrink-0 lg:block">
-            <div className={cn('sticky transition-all duration-300', isHeaderHidden ? 'top-4' : 'top-24')}>
-              <FilterSidebar
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                onClearFilters={handleClearFilters}
-                contentType={contentType === 'animation' || contentType === 'anime' ? 'movie' : contentType}
-              />
+          <aside className="hidden lg:block w-72 flex-shrink-0">
+            <div
+              className={cn(
+                'sticky overflow-y-auto overscroll-contain scrollbar-thin transition-all duration-300',
+                isHeaderHidden ? 'top-4 h-[calc(100vh-2rem)]' : 'top-[88px] h-[calc(100vh-112px)]'
+              )}
+            >
+              <div className="pb-6 pr-2">
+                <FilterSidebar
+                  filters={filters}
+                  onFilterChange={handleFilterChange}
+                  onClearFilters={handleClearFilters}
+                  contentType={contentType === 'animation' || contentType === 'anime' ? 'movie' : contentType}
+                />
+              </div>
             </div>
           </aside>
 

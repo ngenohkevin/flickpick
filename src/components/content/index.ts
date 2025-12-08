@@ -37,3 +37,6 @@ export {
   EpisodeProgressRow,
   type TVShowWithEpisodeStatus,
 } from './EpisodeProgressCard';
+
+// Personalized Recommendations
+export { PersonalizedRecommendations } from './PersonalizedRecommendations';

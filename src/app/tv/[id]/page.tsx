@@ -11,7 +11,7 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Star, Calendar, Play, ExternalLink, Tv, Film, Globe, Users } from 'lucide-react';
-import { getTVShowDetailsExtended, getRelatedTVShows } from '@/lib/tmdb/tv';
+import { getTVShowDetailsExtended } from '@/lib/tmdb/tv';
 import { getPosterUrl, getBackdropUrl, extractYear, cn, createSlug } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import dynamic from 'next/dynamic';
@@ -21,7 +21,6 @@ import {
   generateFAQJsonLd,
   generateTVShowFAQs,
 } from '@/lib/jsonld';
-import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
 import { hasTrailer } from '@/lib/video-utils';
@@ -42,9 +41,9 @@ const TrailerEmbed = dynamic(
 );
 import { SeasonList } from '@/components/tv/SeasonList';
 import { ShowStatus } from '@/components/tv/ShowStatus';
-import { WatchlistButton, ShareButton } from '@/components/ui';
+import { WatchlistButton, ShareButton, SeenButton } from '@/components/ui';
 import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
-import type { ContentType, Content, TVShow as TVShowType, Season } from '@/types';
+import type { ContentType, Season } from '@/types';
 
 // ==========================================================================
 // Types
@@ -188,13 +187,9 @@ export default async function TVShowPage({ params }: TVPageProps) {
   }
 
   let show;
-  let relatedShows;
 
   try {
-    [show, relatedShows] = await Promise.all([
-      getTVShowDetailsExtended(showId),
-      getRelatedTVShows(showId),
-    ]);
+    show = await getTVShowDetailsExtended(showId);
   } catch {
     notFound();
   }
@@ -225,29 +220,6 @@ export default async function TVShowPage({ params }: TVPageProps) {
 
   // Check if there's a trailer
   const trailerAvailable = hasTrailer(show.videos || []);
-
-  // Convert related shows to Content type for ContentRow
-  const similarContent: Content[] = relatedShows.slice(0, 12).map((s) => ({
-    id: s.id,
-    media_type: 'tv' as const,
-    name: s.name,
-    original_name: s.original_name,
-    overview: s.overview,
-    poster_path: s.poster_path,
-    backdrop_path: s.backdrop_path,
-    first_air_date: s.first_air_date,
-    vote_average: s.vote_average,
-    vote_count: s.vote_count,
-    popularity: s.popularity,
-    genre_ids: s.genre_ids,
-    original_language: s.original_language,
-    origin_country: s.origin_country,
-    number_of_seasons: s.number_of_seasons,
-    number_of_episodes: s.number_of_episodes,
-    episode_run_time: s.episode_run_time,
-    status: s.status as TVShowType['status'],
-    type: s.type ?? 'Scripted',
-  }));
 
   // URL for JSON-LD
   const pageUrl = `${BASE_URL}/tv/${show.id}`;
@@ -532,7 +504,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 {trailerAvailable && (
                   <a
                     href="#trailer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-text-primary/30 bg-text-primary/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-text-primary/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                   >
                     <Play className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" />
                     Watch Trailer
@@ -548,10 +520,20 @@ export default async function TVShowPage({ params }: TVPageProps) {
                   variant="hero"
                 />
 
+                {/* Seen Button */}
+                <SeenButton
+                  id={show.id}
+                  title={show.name}
+                  mediaType="tv"
+                  contentType={contentType}
+                  posterPath={show.poster_path}
+                  variant="hero"
+                />
+
                 {/* Similar Button */}
                 <Link
                   href={`/similar/tv/${show.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-text-primary/30 bg-text-primary/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-text-primary/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                 >
                   Find Similar
                 </Link>
@@ -733,19 +715,6 @@ export default async function TVShowPage({ params }: TVPageProps) {
             showName={show.name}
             className="mt-16"
           />
-        )}
-
-        {/* Similar Shows */}
-        {similarContent.length > 0 && (
-          <div className="mt-16">
-            <ContentRow
-              title="More Like This"
-              items={similarContent}
-              href={`/similar/tv/${show.id}`}
-              showTypeBadge={true}
-              showRating={true}
-            />
-          </div>
         )}
 
         {/* Where to Watch */}

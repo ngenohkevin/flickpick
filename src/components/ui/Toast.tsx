@@ -151,10 +151,18 @@ function ToastItem({ toast, onRemove }: ToastItemProps) {
   };
 
   const colors = {
-    success: 'bg-success text-white',
-    error: 'bg-error text-white',
-    warning: 'bg-warning text-black',
-    info: 'bg-info text-white',
+    success: 'bg-success',
+    error: 'bg-error',
+    warning: 'bg-warning',
+    info: 'bg-info',
+  };
+
+  // Use explicit text colors for better visibility
+  const textColors = {
+    success: '#ffffff',
+    error: '#ffffff',
+    warning: '#000000',
+    info: '#ffffff',
   };
 
   const Icon = icons[toast.type];
@@ -164,20 +172,22 @@ function ToastItem({ toast, onRemove }: ToastItemProps) {
       className={`flex min-w-[300px] max-w-md items-start gap-3 rounded-lg p-4 shadow-xl ${
         toast.isExiting ? 'animate-slide-out-right' : 'animate-slide-in-right'
       } ${colors[toast.type]}`}
+      style={{ color: textColors[toast.type] }}
       role="alert"
     >
       <Icon className="h-5 w-5 flex-shrink-0" />
 
       <div className="flex-1">
-        <p className="font-medium">{toast.title}</p>
+        <p className="font-medium" style={{ color: 'inherit' }}>{toast.title}</p>
         {toast.message && (
-          <p className="mt-1 text-sm opacity-90">{toast.message}</p>
+          <p className="mt-1 text-sm opacity-90" style={{ color: 'inherit' }}>{toast.message}</p>
         )}
       </div>
 
       <button
         onClick={() => onRemove(toast.id)}
         className="rounded-full p-1 opacity-70 transition-all hover:opacity-100 hover:scale-110 btn-press"
+        style={{ color: textColors[toast.type] }}
         aria-label="Dismiss notification"
       >
         <X className="h-4 w-4" />

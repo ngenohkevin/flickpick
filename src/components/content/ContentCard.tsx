@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Heart } from 'lucide-react';
+import { Plus, Heart, Eye } from 'lucide-react';
 import { ContentPoster } from './ContentPoster';
 import { ContentRating } from './ContentRating';
 import { ContentTypeBadge, Tooltip, useToast } from '@/components/ui';
+import { useIsSeen, useSeenHistory } from '@/stores/seenHistory';
 import {
   getContentTitle,
   getContentReleaseDate,
@@ -28,6 +29,7 @@ interface ContentCardProps {
   showRating?: boolean;
   showYear?: boolean;
   showNewBadge?: boolean;
+  showSeenIndicator?: boolean;
   isInWatchlist?: boolean;
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
@@ -40,6 +42,7 @@ export function ContentCard({
   showRating = true,
   showYear = true,
   showNewBadge = true,
+  showSeenIndicator = true,
   isInWatchlist = false,
   onWatchlistToggle,
   className = '',
@@ -52,8 +55,13 @@ export function ContentCard({
 
   // Build URLs
   const isTV = content.media_type === 'tv' || 'first_air_date' in content;
+  const mediaType = isTV ? 'tv' : 'movie';
   const detailUrl = isTV ? `/tv/${content.id}` : `/movie/${content.id}`;
   const similarUrl = isTV ? `/similar/tv/${content.id}` : `/similar/movie/${content.id}`;
+
+  // Seen status
+  const isSeen = useIsSeen(content.id, mediaType);
+  const toggleSeen = useSeenHistory((state) => state.toggleSeen);
 
   const router = useRouter();
   const { addToast } = useToast();
@@ -66,6 +74,23 @@ export function ContentCard({
       title: 'Coming Soon',
       message: 'Watchlist feature is coming soon!',
       duration: 3000,
+    });
+  };
+
+  const handleSeenClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSeen({
+      id: content.id,
+      media_type: mediaType,
+      content_type: contentType,
+      title,
+      poster_path: content.poster_path,
+    });
+    addToast({
+      type: 'success',
+      title: isSeen ? 'Marked as unseen' : 'Marked as seen',
+      duration: 2000,
     });
   };
 
@@ -126,7 +151,31 @@ export function ContentCard({
                 <Heart className={cn('h-5 w-5 transition-transform', isInWatchlist && 'fill-current scale-110')} />
               </button>
             </Tooltip>
+
+            {/* Seen Button */}
+            <Tooltip content={isSeen ? 'Mark as Unseen' : 'Mark as Seen'} position="top">
+              <button
+                onClick={handleSeenClick}
+                className={cn(
+                  'flex h-10 w-10 items-center justify-center rounded-full transition-all hover:scale-110 btn-press',
+                  isSeen
+                    ? 'bg-success text-white'
+                    : 'bg-white/20 text-white hover:bg-success/80'
+                )}
+                aria-label={isSeen ? 'Mark as unseen' : 'Mark as seen'}
+              >
+                <Eye className={cn('h-5 w-5', isSeen && 'fill-current')} />
+              </button>
+            </Tooltip>
           </div>
+
+          {/* Seen Indicator */}
+          {showSeenIndicator && isSeen && (
+            <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-success px-2 py-0.5 text-xs font-medium text-white shadow-md">
+              <Eye className="h-3 w-3" />
+              <span>Seen</span>
+            </div>
+          )}
 
           {/* Badges */}
           <div className="absolute left-2 top-2 flex flex-col gap-1">

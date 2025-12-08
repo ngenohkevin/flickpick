@@ -224,6 +224,7 @@ export interface WatchlistItem {
   content_type: ContentType;
   poster_path: string | null;
   added_at: string;
+  genre_ids?: number[]; // For personalized recommendations
 }
 
 // ==========================================================================

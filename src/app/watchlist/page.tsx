@@ -8,9 +8,11 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Heart, Trash2, Shuffle, X, Film, Tv, Sparkles } from 'lucide-react';
+import { Heart, Trash2, Shuffle, X, Film, Tv, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { useWatchlist } from '@/stores/watchlist';
+import { useSeenHistory, useIsSeen } from '@/stores/seenHistory';
 import { WatchlistEmpty } from '@/components/watchlist';
+import { useToast } from '@/components/ui';
 import { getPosterUrl, cn } from '@/lib/utils';
 import type { ContentType, WatchlistItem } from '@/types';
 
@@ -20,6 +22,7 @@ import type { ContentType, WatchlistItem } from '@/types';
 
 type SortOption = 'added_desc' | 'added_asc' | 'title_asc' | 'title_desc';
 type FilterOption = ContentType | 'all';
+type SeenFilterOption = 'all' | 'seen' | 'not_seen';
 
 // ==========================================================================
 // Content Type Badge Config
@@ -41,8 +44,11 @@ export default function WatchlistPage() {
   const removeItem = useWatchlist((state) => state.removeItem);
   const clearWatchlist = useWatchlist((state) => state.clearWatchlist);
   const getRandomItem = useWatchlist((state) => state.getRandomItem);
+  const seenItems = useSeenHistory((state) => state.items);
+  const isSeen = useSeenHistory((state) => state.isSeen);
 
   const [filter, setFilter] = useState<FilterOption>('all');
+  const [seenFilter, setSeenFilter] = useState<SeenFilterOption>('all');
   const [sort, setSort] = useState<SortOption>('added_desc');
   const [pickedItem, setPickedItem] = useState<WatchlistItem | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -52,6 +58,13 @@ export default function WatchlistPage() {
     let result = filter === 'all'
       ? items
       : items.filter((item) => item.content_type === filter);
+
+    // Apply seen filter
+    if (seenFilter === 'seen') {
+      result = result.filter((item) => isSeen(item.id, item.media_type));
+    } else if (seenFilter === 'not_seen') {
+      result = result.filter((item) => !isSeen(item.id, item.media_type));
+    }
 
     // Sort
     result = [...result].sort((a, b) => {
@@ -70,7 +83,7 @@ export default function WatchlistPage() {
     });
 
     return result;
-  }, [items, filter, sort]);
+  }, [items, filter, seenFilter, sort, isSeen]);
 
   // Count by type
   const counts = useMemo(() => {
@@ -80,6 +93,20 @@ export default function WatchlistPage() {
     });
     return result;
   }, [items]);
+
+  // Count by seen status
+  const seenCounts = useMemo(() => {
+    let seen = 0;
+    let notSeen = 0;
+    items.forEach((item) => {
+      if (isSeen(item.id, item.media_type)) {
+        seen++;
+      } else {
+        notSeen++;
+      }
+    });
+    return { all: items.length, seen, not_seen: notSeen };
+  }, [items, isSeen]);
 
   // Handle "Pick for me"
   const handlePickForMe = () => {
@@ -196,7 +223,7 @@ export default function WatchlistPage() {
       )}
 
       {/* Filters and Sort */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-6 flex flex-col gap-4">
         {/* Type Filters */}
         <div className="flex flex-wrap gap-2">
           <FilterButton
@@ -239,19 +266,49 @@ export default function WatchlistPage() {
           </FilterButton>
         </div>
 
-        {/* Sort */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-text-tertiary">Sort by:</span>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortOption)}
-            className="rounded-md border border-border-default bg-bg-secondary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
-          >
-            <option value="added_desc">Recently added</option>
-            <option value="added_asc">Oldest first</option>
-            <option value="title_asc">Title (A-Z)</option>
-            <option value="title_desc">Title (Z-A)</option>
-          </select>
+        {/* Seen Status Filters and Sort */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          {/* Seen Filters */}
+          <div className="flex flex-wrap gap-2">
+            <SeenFilterButton
+              active={seenFilter === 'all'}
+              onClick={() => setSeenFilter('all')}
+              count={seenCounts.all}
+            >
+              All Status
+            </SeenFilterButton>
+            <SeenFilterButton
+              active={seenFilter === 'not_seen'}
+              onClick={() => setSeenFilter('not_seen')}
+              count={seenCounts.not_seen}
+              icon={<EyeOff className="h-4 w-4" />}
+            >
+              Not Seen
+            </SeenFilterButton>
+            <SeenFilterButton
+              active={seenFilter === 'seen'}
+              onClick={() => setSeenFilter('seen')}
+              count={seenCounts.seen}
+              icon={<Eye className="h-4 w-4" />}
+            >
+              Seen
+            </SeenFilterButton>
+          </div>
+
+          {/* Sort */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-text-tertiary">Sort by:</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortOption)}
+              className="rounded-md border border-border-default bg-bg-secondary px-3 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            >
+              <option value="added_desc">Recently added</option>
+              <option value="added_asc">Oldest first</option>
+              <option value="title_asc">Title (A-Z)</option>
+              <option value="title_desc">Title (Z-A)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -360,6 +417,45 @@ function FilterButton({ active, onClick, count, icon, children }: FilterButtonPr
 }
 
 // ==========================================================================
+// Seen Filter Button Component
+// ==========================================================================
+
+interface SeenFilterButtonProps {
+  active: boolean;
+  onClick: () => void;
+  count?: number;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+function SeenFilterButton({ active, onClick, count, icon, children }: SeenFilterButtonProps) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+        active
+          ? 'bg-success/20 text-success ring-1 ring-success/30'
+          : 'bg-bg-secondary text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
+      )}
+    >
+      {icon}
+      {children}
+      {count !== undefined && (
+        <span
+          className={cn(
+            'ml-1 rounded-full px-1.5 py-0.5 text-xs',
+            active ? 'bg-success/20' : 'bg-bg-tertiary'
+          )}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ==========================================================================
 // Watchlist Card Component
 // ==========================================================================
 
@@ -370,6 +466,26 @@ interface WatchlistCardProps {
 
 function WatchlistCard({ item, onRemove }: WatchlistCardProps) {
   const posterUrl = getPosterUrl(item.poster_path, 'medium');
+  const isSeen = useIsSeen(item.id, item.media_type);
+  const toggleSeen = useSeenHistory((state) => state.toggleSeen);
+  const { addToast } = useToast();
+
+  const handleSeenClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSeen({
+      id: item.id,
+      media_type: item.media_type,
+      content_type: item.content_type,
+      title: item.title,
+      poster_path: item.poster_path,
+    });
+    addToast({
+      type: 'success',
+      title: isSeen ? 'Marked as unseen' : 'Marked as seen',
+      duration: 2000,
+    });
+  };
 
   return (
     <div className="group relative">
@@ -397,18 +513,44 @@ function WatchlistCard({ item, onRemove }: WatchlistCardProps) {
             {CONTENT_TYPE_CONFIG[item.content_type].label}
           </span>
 
-          {/* Remove Button */}
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="absolute right-2 top-2 rounded-full bg-bg-primary/80 p-1.5 text-text-tertiary opacity-0 backdrop-blur-sm transition-all hover:bg-error hover:text-white group-hover:opacity-100"
-            aria-label={`Remove ${item.title} from watchlist`}
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {/* Seen Badge */}
+          {isSeen && (
+            <div className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-success px-2 py-0.5 text-xs font-medium text-white shadow-md">
+              <Eye className="h-3 w-3" />
+              <span>Seen</span>
+            </div>
+          )}
+
+          {/* Action Buttons (visible on hover) */}
+          <div className="absolute right-2 top-2 flex flex-col gap-1.5 opacity-0 transition-all group-hover:opacity-100">
+            {/* Remove Button */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="rounded-full bg-bg-primary/80 p-1.5 text-text-tertiary backdrop-blur-sm transition-all hover:bg-error hover:text-white"
+              aria-label={`Remove ${item.title} from watchlist`}
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {/* Seen Toggle Button */}
+            <button
+              onClick={handleSeenClick}
+              className={cn(
+                'rounded-full p-1.5 backdrop-blur-sm transition-all',
+                isSeen
+                  ? 'bg-success text-white hover:bg-success/80'
+                  : 'bg-bg-primary/80 text-text-tertiary hover:bg-success hover:text-white'
+              )}
+              aria-label={isSeen ? `Mark ${item.title} as unseen` : `Mark ${item.title} as seen`}
+              title={isSeen ? 'Mark as unseen' : 'Mark as seen'}
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          </div>
 
           {/* Heart indicator */}
           <div className="absolute bottom-2 right-2 rounded-full bg-bg-primary/80 p-1.5 backdrop-blur-sm">

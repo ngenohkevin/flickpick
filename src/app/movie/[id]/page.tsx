@@ -11,14 +11,13 @@ import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Star, Clock, Calendar, Play, ExternalLink, Globe, DollarSign, Film, Clapperboard } from 'lucide-react';
-import { getMovieDetailsExtended, getRelatedMovies } from '@/lib/tmdb/movies';
+import { getMovieDetailsExtended } from '@/lib/tmdb/movies';
 import { getPosterUrl, getBackdropUrl, formatRuntime, extractYear, cn, createSlug } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import dynamic from 'next/dynamic';
-import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
-import { WatchlistButton, ShareButton } from '@/components/ui';
+import { WatchlistButton, ShareButton, SeenButton } from '@/components/ui';
 import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
 import {
   generateMovieJsonLd,
@@ -42,7 +41,7 @@ const TrailerEmbed = dynamic(
   }
 );
 import { hasTrailer } from '@/lib/video-utils';
-import type { ContentType, Content } from '@/types';
+import type { ContentType } from '@/types';
 
 // ==========================================================================
 // Types
@@ -185,13 +184,9 @@ export default async function MoviePage({ params }: MoviePageProps) {
   }
 
   let movie;
-  let relatedMovies;
 
   try {
-    [movie, relatedMovies] = await Promise.all([
-      getMovieDetailsExtended(movieId),
-      getRelatedMovies(movieId),
-    ]);
+    movie = await getMovieDetailsExtended(movieId);
   } catch {
     notFound();
   }
@@ -213,24 +208,6 @@ export default async function MoviePage({ params }: MoviePageProps) {
 
   // Check if there's a trailer
   const trailerAvailable = hasTrailer(movie.videos || []);
-
-  // Convert related movies to Content type for ContentRow
-  const similarContent: Content[] = relatedMovies.slice(0, 12).map((m) => ({
-    id: m.id,
-    media_type: 'movie' as const,
-    title: m.title,
-    original_title: m.original_title,
-    overview: m.overview,
-    poster_path: m.poster_path,
-    backdrop_path: m.backdrop_path,
-    release_date: m.release_date,
-    vote_average: m.vote_average,
-    vote_count: m.vote_count,
-    popularity: m.popularity,
-    genre_ids: m.genre_ids,
-    original_language: m.original_language,
-    adult: m.adult,
-  }));
 
   // URL for JSON-LD
   const pageUrl = `${BASE_URL}/movie/${movie.id}`;
@@ -469,7 +446,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 {trailerAvailable && (
                   <a
                     href="#trailer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-text-primary/30 bg-text-primary/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-text-primary/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                   >
                     <Play className="h-4 w-4 sm:h-5 sm:w-5" fill="currentColor" />
                     Watch Trailer
@@ -485,10 +462,20 @@ export default async function MoviePage({ params }: MoviePageProps) {
                   variant="hero"
                 />
 
+                {/* Seen Button */}
+                <SeenButton
+                  id={movie.id}
+                  title={movie.title}
+                  mediaType="movie"
+                  contentType={contentType}
+                  posterPath={movie.poster_path}
+                  variant="hero"
+                />
+
                 {/* Similar Button */}
                 <Link
                   href={`/similar/movie/${movie.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-white/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-text-primary/30 bg-text-primary/10 px-4 py-2 text-sm font-semibold text-text-primary backdrop-blur-sm transition-all hover:bg-text-primary/20 sm:gap-2 sm:px-6 sm:py-3 sm:text-base"
                 >
                   Find Similar
                 </Link>
@@ -642,19 +629,6 @@ export default async function MoviePage({ params }: MoviePageProps) {
             )}
           </div>
         </section>
-
-        {/* Similar Movies */}
-        {similarContent.length > 0 && (
-          <div className="mt-16">
-            <ContentRow
-              title="More Like This"
-              items={similarContent}
-              href={`/similar/movie/${movie.id}`}
-              showTypeBadge={true}
-              showRating={true}
-            />
-          </div>
-        )}
 
         {/* Where to Watch */}
         <StreamingProviders

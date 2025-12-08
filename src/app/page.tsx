@@ -19,6 +19,7 @@ import {
   ContentRow,
   HeroWithJustReleased,
   JustReleasedSection,
+  PersonalizedRecommendations,
 } from '@/components/content';
 import { JustReleasedTVRow } from '@/components/content/JustReleasedTVRow';
 import { CategoryGrid } from '@/components/browse';
@@ -435,6 +436,9 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
+        {/* Personalized Recommendations (only shows when watchlist has items) */}
+        <PersonalizedRecommendations />
 
         {/* Just Released Movies - Torrentio Verified (loads in background) */}
         <JustReleasedSection />

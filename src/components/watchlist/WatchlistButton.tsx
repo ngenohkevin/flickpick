@@ -20,6 +20,7 @@ interface WatchlistButtonProps {
   mediaType: MediaType;
   contentType: ContentType;
   posterPath: string | null;
+  genreIds?: number[];
   variant?: 'default' | 'icon' | 'filled';
   size?: 'sm' | 'md' | 'lg';
   className?: string;
@@ -35,6 +36,7 @@ export function WatchlistButton({
   mediaType,
   contentType,
   posterPath,
+  genreIds,
   variant = 'default',
   size = 'md',
   className,
@@ -51,6 +53,7 @@ export function WatchlistButton({
       media_type: mediaType,
       content_type: contentType,
       poster_path: posterPath,
+      genre_ids: genreIds,
     });
   };
 

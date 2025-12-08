@@ -8,8 +8,10 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, Calendar, Film } from 'lucide-react';
-import { getPosterUrl, extractYear } from '@/lib/utils';
+import { ChevronDown, ChevronUp, Calendar, Film, Eye, EyeOff, Check } from 'lucide-react';
+import { getPosterUrl, extractYear, cn } from '@/lib/utils';
+import { useSeenHistory, useSeasonProgress } from '@/stores/seenHistory';
+import { useToast } from '@/components/ui';
 import type { Season } from '@/types';
 
 // ==========================================================================
@@ -91,6 +93,38 @@ function SeasonCard({ season, showId, showName }: SeasonCardProps) {
   const year = extractYear(season.air_date);
   const hasEpisodes = season.episode_count > 0;
 
+  // Seen tracking
+  const progress = useSeasonProgress(showId, season.season_number, season.episode_count);
+  const markSeasonAsSeen = useSeenHistory((state) => state.markSeasonAsSeen);
+  const markSeasonAsUnseen = useSeenHistory((state) => state.markSeasonAsUnseen);
+  const { addToast } = useToast();
+
+  const allSeen = hasEpisodes && progress.seen === progress.total;
+  const someSeen = progress.seen > 0 && progress.seen < progress.total;
+
+  const handleSeenToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (allSeen) {
+      markSeasonAsUnseen(showId, season.season_number);
+      addToast({
+        type: 'success',
+        title: 'Marked as unseen',
+        message: `${season.name} episodes removed from seen history`,
+        duration: 2000,
+      });
+    } else {
+      markSeasonAsSeen(showId, season.season_number, season.episode_count);
+      addToast({
+        type: 'success',
+        title: 'Marked as seen',
+        message: `All ${season.episode_count} episodes of ${season.name} marked as seen`,
+        duration: 2000,
+      });
+    }
+  };
+
   return (
     <Link
       href={`/tv/${showId}/season/${season.season_number}`}
@@ -111,13 +145,52 @@ function SeasonCard({ season, showId, showName }: SeasonCardProps) {
             <Film className="h-8 w-8 text-text-tertiary" />
           </div>
         )}
+
+        {/* Seen Badge */}
+        {allSeen && (
+          <div className="absolute right-1 top-1 flex items-center gap-0.5 rounded-full bg-success px-1.5 py-0.5 text-[10px] font-medium text-white shadow-md">
+            <Check className="h-2.5 w-2.5" />
+            <span className="hidden sm:inline">Seen</span>
+          </div>
+        )}
       </div>
 
       {/* Info */}
       <div className="flex min-w-0 flex-1 flex-col justify-center">
-        <h3 className="text-sm font-semibold text-text-primary group-hover:text-accent-primary sm:text-base">
-          {season.name}
-        </h3>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-sm font-semibold text-text-primary group-hover:text-accent-primary sm:text-base">
+            {season.name}
+          </h3>
+
+          {/* Mark as Seen Button */}
+          {hasEpisodes && (
+            <button
+              onClick={handleSeenToggle}
+              className={cn(
+                'flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all hover:scale-105',
+                allSeen
+                  ? 'bg-success/20 text-success hover:bg-success/30'
+                  : someSeen
+                    ? 'bg-accent-primary/20 text-accent-primary hover:bg-accent-primary/30'
+                    : 'bg-bg-tertiary text-text-tertiary hover:bg-border-default hover:text-text-primary'
+              )}
+              aria-label={allSeen ? `Mark ${season.name} as unseen` : `Mark all ${season.name} episodes as seen`}
+              title={allSeen ? 'Mark as unseen' : 'Mark all as seen'}
+            >
+              {allSeen ? (
+                <>
+                  <EyeOff className="h-3 w-3" />
+                  <span className="hidden sm:inline">Unseen</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="h-3 w-3" />
+                  <span className="hidden sm:inline">Seen All</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
 
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-tertiary sm:gap-x-3 sm:text-sm">
           {year && (
@@ -133,8 +206,34 @@ function SeasonCard({ season, showId, showName }: SeasonCardProps) {
           )}
         </div>
 
+        {/* Progress Bar */}
+        {hasEpisodes && progress.seen > 0 && (
+          <div className="mt-2">
+            <div className="mb-1 flex items-center justify-between text-[10px] sm:text-xs">
+              <span className="text-text-tertiary">
+                {progress.seen}/{progress.total} episodes seen
+              </span>
+              <span className={cn(
+                'font-medium',
+                allSeen ? 'text-success' : 'text-accent-primary'
+              )}>
+                {progress.percentage}%
+              </span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all duration-300',
+                  allSeen ? 'bg-success' : 'bg-accent-primary'
+                )}
+                style={{ width: `${progress.percentage}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Overview */}
-        {season.overview && (
+        {season.overview && !progress.seen && (
           <p className="mt-1.5 line-clamp-2 text-xs text-text-secondary sm:mt-2 sm:text-sm">
             {season.overview}
           </p>
