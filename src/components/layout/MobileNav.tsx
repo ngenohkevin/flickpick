@@ -7,7 +7,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { Film, Tv, Sparkles, Heart, Clapperboard, Calendar, TrendingUp } from 'lucide-react';
+import { Film, Tv, Sparkles, Heart, Clapperboard, Calendar, TrendingUp, Blend } from 'lucide-react';
 
 // ==========================================================================
 // Navigation Items
@@ -27,6 +27,7 @@ const MOBILE_NAV_SECTIONS = [
     title: 'Discover',
     links: [
       { href: '/discover', label: 'AI Discovery', icon: Sparkles },
+      { href: '/blend', label: 'Content Blender', icon: Blend },
       { href: '/trending', label: 'Trending', icon: TrendingUp },
       { href: '/new/movies', label: 'New Releases', icon: Film },
       { href: '/calendar', label: 'Release Calendar', icon: Calendar },

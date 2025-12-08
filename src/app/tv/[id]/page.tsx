@@ -12,9 +12,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Star, Calendar, Play, ExternalLink, Tv, Film, Globe, Users } from 'lucide-react';
 import { getTVShowDetailsExtended, getRelatedTVShows } from '@/lib/tmdb/tv';
-import { getPosterUrl, getBackdropUrl, extractYear, cn } from '@/lib/utils';
+import { getPosterUrl, getBackdropUrl, extractYear, cn, createSlug } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import dynamic from 'next/dynamic';
+import {
+  generateTVShowJsonLd,
+  generateBreadcrumbJsonLd,
+  generateFAQJsonLd,
+  generateTVShowFAQs,
+} from '@/lib/jsonld';
 import { ContentRow } from '@/components/content';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
@@ -48,8 +54,10 @@ interface TVPageProps {
   params: Promise<{ id: string }>;
 }
 
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+
 // ==========================================================================
-// Metadata Generation
+// SEO-Optimized Metadata Generation
 // ==========================================================================
 
 export async function generateMetadata({ params }: TVPageProps): Promise<Metadata> {
@@ -64,26 +72,78 @@ export async function generateMetadata({ params }: TVPageProps): Promise<Metadat
     const show = await getTVShowDetailsExtended(showId);
     const startYear = extractYear(show.first_air_date);
     const endYear = show.status === 'Ended' ? extractYear(show.last_air_date) : null;
-    const yearRange = endYear && endYear !== startYear
-      ? `${startYear}-${endYear}`
-      : startYear?.toString();
-    const title = yearRange ? `${show.name} (${yearRange})` : show.name;
+    const yearRange =
+      endYear && endYear !== startYear ? `${startYear}-${endYear}` : startYear?.toString();
+    const genres = show.genres?.map((g) => g.name) || [];
+    const genreText = genres.slice(0, 2).join(' & ') || 'TV Series';
+    const creators = show.created_by?.map((c) => c.name).slice(0, 2) || [];
+
+    // SEO-optimized title
+    const pageTitle = yearRange
+      ? `${show.name} (${yearRange}) - ${genreText} TV Show`
+      : `${show.name} - ${genreText} TV Show`;
+
+    // SEO-optimized description
+    const description =
+      show.overview ||
+      `Watch ${show.name}${yearRange ? ` (${yearRange})` : ''} - ${genreText} TV series${creators.length ? ` created by ${creators.join(' & ')}` : ''}. ${show.number_of_seasons} season${show.number_of_seasons > 1 ? 's' : ''}, ${show.number_of_episodes} episodes. Find where to stream and get similar show recommendations.`;
+
+    // Canonical URL
+    const canonicalUrl = `${BASE_URL}/tv/${showId}`;
+
+    // OG image
+    const ogImage = show.backdrop_path
+      ? `https://image.tmdb.org/t/p/w1280${show.backdrop_path}`
+      : show.poster_path
+        ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
+        : undefined;
 
     return {
-      title: `${title} | FlickPick`,
-      description: show.overview || `Watch ${show.name} - Find where to stream, see seasons & episodes, and more.`,
+      title: pageTitle,
+      description: description.slice(0, 160),
+      keywords: [
+        show.name,
+        `${show.name} TV show`,
+        `watch ${show.name}`,
+        `${show.name} streaming`,
+        `shows like ${show.name}`,
+        `similar to ${show.name}`,
+        ...genres.map((g) => `${g.toLowerCase()} TV shows`),
+        ...creators.map((c) => `${c} TV shows`),
+        startYear ? `${startYear} TV shows` : '',
+        `${show.number_of_seasons} seasons`,
+      ].filter(Boolean),
+      alternates: {
+        canonical: canonicalUrl,
+      },
       openGraph: {
-        title: `${title} | FlickPick`,
-        description: show.overview || undefined,
-        images: show.backdrop_path
-          ? [`https://image.tmdb.org/t/p/w1280${show.backdrop_path}`]
-          : undefined,
+        title: `${show.name}${yearRange ? ` (${yearRange})` : ''} | FlickPick`,
+        description: description.slice(0, 200),
+        url: canonicalUrl,
+        siteName: 'FlickPick',
         type: 'video.tv_show',
+        images: ogImage
+          ? [
+              {
+                url: ogImage,
+                width: 1280,
+                height: 720,
+                alt: `${show.name} TV show poster`,
+              },
+            ]
+          : undefined,
       },
       twitter: {
         card: 'summary_large_image',
-        title: `${title} | FlickPick`,
-        description: show.overview || undefined,
+        title: `${show.name}${yearRange ? ` (${yearRange})` : ''} | FlickPick`,
+        description: description.slice(0, 200),
+        images: ogImage ? [ogImage] : undefined,
+      },
+      robots: {
+        index: true,
+        follow: true,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
       },
     };
   } catch {
@@ -165,49 +225,61 @@ export default async function TVShowPage({ params }: TVPageProps) {
     type: s.type ?? 'Scripted',
   }));
 
-  // JSON-LD Structured Data
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'TVSeries',
-    name: show.name,
-    description: show.overview,
-    startDate: show.first_air_date,
-    endDate: show.status === 'Ended' ? show.last_air_date : undefined,
-    numberOfSeasons: show.number_of_seasons,
-    numberOfEpisodes: show.number_of_episodes,
-    image: show.poster_path
-      ? `https://image.tmdb.org/t/p/w500${show.poster_path}`
-      : undefined,
-    aggregateRating: show.vote_count > 0
-      ? {
-          '@type': 'AggregateRating',
-          ratingValue: show.vote_average.toFixed(1),
-          bestRating: '10',
-          worstRating: '0',
-          ratingCount: show.vote_count,
-        }
-      : undefined,
-    creator: show.created_by?.map((c) => ({
-      '@type': 'Person',
-      name: c.name,
-    })),
-    actor: show.credits.cast.slice(0, 10).map((actor) => ({
-      '@type': 'Person',
-      name: actor.name,
-    })),
-    genre: show.genres?.map((g) => g.name),
-    productionCompany: show.networks?.map((n) => ({
-      '@type': 'Organization',
-      name: n.name,
-    })),
-  };
+  // URL for JSON-LD
+  const pageUrl = `${BASE_URL}/tv/${show.id}`;
+
+  // TV Show JSON-LD with trailer
+  const tvShowJsonLd = generateTVShowJsonLd(
+    {
+      ...show,
+      credits: show.credits,
+      videos: show.videos,
+    },
+    pageUrl
+  );
+
+  // Breadcrumb JSON-LD
+  const primaryGenre = show.genres?.[0];
+  const breadcrumbJsonLd = generateBreadcrumbJsonLd([
+    { name: 'Home', url: BASE_URL },
+    { name: 'TV Shows', url: `${BASE_URL}/tv` },
+    ...(primaryGenre
+      ? [
+          {
+            name: primaryGenre.name,
+            url: `${BASE_URL}/genre/tv/${primaryGenre.name.toLowerCase().replace(/\s+/g, '-')}`,
+          },
+        ]
+      : []),
+    { name: show.name, url: pageUrl },
+  ]);
+
+  // FAQ JSON-LD for featured snippets
+  const faqJsonLd = generateFAQJsonLd(
+    generateTVShowFAQs({
+      ...show,
+      credits: show.credits,
+    })
+  );
 
   return (
     <>
-      {/* JSON-LD Structured Data */}
+      {/* TV Show JSON-LD Structured Data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(tvShowJsonLd) }}
+      />
+
+      {/* Breadcrumb JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+
+      {/* FAQ JSON-LD for featured snippets */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
       {/* Analytics Tracking */}

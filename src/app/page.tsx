@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Search, Sparkles } from 'lucide-react';
+import { Search, Sparkles, Blend, ArrowRight } from 'lucide-react';
 import { generateWebsiteJsonLd, generateOrganizationJsonLd } from '@/lib/jsonld';
 import {
   getTrendingMovies,
@@ -376,6 +376,66 @@ export default async function HomePage() {
           </div>
         </section>
 
+        {/* Content Blend Section - Prominent Feature */}
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500/15 via-pink-500/10 to-orange-500/5 p-4 sm:p-6 md:p-8">
+          {/* Decorative background elements */}
+          <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-500/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-pink-500/10 blur-3xl" />
+
+          <div className="relative">
+            <div className="flex flex-col items-center gap-6 lg:flex-row lg:items-start lg:justify-between">
+              {/* Left side - Text content */}
+              <div className="text-center lg:max-w-md lg:text-left">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-purple-500/20 px-3 py-1 text-xs font-medium text-purple-400 sm:mb-4 sm:px-4 sm:py-1.5 sm:text-sm">
+                  <Blend className="h-3 w-3 sm:h-4 sm:w-4" />
+                  Content Blender
+                </div>
+
+                <h2 className="text-xl font-bold text-text-primary sm:text-2xl md:text-3xl">
+                  Blend your favorites
+                </h2>
+
+                <p className="mt-2 text-sm text-text-secondary sm:text-base">
+                  Pick 2-3 movies or shows you love, and we&apos;ll find the perfect blend that combines their best elements
+                </p>
+
+                <Link
+                  href="/blend"
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-purple-500 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-purple-600 hover:gap-3 sm:mt-6 sm:px-6 sm:py-3 sm:text-base"
+                >
+                  Try Content Blender
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+
+              {/* Right side - Example blends */}
+              <div className="w-full max-w-md lg:w-auto">
+                <p className="mb-3 text-center text-xs font-medium text-text-tertiary lg:text-left">
+                  Popular blends to try:
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                  <BlendExample
+                    titles={['Breaking Bad', 'Death Note']}
+                    description="Crime thriller meets supernatural genius"
+                  />
+                  <BlendExample
+                    titles={['Inception', 'The Matrix']}
+                    description="Mind-bending sci-fi action"
+                  />
+                  <BlendExample
+                    titles={['Friends', 'The Office']}
+                    description="Workplace comedy classics"
+                  />
+                  <BlendExample
+                    titles={['Spirited Away', 'Howl\'s Moving Castle']}
+                    description="Magical Ghibli adventures"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Just Released Movies - Torrentio Verified (loads in background) */}
         <JustReleasedSection />
 
@@ -524,6 +584,30 @@ function ContentTypePill({
       className={`rounded-full px-5 py-2.5 text-sm font-medium transition-colors ${colors!.bg} ${colors!.bgHover} ${colors!.text}`}
     >
       {label}
+    </Link>
+  );
+}
+
+function BlendExample({
+  titles,
+  description,
+}: {
+  titles: string[];
+  description: string;
+}) {
+  return (
+    <Link
+      href="/blend"
+      className="group rounded-lg border border-border-subtle bg-bg-secondary/50 p-3 transition-all hover:border-purple-500/30 hover:bg-bg-secondary"
+    >
+      <div className="flex items-center gap-1.5 text-xs font-medium text-text-primary">
+        <span>{titles[0]}</span>
+        <span className="text-purple-400">+</span>
+        <span>{titles[1]}</span>
+      </div>
+      <p className="mt-1 text-xs text-text-tertiary group-hover:text-text-secondary">
+        {description}
+      </p>
     </Link>
   );
 }

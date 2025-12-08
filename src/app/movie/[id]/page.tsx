@@ -12,7 +12,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Star, Clock, Calendar, Play, ExternalLink, Globe, DollarSign, Film, Clapperboard } from 'lucide-react';
 import { getMovieDetailsExtended, getRelatedMovies } from '@/lib/tmdb/movies';
-import { getPosterUrl, getBackdropUrl, formatRuntime, extractYear, cn } from '@/lib/utils';
+import { getPosterUrl, getBackdropUrl, formatRuntime, extractYear, cn, createSlug } from '@/lib/utils';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
 import dynamic from 'next/dynamic';
 import { ContentRow } from '@/components/content';
@@ -20,6 +20,12 @@ import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
 import { WatchlistButton } from '@/components/ui';
 import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
+import {
+  generateMovieJsonLd,
+  generateBreadcrumbJsonLd,
+  generateFAQJsonLd,
+  generateMovieFAQs,
+} from '@/lib/jsonld';
 
 // Dynamic import for TrailerEmbed - loads YouTube player only when needed
 const TrailerEmbed = dynamic(
@@ -46,8 +52,10 @@ interface MoviePageProps {
   params: Promise<{ id: string }>;
 }
 
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+
 // ==========================================================================
-// Metadata Generation
+// SEO-Optimized Metadata Generation
 // ==========================================================================
 
 export async function generateMetadata({ params }: MoviePageProps): Promise<Metadata> {
@@ -61,23 +69,78 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
   try {
     const movie = await getMovieDetailsExtended(movieId);
     const year = extractYear(movie.release_date);
-    const title = year ? `${movie.title} (${year})` : movie.title;
+    const genres = movie.genres?.map((g) => g.name) || [];
+    const genreText = genres.slice(0, 2).join(' & ') || 'Film';
+    const directors = movie.credits.crew
+      .filter((p) => p.job === 'Director')
+      .map((p) => p.name)
+      .slice(0, 2);
+
+    // SEO-optimized title
+    const pageTitle = year
+      ? `${movie.title} (${year}) - ${genreText} Movie`
+      : `${movie.title} - ${genreText} Movie`;
+
+    // SEO-optimized description
+    const description =
+      movie.overview ||
+      `Watch ${movie.title}${year ? ` (${year})` : ''} - ${genreText} movie${directors.length ? ` directed by ${directors.join(' & ')}` : ''}. Find where to stream, get similar movie recommendations, and more.`;
+
+    // Canonical URL
+    const canonicalUrl = `${BASE_URL}/movie/${movieId}`;
+
+    // OG image
+    const ogImage = movie.backdrop_path
+      ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
+      : movie.poster_path
+        ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+        : undefined;
 
     return {
-      title: `${title} | FlickPick`,
-      description: movie.overview || `Watch ${movie.title} - Find where to stream, get recommendations, and more.`,
+      title: pageTitle,
+      description: description.slice(0, 160),
+      keywords: [
+        movie.title,
+        `${movie.title} movie`,
+        `watch ${movie.title}`,
+        `${movie.title} streaming`,
+        `movies like ${movie.title}`,
+        `similar to ${movie.title}`,
+        ...genres.map((g) => `${g.toLowerCase()} movies`),
+        ...directors.map((d) => `${d} movies`),
+        year ? `${year} movies` : '',
+      ].filter(Boolean),
+      alternates: {
+        canonical: canonicalUrl,
+      },
       openGraph: {
-        title: `${title} | FlickPick`,
-        description: movie.overview || undefined,
-        images: movie.backdrop_path
-          ? [`https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`]
-          : undefined,
+        title: `${movie.title}${year ? ` (${year})` : ''} | FlickPick`,
+        description: description.slice(0, 200),
+        url: canonicalUrl,
+        siteName: 'FlickPick',
         type: 'video.movie',
+        images: ogImage
+          ? [
+              {
+                url: ogImage,
+                width: 1280,
+                height: 720,
+                alt: `${movie.title} movie poster`,
+              },
+            ]
+          : undefined,
       },
       twitter: {
         card: 'summary_large_image',
-        title: `${title} | FlickPick`,
-        description: movie.overview || undefined,
+        title: `${movie.title}${year ? ` (${year})` : ''} | FlickPick`,
+        description: description.slice(0, 200),
+        images: ogImage ? [ogImage] : undefined,
+      },
+      robots: {
+        index: true,
+        follow: true,
+        'max-image-preview': 'large',
+        'max-snippet': -1,
       },
     };
   } catch {
@@ -145,43 +208,61 @@ export default async function MoviePage({ params }: MoviePageProps) {
     adult: m.adult,
   }));
 
-  // JSON-LD Structured Data
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Movie',
-    name: movie.title,
-    description: movie.overview,
-    datePublished: movie.release_date,
-    duration: movie.runtime ? `PT${movie.runtime}M` : undefined,
-    image: movie.poster_path
-      ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-      : undefined,
-    aggregateRating: movie.vote_count > 0
-      ? {
-          '@type': 'AggregateRating',
-          ratingValue: movie.vote_average.toFixed(1),
-          bestRating: '10',
-          worstRating: '0',
-          ratingCount: movie.vote_count,
-        }
-      : undefined,
-    director: directors.map((d) => ({
-      '@type': 'Person',
-      name: d.name,
-    })),
-    actor: movie.credits.cast.slice(0, 10).map((actor) => ({
-      '@type': 'Person',
-      name: actor.name,
-    })),
-    genre: movie.genres?.map((g) => g.name),
-  };
+  // URL for JSON-LD
+  const pageUrl = `${BASE_URL}/movie/${movie.id}`;
+
+  // Movie JSON-LD with trailer
+  const movieJsonLd = generateMovieJsonLd(
+    {
+      ...movie,
+      credits: movie.credits,
+      videos: movie.videos,
+    },
+    pageUrl
+  );
+
+  // Breadcrumb JSON-LD
+  const primaryGenre = movie.genres?.[0];
+  const breadcrumbJsonLd = generateBreadcrumbJsonLd([
+    { name: 'Home', url: BASE_URL },
+    { name: 'Movies', url: `${BASE_URL}/movies` },
+    ...(primaryGenre
+      ? [
+          {
+            name: primaryGenre.name,
+            url: `${BASE_URL}/genre/movie/${primaryGenre.name.toLowerCase().replace(/\s+/g, '-')}`,
+          },
+        ]
+      : []),
+    { name: movie.title, url: pageUrl },
+  ]);
+
+  // FAQ JSON-LD for featured snippets
+  const faqJsonLd = generateFAQJsonLd(
+    generateMovieFAQs({
+      ...movie,
+      credits: movie.credits,
+    })
+  );
 
   return (
     <>
-      {/* JSON-LD Structured Data */}
+      {/* Movie JSON-LD Structured Data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(movieJsonLd) }}
+      />
+
+      {/* Breadcrumb JSON-LD */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+
+      {/* FAQ JSON-LD for featured snippets */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
       {/* Track content view */}

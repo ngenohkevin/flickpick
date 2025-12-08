@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Search, Sun, Moon, Menu, X, Film, Tv, Sparkles, Heart, CalendarDays } from 'lucide-react';
+import { Search, Sun, Moon, Menu, X, Film, Tv, Sparkles, Heart, CalendarDays, Blend } from 'lucide-react';
 import { usePreferences } from '@/stores/preferences';
 import { MobileNav } from './MobileNav';
 import { SearchBar, SearchOverlay } from '@/components/search';
@@ -105,6 +105,14 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
+            {/* Content Blender - Highlighted */}
+            <Link
+              href="/blend"
+              className="ml-1 flex items-center gap-1.5 rounded-full bg-purple-500/15 px-4 py-2 font-medium text-purple-400 transition-colors hover:bg-purple-500/25"
+            >
+              <Blend className="h-4 w-4" />
+              Blend
+            </Link>
           </div>
 
           {/* Desktop Search Bar */}
