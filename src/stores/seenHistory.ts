@@ -238,16 +238,16 @@ export const useIsEpisodeSeen = (
     )
   );
 
-export const useSeasonProgress = (
-  showId: number,
-  seasonNumber: number,
-  totalEpisodes: number
-) =>
-  useSeenHistory((state) => {
-    const seenEpisodes = state.episodes.filter(
+// Returns just the count of seen episodes (primitive value, no re-render issues)
+export const useSeenEpisodeCount = (showId: number, seasonNumber: number) =>
+  useSeenHistory((state) =>
+    state.episodes.filter(
       (ep) => ep.showId === showId && ep.seasonNumber === seasonNumber
-    );
-    const seen = seenEpisodes.length;
-    const percentage = totalEpisodes > 0 ? Math.round((seen / totalEpisodes) * 100) : 0;
-    return { seen, total: totalEpisodes, percentage };
-  });
+    ).length
+  );
+
+// Helper function to calculate progress (use in component with useMemo if needed)
+export function calculateSeasonProgress(seen: number, total: number) {
+  const percentage = total > 0 ? Math.round((seen / total) * 100) : 0;
+  return { seen, total, percentage };
+}

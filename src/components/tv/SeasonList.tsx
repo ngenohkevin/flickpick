@@ -5,12 +5,12 @@
 // Displays list of seasons with posters and episode counts
 // ==========================================================================
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, Calendar, Film, Eye, EyeOff, Check } from 'lucide-react';
 import { getPosterUrl, extractYear, cn } from '@/lib/utils';
-import { useSeenHistory, useSeasonProgress } from '@/stores/seenHistory';
+import { useSeenHistory, useSeenEpisodeCount, calculateSeasonProgress } from '@/stores/seenHistory';
 import { useToast } from '@/components/ui';
 import type { Season } from '@/types';
 
@@ -93,8 +93,12 @@ function SeasonCard({ season, showId, showName }: SeasonCardProps) {
   const year = extractYear(season.air_date);
   const hasEpisodes = season.episode_count > 0;
 
-  // Seen tracking
-  const progress = useSeasonProgress(showId, season.season_number, season.episode_count);
+  // Seen tracking - use primitive value selector to avoid infinite loops
+  const seenCount = useSeenEpisodeCount(showId, season.season_number);
+  const progress = useMemo(
+    () => calculateSeasonProgress(seenCount, season.episode_count),
+    [seenCount, season.episode_count]
+  );
   const markSeasonAsSeen = useSeenHistory((state) => state.markSeasonAsSeen);
   const markSeasonAsUnseen = useSeenHistory((state) => state.markSeasonAsUnseen);
   const { addToast } = useToast();
