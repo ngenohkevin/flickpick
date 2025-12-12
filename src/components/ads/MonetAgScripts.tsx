@@ -50,6 +50,40 @@ export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
 
   return (
     <>
+      {/* Polyfill for Monetag performance marks bug */}
+      <Script
+        id="monetag-performance-polyfill"
+        strategy="beforeInteractive"
+      >
+        {`
+          (function() {
+            if (typeof window !== 'undefined' && window.performance && window.performance.mark) {
+              // Create missing performance marks that Monetag scripts expect
+              try {
+                performance.mark('hints:start');
+                performance.mark('hidden_iframe:start');
+              } catch (e) {
+                // Silently fail if marks already exist
+              }
+
+              // Patch performance.measure to handle missing marks gracefully
+              var originalMeasure = performance.measure;
+              performance.measure = function() {
+                try {
+                  return originalMeasure.apply(this, arguments);
+                } catch (e) {
+                  // Suppress errors about missing marks
+                  if (e.message && e.message.includes('does not exist')) {
+                    return null;
+                  }
+                  throw e;
+                }
+              };
+            }
+          })();
+        `}
+      </Script>
+
       {/* Vignette Banner - Native-like banners */}
       {vignetteZone && (
         <Script
