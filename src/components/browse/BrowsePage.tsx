@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
+import { useState, useEffect, useCallback, useTransition, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FilterSidebar, defaultFilters, type FilterState } from './FilterSidebar';
 import { SortDropdown, type SortOption } from './SortDropdown';
 import { MobileFilterSheet } from './MobileFilterSheet';
 import { InfiniteContentGrid } from '@/components/content';
 import { useWatchlist } from '@/stores/watchlist';
+import { useScrollRestoration } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import type { Content, ContentType, PaginatedResponse, WatchlistItem } from '@/types';
 
@@ -62,6 +63,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
   // Watchlist
   const watchlist = useWatchlist();
   const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => item.id));
+
+  // Ref to track if we're restoring pages
+  const isRestoringPagesRef = useRef(false);
 
   // Build API URL with filters
   const buildApiUrl = useCallback(
@@ -178,8 +182,56 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
     [buildApiUrl]
   );
 
+  // Restore pages callback for scroll restoration
+  const restorePages = useCallback(
+    async (targetPage: number) => {
+      if (targetPage <= 1) return;
+
+      isRestoringPagesRef.current = true;
+      setIsLoading(true);
+
+      try {
+        // Fetch all pages up to targetPage
+        const allItems: Content[] = [];
+        for (let p = 1; p <= targetPage; p++) {
+          const response = await fetch(buildApiUrl(p));
+          if (!response.ok) break;
+          const data: PaginatedResponse<Content> = await response.json();
+          allItems.push(...data.results);
+          if (p === targetPage) {
+            setTotalPages(data.total_pages);
+            setTotalResults(data.total_results);
+          }
+        }
+
+        // Deduplicate and set items
+        const uniqueItems = allItems.filter(
+          (item, index, arr) => arr.findIndex((i) => i.id === item.id) === index
+        );
+        setItems(uniqueItems);
+        setPage(targetPage);
+      } catch (error) {
+        console.error('Error restoring pages:', error);
+      } finally {
+        setIsLoading(false);
+        isRestoringPagesRef.current = false;
+      }
+    },
+    [buildApiUrl]
+  );
+
+  // Scroll restoration
+  useScrollRestoration({
+    loadedPages: page,
+    onRestorePages: restorePages,
+    enabled: !isRestoringPagesRef.current,
+  });
+
   // Initial fetch and refetch when filters change
   useEffect(() => {
+    // Skip if we're restoring pages
+    if (isRestoringPagesRef.current) return;
+
     setPage(1);
     fetchContent(1, false);
   }, [fetchContent]);

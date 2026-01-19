@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Calendar, CalendarFilters, ReleaseModal, type CalendarTypeFilter } from '@/components/calendar';
+import { useScrollRestoration } from '@/lib/hooks';
 import type { CalendarDay as CalendarDayType, CalendarRelease, CalendarResponse } from '@/types';
 
 // ==========================================================================
@@ -15,14 +17,33 @@ function getCurrentMonth(): string {
 }
 
 export function CalendarPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Parse state from URL (with fallbacks)
+  const monthFromUrl = searchParams.get('month') || getCurrentMonth();
+  const typeFromUrl = (searchParams.get('type') as CalendarTypeFilter) || 'all';
+
   // State
-  const [month, setMonth] = useState(getCurrentMonth);
-  const [typeFilter, setTypeFilter] = useState<CalendarTypeFilter>('all');
+  const [month, setMonth] = useState(monthFromUrl);
+  const [typeFilter, setTypeFilter] = useState<CalendarTypeFilter>(typeFromUrl);
   const [releases, setReleases] = useState<CalendarRelease[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<CalendarDayType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Scroll restoration
+  useScrollRestoration();
+
+  // Sync state from URL params (when user navigates back)
+  useEffect(() => {
+    const newMonth = searchParams.get('month') || getCurrentMonth();
+    const newType = (searchParams.get('type') as CalendarTypeFilter) || 'all';
+
+    if (newMonth !== month) setMonth(newMonth);
+    if (newType !== typeFilter) setTypeFilter(newType);
+  }, [searchParams, month, typeFilter]);
 
   // Fetch calendar data
   const fetchCalendarData = useCallback(async () => {
@@ -56,13 +77,34 @@ export function CalendarPageContent() {
     fetchCalendarData();
   }, [fetchCalendarData]);
 
+  // Update URL with current state
+  const updateUrl = useCallback(
+    (newMonth: string, newType: CalendarTypeFilter) => {
+      const params = new URLSearchParams();
+      // Always include month if not current month
+      if (newMonth !== getCurrentMonth()) {
+        params.set('month', newMonth);
+      }
+      // Include type filter if not 'all'
+      if (newType !== 'all') {
+        params.set('type', newType);
+      }
+      const queryString = params.toString();
+      const newUrl = queryString ? `/calendar?${queryString}` : '/calendar';
+      router.push(newUrl, { scroll: false });
+    },
+    [router]
+  );
+
   // Event handlers
   const handleMonthChange = (newMonth: string) => {
     setMonth(newMonth);
+    updateUrl(newMonth, typeFilter);
   };
 
   const handleFilterChange = (filter: CalendarTypeFilter) => {
     setTypeFilter(filter);
+    updateUrl(month, filter);
   };
 
   const handleDayClick = (day: CalendarDayType) => {

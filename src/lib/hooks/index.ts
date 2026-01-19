@@ -12,3 +12,4 @@ export {
   getAnimationClass,
   getTransitionDuration,
 } from './useReducedMotion';
+export { useScrollRestoration } from './useScrollRestoration';
