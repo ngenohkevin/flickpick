@@ -188,7 +188,6 @@ export function FilterSidebar({
         onToggle={() => toggleSection('genres')}
         count={filters.genres.length + filters.excludedGenres.length}
       >
-        <p className="text-xs text-text-tertiary mb-2">Tap to include · tap again to exclude</p>
         <div className="flex flex-wrap gap-2">
           {Object.entries(genres).map(([id, name]) => {
             const genreId = parseInt(id, 10);
@@ -212,6 +211,9 @@ export function FilterSidebar({
             );
           })}
         </div>
+        <p className="mt-2 text-xs text-text-tertiary">
+          Tap once to <span className="text-accent-primary font-medium">include</span>, tap again to <span className="text-red-400 font-medium">exclude</span>
+        </p>
       </FilterSection>
 
       {/* Year Range Filter */}

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 // ==========================================================================
@@ -166,9 +166,24 @@ export function useScrollRestoration({
     return () => document.removeEventListener('click', handleClick, true);
   }, [enabled, saveScroll]);
 
-  // Restore scroll position on mount
-  useEffect(() => {
+  // Synchronously set min-height and scroll BEFORE browser paint
+  // This prevents the footer from flashing even for a single frame
+  useLayoutEffect(() => {
     if (!enabled || hasRestoredRef.current) return;
+
+    const savedState = loadScrollState(storageKey);
+    if (!savedState || savedState.scrollY === 0) return;
+
+    // Stretch the page tall enough to scroll and scroll immediately
+    const targetHeight = savedState.scrollY + window.innerHeight;
+    document.documentElement.style.minHeight = `${targetHeight}px`;
+    window.scrollTo({ top: savedState.scrollY, behavior: 'instant' });
+    isRestoringRef.current = true;
+  }, [enabled, storageKey]);
+
+  // Restore pages and finalize scroll position after paint
+  useEffect(() => {
+    if (!enabled || hasRestoredRef.current || !isRestoringRef.current) return;
 
     const savedState = loadScrollState(storageKey);
     if (!savedState || savedState.scrollY === 0) {
@@ -176,19 +191,9 @@ export function useScrollRestoration({
       return;
     }
 
-    const restoreScroll = async () => {
-      isRestoringRef.current = true;
-
+    const restorePages = async () => {
       try {
-        // Set min-height to allow immediate scroll to saved position
-        // This prevents the footer from being visible during page restoration
-        const targetHeight = savedState.scrollY + window.innerHeight;
-        document.documentElement.style.minHeight = `${targetHeight}px`;
-
-        // Scroll immediately so user sees the right area (not the footer)
-        window.scrollTo({ top: savedState.scrollY, behavior: 'instant' });
-
-        // If we need to load more pages first
+        // Load all pages that were visible before navigation
         if (onRestorePages && savedState.loadedPages > 1) {
           await onRestorePages(savedState.loadedPages);
         }
@@ -205,14 +210,14 @@ export function useScrollRestoration({
         // Clear saved state after restoration
         clearScrollState(storageKey);
       } finally {
-        // Remove min-height override
+        // Remove min-height override now that real content fills the space
         document.documentElement.style.minHeight = '';
         isRestoringRef.current = false;
         hasRestoredRef.current = true;
       }
     };
 
-    restoreScroll();
+    restorePages();
   }, [enabled, storageKey, onRestorePages]);
 
   // Reset restoration flag when route changes
