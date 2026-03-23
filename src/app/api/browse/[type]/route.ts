@@ -59,7 +59,8 @@ export async function GET(
 
     // Parse query parameters
     const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const genres = searchParams.get('genre') ?? undefined; // comma-separated genre IDs
+    const genresRaw = searchParams.get('genre') ?? undefined; // comma-separated genre IDs
+    const excludeGenresRaw = searchParams.get('exclude_genre') ?? undefined;
     const yearFrom = searchParams.get('year_from') ?? undefined;
     const yearTo = searchParams.get('year_to') ?? undefined;
     const ratingMin = searchParams.get('rating_min') ?? undefined;
@@ -68,6 +69,11 @@ export async function GET(
     const watchRegion = searchParams.get('watch_region') ?? 'US';
     const sortBy = (searchParams.get('sort_by') ?? 'popularity') as SortOption;
     const runtime = searchParams.get('runtime') ?? undefined;
+
+    // Convert comma-separated genre IDs to pipe-separated (OR logic) for TMDB
+    // Comma = AND (must match ALL), Pipe = OR (match ANY) — OR is the expected UX
+    const genres = genresRaw?.replace(/,/g, '|') || undefined;
+    const excludeGenres = excludeGenresRaw?.replace(/,/g, '|') || undefined;
 
     // Runtime filter mapping (in minutes)
     const runtimeFilters: Record<string, { gte?: number; lte?: number }> = {
@@ -98,6 +104,7 @@ export async function GET(
       ...(ratingMin && { 'vote_count.gte': 50 }), // Require minimum votes when filtering by rating
       ...(language && { with_original_language: language }),
       ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
+      ...(excludeGenres && { without_genres: excludeGenres }),
     };
 
     // Movie-specific params (runtime only works for movies)

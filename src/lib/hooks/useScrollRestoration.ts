@@ -180,6 +180,14 @@ export function useScrollRestoration({
       isRestoringRef.current = true;
 
       try {
+        // Set min-height to allow immediate scroll to saved position
+        // This prevents the footer from being visible during page restoration
+        const targetHeight = savedState.scrollY + window.innerHeight;
+        document.documentElement.style.minHeight = `${targetHeight}px`;
+
+        // Scroll immediately so user sees the right area (not the footer)
+        window.scrollTo({ top: savedState.scrollY, behavior: 'instant' });
+
         // If we need to load more pages first
         if (onRestorePages && savedState.loadedPages > 1) {
           await onRestorePages(savedState.loadedPages);
@@ -188,7 +196,7 @@ export function useScrollRestoration({
         // Wait for content to render
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Restore scroll position
+        // Fine-tune scroll position after content renders
         window.scrollTo({
           top: savedState.scrollY,
           behavior: 'instant',
@@ -197,6 +205,8 @@ export function useScrollRestoration({
         // Clear saved state after restoration
         clearScrollState(storageKey);
       } finally {
+        // Remove min-height override
+        document.documentElement.style.minHeight = '';
         isRestoringRef.current = false;
         hasRestoredRef.current = true;
       }

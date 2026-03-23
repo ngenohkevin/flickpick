@@ -148,7 +148,8 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const status = (searchParams.get('status') ?? 'all') as ShowStatus;
     const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const genres = searchParams.get('genre') ?? undefined;
+    const genresRaw = searchParams.get('genre') ?? undefined;
+    const excludeGenresRaw = searchParams.get('exclude_genre') ?? undefined;
     const network = searchParams.get('network') ?? undefined;
     const sortBy = (searchParams.get('sort') ?? 'next_episode') as SortOption;
     const hasNewEpisodes = searchParams.get('hasNewEpisodes') === 'true';
@@ -171,11 +172,19 @@ export async function GET(request: NextRequest) {
 
     let shows = Array.from(uniqueShowsMap.values());
 
-    // Apply genre filter if provided
-    if (genres) {
-      const genreIds = genres.split(',').map(Number);
+    // Apply genre include filter (OR logic: show matches ANY selected genre)
+    if (genresRaw) {
+      const genreIds = genresRaw.split(',').map(Number);
       shows = shows.filter((show) =>
         show.genre_ids?.some((id) => genreIds.includes(id))
+      );
+    }
+
+    // Apply genre exclude filter (exclude shows with ANY excluded genre)
+    if (excludeGenresRaw) {
+      const excludeGenreIds = excludeGenresRaw.split(',').map(Number);
+      shows = shows.filter((show) =>
+        !show.genre_ids?.some((id) => excludeGenreIds.includes(id))
       );
     }
 

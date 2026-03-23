@@ -34,9 +34,11 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
   // Parse initial filters from URL
   const parseFiltersFromUrl = useCallback((): FilterState => {
     const genreParam = searchParams.get('genre');
+    const excludeGenreParam = searchParams.get('exclude_genre');
     const runtimeParam = searchParams.get('runtime');
     return {
       genres: genreParam ? genreParam.split(',').map(Number) : [],
+      excludedGenres: excludeGenreParam ? excludeGenreParam.split(',').map(Number) : [],
       yearFrom: searchParams.get('year_from') ? parseInt(searchParams.get('year_from')!, 10) : null,
       yearTo: searchParams.get('year_to') ? parseInt(searchParams.get('year_to')!, 10) : null,
       ratingMin: searchParams.get('rating_min') ? parseFloat(searchParams.get('rating_min')!) : null,
@@ -76,6 +78,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
       if (filters.genres.length > 0) {
         params.set('genre', filters.genres.join(','));
       }
+      if (filters.excludedGenres.length > 0) {
+        params.set('exclude_genre', filters.excludedGenres.join(','));
+      }
       if (filters.yearFrom) {
         params.set('year_from', String(filters.yearFrom));
       }
@@ -110,6 +115,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
 
       if (newFilters.genres.length > 0) {
         params.set('genre', newFilters.genres.join(','));
+      }
+      if (newFilters.excludedGenres.length > 0) {
+        params.set('exclude_genre', newFilters.excludedGenres.join(','));
       }
       if (newFilters.yearFrom) {
         params.set('year_from', String(newFilters.yearFrom));
@@ -278,6 +286,7 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
   // Calculate active filter count
   const activeFilterCount =
     filters.genres.length +
+    filters.excludedGenres.length +
     (filters.yearFrom || filters.yearTo ? 1 : 0) +
     (filters.ratingMin ? 1 : 0) +
     (filters.provider ? 1 : 0) +

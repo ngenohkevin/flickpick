@@ -16,6 +16,7 @@ export type RuntimeFilter = 'short' | 'medium' | 'long' | null;
 
 export interface FilterState {
   genres: number[];
+  excludedGenres: number[];
   yearFrom: number | null;
   yearTo: number | null;
   ratingMin: number | null;
@@ -77,12 +78,34 @@ export function FilterSidebar({
     });
   };
 
+  // Three-state genre toggle: unselected → included → excluded → unselected
   const handleGenreToggle = (genreId: number) => {
-    const newGenres = filters.genres.includes(genreId)
-      ? filters.genres.filter((id) => id !== genreId)
-      : [...filters.genres, genreId];
-    onFilterChange({ ...filters, genres: newGenres });
+    if (filters.genres.includes(genreId)) {
+      // Included → Excluded
+      const newGenres = filters.genres.filter((id) => id !== genreId);
+      const newExcluded = [...filters.excludedGenres, genreId];
+      onFilterChange({ ...filters, genres: newGenres, excludedGenres: newExcluded });
+    } else if (filters.excludedGenres.includes(genreId)) {
+      // Excluded → Unselected
+      const newExcluded = filters.excludedGenres.filter((id) => id !== genreId);
+      onFilterChange({ ...filters, excludedGenres: newExcluded });
+    } else {
+      // Unselected → Included
+      const newGenres = [...filters.genres, genreId];
+      onFilterChange({ ...filters, genres: newGenres });
+    }
     trackFilterChange(contentType, 'genre', genres[genreId] || String(genreId));
+  };
+
+  // Direct remove handlers for active filter badges
+  const handleRemoveGenre = (genreId: number) => {
+    const newGenres = filters.genres.filter((id) => id !== genreId);
+    onFilterChange({ ...filters, genres: newGenres });
+  };
+
+  const handleRemoveExcludedGenre = (genreId: number) => {
+    const newExcluded = filters.excludedGenres.filter((id) => id !== genreId);
+    onFilterChange({ ...filters, excludedGenres: newExcluded });
   };
 
   const handleYearChange = (type: 'from' | 'to', value: string) => {
@@ -131,6 +154,7 @@ export function FilterSidebar({
 
   const hasActiveFilters =
     filters.genres.length > 0 ||
+    filters.excludedGenres.length > 0 ||
     filters.yearFrom !== null ||
     filters.yearTo !== null ||
     filters.ratingMin !== null ||
@@ -162,21 +186,25 @@ export function FilterSidebar({
         title="Genres"
         isExpanded={expandedSections.has('genres')}
         onToggle={() => toggleSection('genres')}
-        count={filters.genres.length}
+        count={filters.genres.length + filters.excludedGenres.length}
       >
+        <p className="text-xs text-text-tertiary mb-2">Tap to include · tap again to exclude</p>
         <div className="flex flex-wrap gap-2">
           {Object.entries(genres).map(([id, name]) => {
             const genreId = parseInt(id, 10);
-            const isSelected = filters.genres.includes(genreId);
+            const isIncluded = filters.genres.includes(genreId);
+            const isExcluded = filters.excludedGenres.includes(genreId);
             return (
               <button
                 key={id}
                 onClick={() => handleGenreToggle(genreId)}
                 className={cn(
                   'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                  isSelected
+                  isIncluded
                     ? 'bg-accent-primary text-white'
-                    : 'bg-bg-tertiary text-text-secondary hover:bg-border-default hover:text-text-primary'
+                    : isExcluded
+                      ? 'bg-red-500/20 text-red-400 line-through'
+                      : 'bg-bg-tertiary text-text-secondary hover:bg-border-default hover:text-text-primary'
                 )}
               >
                 {name}
@@ -364,9 +392,24 @@ export function FilterSidebar({
               >
                 {genres[genreId]}
                 <button
-                  onClick={() => handleGenreToggle(genreId)}
+                  onClick={() => handleRemoveGenre(genreId)}
                   className="hover:text-white"
                   aria-label={`Remove ${genres[genreId]} filter`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {filters.excludedGenres.map((genreId) => (
+              <span
+                key={`exclude-${genreId}`}
+                className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-xs text-red-400"
+              >
+                Not {genres[genreId]}
+                <button
+                  onClick={() => handleRemoveExcludedGenre(genreId)}
+                  className="hover:text-red-300"
+                  aria-label={`Remove ${genres[genreId]} exclusion`}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -493,6 +536,7 @@ function FilterSection({
 
 export const defaultFilters: FilterState = {
   genres: [],
+  excludedGenres: [],
   yearFrom: null,
   yearTo: null,
   ratingMin: null,

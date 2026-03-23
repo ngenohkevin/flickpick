@@ -56,6 +56,7 @@ export function NewMoviesPageContent() {
   const [sortBy, setSortBy] = useState<SortOption>(initialSort);
   const [filters, setFilters] = useState<FilterState>(() => ({
     genres: searchParams.get('genre') ? searchParams.get('genre')!.split(',').map(Number) : [],
+    excludedGenres: searchParams.get('exclude_genre') ? searchParams.get('exclude_genre')!.split(',').map(Number) : [],
     yearFrom: null,
     yearTo: null,
     ratingMin: searchParams.get('rating') ? parseFloat(searchParams.get('rating')!) : null,
@@ -156,6 +157,9 @@ export function NewMoviesPageContent() {
       if (filters.genres.length > 0) {
         params.set('genre', filters.genres.join(','));
       }
+      if (filters.excludedGenres.length > 0) {
+        params.set('exclude_genre', filters.excludedGenres.join(','));
+      }
       if (filters.ratingMin) {
         params.set('rating', String(filters.ratingMin));
       }
@@ -241,6 +245,9 @@ export function NewMoviesPageContent() {
       }
       if (newFilters.genres.length > 0) {
         params.set('genre', newFilters.genres.join(','));
+      }
+      if (newFilters.excludedGenres.length > 0) {
+        params.set('exclude_genre', newFilters.excludedGenres.join(','));
       }
       if (newFilters.ratingMin) {
         params.set('rating', String(newFilters.ratingMin));

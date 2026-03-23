@@ -64,12 +64,17 @@ export async function GET(request: NextRequest) {
     // Parse query parameters
     const period = (searchParams.get('period') ?? 'month') as TimePeriod;
     const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const genres = searchParams.get('genre') ?? undefined;
+    const genresRaw = searchParams.get('genre') ?? undefined;
+    const excludeGenresRaw = searchParams.get('exclude_genre') ?? undefined;
     const ratingMin = searchParams.get('rating') ?? undefined;
     const language = searchParams.get('language') ?? undefined;
     const provider = searchParams.get('provider') ?? undefined;
     const watchRegion = searchParams.get('watch_region') ?? 'US';
     const sortBy = (searchParams.get('sort') ?? 'date') as SortOption;
+
+    // Convert comma-separated genre IDs to pipe-separated (OR logic) for TMDB
+    const genres = genresRaw?.replace(/,/g, '|') || undefined;
+    const excludeGenres = excludeGenresRaw?.replace(/,/g, '|') || undefined;
 
     // Validate period
     const validPeriods: TimePeriod[] = ['week', 'month', '3months', 'year'];
@@ -100,6 +105,7 @@ export async function GET(request: NextRequest) {
       'primary_release_date.lte': toStr,
       'vote_count.gte': sortBy === 'rating' ? 50 : 10, // Require more votes when sorting by rating
       ...(genres && { with_genres: genres }),
+      ...(excludeGenres && { without_genres: excludeGenres }),
       ...(ratingMin && { 'vote_average.gte': parseFloat(ratingMin) }),
       ...(language && { with_original_language: language }),
       ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
