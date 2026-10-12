@@ -2,6 +2,12 @@ import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 import { SITE_HOST } from '@/lib/site';
 
+const TMDB_IMAGE = /^https:\/\/image\.tmdb\.org\/t\/p\/[A-Za-z0-9_]+\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/;
+
+function tmdbImageUrl(value: string | null): string {
+  return value && TMDB_IMAGE.test(value) ? value : '';
+}
+
 // ==========================================================================
 // OG Image Generation API
 // Generates dynamic Open Graph images for social sharing
@@ -23,8 +29,10 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || 'movie'; // movie, tv, animation, anime
     const rating = searchParams.get('rating') || '';
     const year = searchParams.get('year') || '';
-    const posterUrl = searchParams.get('poster') || '';
-    const backdropUrl = searchParams.get('backdrop') || '';
+    // The renderer fetches these server-side, so anything but a TMDB image URL
+    // would let a visitor make the server request internal addresses (SSRF).
+    const posterUrl = tmdbImageUrl(searchParams.get('poster'));
+    const backdropUrl = tmdbImageUrl(searchParams.get('backdrop'));
 
     // Content type badge colors
     const badgeColors = {
