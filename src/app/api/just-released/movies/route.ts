@@ -1,152 +1,158 @@
 // ==========================================================================
 // Just Released Movies API Route
-// GET /api/just-released/movies - Fetch movies with Torrentio availability
-// Returns Torrentio-verified movies, or falls back to recent popular movies
-// OPTIMIZED: Uses Redis caching at multiple levels
+// GET /api/just-released/movies - Recent digital releases verified to have
+// a real 4K stream (Torrentio)
+//
+// Only verified titles are ever returned. When nothing can be verified the
+// list is empty and the home page hides the section; it used to fill it with
+// unverified TMDB titles still badged "4K".
+//
+// Serving: an in-process copy, then Redis (fresh for 30 min), then the last
+// verified list (kept for a week) while a refresh runs after the response.
+// Only a cold start with nothing cached waits for the check.
 // ==========================================================================
 
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { discoverMovies, toMovie } from '@/lib/tmdb';
 import { filterAvailableMovies, type MovieWithAvailability } from '@/lib/torrentio';
 import { getCache, setCache, cacheKeys } from '@/lib/redis';
 import { CACHE_TTL } from '@/lib/constants';
 import type { Movie } from '@/types';
 
-// Cache for 1 hour (ISR)
-export const revalidate = 3600;
+// Not prerendered: a build-time run baked a result fetched from the CI
+// runner into every image, and ISR kept even a 500 for an hour
+export const dynamic = 'force-dynamic';
 
 interface CachedResult {
   movies: MovieWithAvailability[];
   timestamp: number;
-  source: string;
+  source: 'torrentio';
 }
+
+const LIMIT = 20;
+const CANDIDATE_PAGES = 3; // up to 60 candidates, most popular first
+const WINDOW_DAYS = 120;
+/** Fewer verified titles than this never replaces a fuller list */
+const MIN_GOOD = 6;
+const FRESH_TTL = CACHE_TTL.JUST_RELEASED; // 30 min
+const RETRY_TTL = 300; // after a weak or failed refresh
+const LAST_GOOD_TTL = 7 * 24 * 3600;
+/** Time budget for a check someone is waiting on, and for one run after the response */
+const WAITING_DEADLINE_MS = 12_000;
+const BACKGROUND_DEADLINE_MS = 45_000;
+
+// Also serves when Redis is down
+let memo: { result: CachedResult; freshUntil: number } | null = null;
+// One refresh at a time per instance
+let refreshing: Promise<CachedResult | null> | null = null;
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Films with a digital or physical release in the window, most popular
+ * first. (The theatrical date let films only in cinemas in, and pushed out
+ * big titles whose digital release came more than 90 days after.)
+ */
+async function getCandidates(): Promise<Movie[]> {
+  const pages = await Promise.all(
+    Array.from({ length: CANDIDATE_PAGES }, (_, i) =>
+      discoverMovies({
+        page: i + 1,
+        sort_by: 'popularity.desc',
+        with_release_type: '4|5',
+        'release_date.gte': isoDaysAgo(WINDOW_DAYS),
+        'release_date.lte': isoDaysAgo(0),
+        'vote_count.gte': 50,
+        'vote_average.gte': 5.5,
+      }).catch(() => null)
+    )
+  );
+  if (pages.every((p) => p === null)) throw new Error('TMDB discover unavailable');
+
+  const seen = new Set<number>();
+  const candidates: Movie[] = [];
+  for (const page of pages) {
+    for (const movie of page?.results ?? []) {
+      if (seen.has(movie.id)) continue;
+      seen.add(movie.id);
+      candidates.push({ ...toMovie(movie), media_type: 'movie' as const });
+    }
+  }
+  return candidates;
+}
+
+/** Verifies candidates against Torrentio and stores the outcome. */
+async function refresh(deadlineMs: number): Promise<CachedResult | null> {
+  const started = Date.now();
+  const candidates = await getCandidates();
+  const movies = await filterAvailableMovies(candidates, LIMIT, { deadline: started + deadlineMs });
+  console.log(
+    `[Just Released API] Verified ${movies.length}/${candidates.length} candidates in ${Date.now() - started}ms`
+  );
+
+  const result: CachedResult = { movies, timestamp: Date.now(), source: 'torrentio' };
+
+  if (movies.length >= MIN_GOOD) {
+    memo = { result, freshUntil: Date.now() + FRESH_TTL * 1000 };
+    await Promise.all([
+      setCache(cacheKeys.justReleasedMovies(), result, FRESH_TTL),
+      setCache(cacheKeys.justReleasedLastGood(), result, LAST_GOOD_TTL),
+    ]);
+    return result;
+  }
+
+  // A weak run (Torrentio slow or down): serve the fuller of this run and
+  // the last list, and try again in a few minutes
+  const previous = memo?.result ?? (await getCache<CachedResult>(cacheKeys.justReleasedLastGood()));
+  const best = previous && previous.movies.length >= movies.length ? previous : result;
+  if (best.movies.length === 0) return null;
+
+  memo = { result: best, freshUntil: Date.now() + RETRY_TTL * 1000 };
+  await setCache(cacheKeys.justReleasedMovies(), best, RETRY_TTL);
+  return best;
+}
+
+function startRefresh(deadlineMs: number): Promise<CachedResult | null> {
+  refreshing ??= refresh(deadlineMs)
+    .catch((error: unknown) => {
+      console.error('[Just Released API] Refresh failed:', error);
+      return null;
+    })
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+const EMPTY = (): CachedResult => ({ movies: [], timestamp: Date.now(), source: 'torrentio' });
 
 export async function GET() {
   try {
-    // Check for cached final results first (30 min cache)
-    const cacheKey = cacheKeys.justReleasedMovies();
-    const cached = await getCache<CachedResult>(cacheKey);
-
-    if (cached && cached.movies.length > 0) {
-      console.log('[Just Released API] Returning cached results:', cached.movies.length, 'movies');
-      return NextResponse.json(cached);
+    if (memo && memo.freshUntil > Date.now()) {
+      return NextResponse.json(memo.result);
     }
 
-    const today = new Date();
-    const ninetyDaysAgo = new Date(today);
-    ninetyDaysAgo.setDate(today.getDate() - 90);
-
-    // Get candidate movies (2 pages in parallel)
-    const [page1, page2] = await Promise.all([
-      discoverMovies({
-        page: 1,
-        sort_by: 'popularity.desc',
-        'primary_release_date.lte': today.toISOString().split('T')[0],
-        'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
-        'vote_count.gte': 50,
-        'vote_average.gte': 5.5,
-      }),
-      discoverMovies({
-        page: 2,
-        sort_by: 'popularity.desc',
-        'primary_release_date.lte': today.toISOString().split('T')[0],
-        'primary_release_date.gte': ninetyDaysAgo.toISOString().split('T')[0],
-        'vote_count.gte': 50,
-        'vote_average.gte': 5.5,
-      }),
-    ]);
-
-    // Combine and deduplicate results
-    const allResults = [...(page1.results ?? []), ...(page2.results ?? [])];
-    const uniqueMoviesMap = new Map<number, (typeof allResults)[0]>();
-    allResults.forEach((movie) => {
-      if (!uniqueMoviesMap.has(movie.id)) {
-        uniqueMoviesMap.set(movie.id, movie);
-      }
-    });
-    const uniqueResults = Array.from(uniqueMoviesMap.values());
-
-    // Reduced from 40 to 30 candidates - we only need 20 results
-    const candidateMovies = uniqueResults.slice(0, 30).map((m) => ({
-      ...toMovie(m),
-      media_type: 'movie' as const,
-    }));
-
-    console.log('[Just Released API] Got', candidateMovies.length, 'candidate movies from TMDB');
-
-    // Filter to only those with Torrentio availability
-    // Add timeout to prevent hanging (reduced from 20s to 15s with caching)
-    let availableMovies: MovieWithAvailability[] = [];
-    let torrentioWorked = false;
-
-    // The timer is cleared once the race settles: left running, it kept every
-    // request's timer alive and logged a "timeout" even after a fast check
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    try {
-      console.log('[Just Released API] Checking Torrentio for', candidateMovies.length, 'movies...');
-      const timeoutPromise = new Promise<MovieWithAvailability[]>((resolve) => {
-        timeoutId = setTimeout(() => {
-          console.log('[Just Released API] Torrentio timeout after 15s');
-          resolve([]);
-        }, 15000);
-      });
-      availableMovies = await Promise.race([
-        filterAvailableMovies(candidateMovies, 20),
-        timeoutPromise,
-      ]);
-      torrentioWorked = availableMovies.length > 0;
-      console.log('[Just Released API] Torrentio returned', availableMovies.length, 'movies');
-    } catch (error) {
-      console.error('[Just Released API] Torrentio check failed:', error);
-    } finally {
-      clearTimeout(timeoutId);
+    const fresh = await getCache<CachedResult>(cacheKeys.justReleasedMovies());
+    if (fresh && fresh.movies.length > 0) {
+      memo = { result: fresh, freshUntil: Date.now() + 60_000 };
+      return NextResponse.json(fresh);
     }
 
-    // If Torrentio failed or returned nothing, return recent popular movies as fallback
-    // These won't have availability data but at least the section won't be empty
-    if (!torrentioWorked) {
-      console.log('[Just Released API] Falling back to TMDB movies without Torrentio');
-      const fallbackMovies: MovieWithAvailability[] = candidateMovies.slice(0, 20).map((movie) => ({
-        ...movie,
-        imdb_id: null,
-        availability: {
-          available: true, // Mark as available so they show
-          streamCount: 0,
-          bestQuality: null,
-          sources: [],
-          audioCodec: null,
-          videoCodec: null,
-          hasHDR: false,
-        },
-      }));
-
-      const fallbackResult: CachedResult = {
-        movies: fallbackMovies,
-        timestamp: Date.now(),
-        source: 'tmdb_fallback',
-      };
-
-      // Cache fallback for only 5 minutes (retry sooner)
-      await setCache(cacheKey, fallbackResult, 300);
-
-      return NextResponse.json(fallbackResult);
+    // Stale: answer now with the last verified list, refresh afterwards
+    const stale = memo?.result ?? (await getCache<CachedResult>(cacheKeys.justReleasedLastGood()));
+    if (stale && stale.movies.length > 0) {
+      after(() => startRefresh(BACKGROUND_DEADLINE_MS));
+      return NextResponse.json(stale);
     }
 
-    const result: CachedResult = {
-      movies: availableMovies,
-      timestamp: Date.now(),
-      source: 'torrentio',
-    };
-
-    // Cache successful results for 30 minutes
-    await setCache(cacheKey, result, CACHE_TTL.JUST_RELEASED);
-
-    return NextResponse.json(result);
+    // Nothing cached at all: wait (bounded) for a check
+    const result = await startRefresh(WAITING_DEADLINE_MS);
+    return NextResponse.json(result ?? EMPTY());
   } catch (error) {
     console.error('Just Released Movies API error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch just released movies', movies: [] },
-      { status: 500 }
-    );
+    // An empty list hides the section; nothing here is cached
+    return NextResponse.json(EMPTY());
   }
 }

@@ -5,8 +5,57 @@ import { Zap } from 'lucide-react';
 import { HeroSpotlight } from './HeroSpotlight';
 import { JustReleasedRow } from './JustReleasedRow';
 import { SkeletonRow } from '@/components/ui';
+import { useWatchlist, watchlistKey } from '@/stores/watchlist';
+import { getContentType } from '@/lib/utils';
 import type { Content } from '@/types';
 import type { MovieWithAvailability } from '@/lib/torrentio';
+
+// The hero and the row both need this list: one request per page view
+// (each fetched it separately). Reused for a few minutes across client
+// navigations; a failed request isn't kept.
+const SHARED_TTL_MS = 5 * 60 * 1000;
+let shared: { at: number; promise: Promise<MovieWithAvailability[]> } | null = null;
+
+function loadJustReleased(): Promise<MovieWithAvailability[]> {
+  if (!shared || Date.now() - shared.at > SHARED_TTL_MS) {
+    const promise = fetch('/api/just-released/movies')
+      .then((response) => {
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        return response.json() as Promise<{ movies?: MovieWithAvailability[] }>;
+      })
+      .then((data) => data.movies ?? []);
+    promise.catch(() => {
+      if (shared?.promise === promise) shared = null;
+    });
+    shared = { at: Date.now(), promise };
+  }
+  return shared.promise;
+}
+
+/** Verified 4K releases (empty if none or on error), and whether they're loading. */
+function useJustReleasedMovies() {
+  const [state, setState] = useState<{ movies: MovieWithAvailability[]; isLoading: boolean }>({
+    movies: [],
+    isLoading: true,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    loadJustReleased()
+      .then((movies) => {
+        if (isMounted) setState({ movies, isLoading: false });
+      })
+      .catch((err: unknown) => {
+        console.error('Failed to fetch just released movies:', err);
+        if (isMounted) setState({ movies: [], isLoading: false });
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return state;
+}
 
 // ==========================================================================
 // Hero With Just Released Component
@@ -23,38 +72,7 @@ export function HeroWithJustReleased({
   trendingItems,
   className = '',
 }: HeroWithJustReleasedProps) {
-  const [justReleasedMovies, setJustReleasedMovies] = useState<MovieWithAvailability[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function fetchMovies() {
-      try {
-        const response = await fetch('/api/just-released/movies');
-        if (!response.ok) throw new Error('Failed to fetch');
-
-        const data = await response.json();
-        if (isMounted) {
-          setJustReleasedMovies(data.movies || []);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error('Failed to fetch just released movies:', err);
-        if (isMounted) {
-          setError('Failed to load');
-          setIsLoading(false);
-        }
-      }
-    }
-
-    fetchMovies();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  const { movies: justReleasedMovies } = useJustReleasedMovies();
 
   // Determine hero items:
   // - If Torrentio loaded successfully with movies, use those
@@ -77,33 +95,19 @@ export function HeroWithJustReleased({
 
 // Separate component for just the Just Released row (to be used in page layout)
 export function JustReleasedSection() {
-  const [justReleasedMovies, setJustReleasedMovies] = useState<MovieWithAvailability[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { movies: justReleasedMovies, isLoading } = useJustReleasedMovies();
+  const watchlist = useWatchlist();
+  const watchlistIds = new Set(watchlist.items.map((item) => watchlistKey(item.media_type, item.id)));
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function fetchMovies() {
-      try {
-        const response = await fetch('/api/just-released/movies');
-        if (!response.ok) throw new Error('Failed to fetch');
-
-        const data = await response.json();
-        if (isMounted) {
-          setJustReleasedMovies(data.movies || []);
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error('Failed to fetch just released movies:', err);
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    fetchMovies();
-    return () => { isMounted = false; };
-  }, []);
+  const handleWatchlistToggle = (movie: MovieWithAvailability) => {
+    watchlist.toggleItem({
+      id: movie.id,
+      title: movie.title,
+      media_type: 'movie',
+      content_type: getContentType(movie),
+      poster_path: movie.poster_path,
+    });
+  };
 
   if (isLoading) {
     return (
@@ -128,5 +132,11 @@ export function JustReleasedSection() {
     return null;
   }
 
-  return <JustReleasedRow movies={justReleasedMovies} />;
+  return (
+    <JustReleasedRow
+      movies={justReleasedMovies}
+      watchlistIds={watchlistIds}
+      onWatchlistToggle={handleWatchlistToggle}
+    />
+  );
 }

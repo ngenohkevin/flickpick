@@ -181,6 +181,10 @@ function JustReleasedCard({
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (onWatchlistToggle) {
+      onWatchlistToggle(movie);
+      return;
+    }
     addToast({
       type: 'info',
       title: 'Coming Soon',
@@ -256,17 +260,19 @@ function JustReleasedCard({
             </Tooltip>
           </div>
 
-          {/* Quality & HDR Badge (top-left) */}
-          <div className="absolute left-2 top-2 flex flex-col gap-1">
-            <span className={cn(
-              'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold sm:px-2 sm:text-xs',
-              getQualityBadgeColor(movie.availability.bestQuality)
-            )}>
-              <Zap className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-              {movie.availability.bestQuality || '4K'}
-              {movie.availability.hasHDR && ' HDR'}
-            </span>
-          </div>
+          {/* Quality & HDR Badge (top-left), only for a verified quality */}
+          {movie.availability.bestQuality && (
+            <div className="absolute left-2 top-2 flex flex-col gap-1">
+              <span className={cn(
+                'flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold sm:px-2 sm:text-xs',
+                getQualityBadgeColor(movie.availability.bestQuality)
+              )}>
+                <Zap className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                {movie.availability.bestQuality}
+                {movie.availability.hasHDR && ' HDR'}
+              </span>
+            </div>
+          )}
 
           {/* Audio Codec Badge (top-right) */}
           <div className="absolute right-2 top-2 flex flex-col items-end gap-1">
@@ -299,9 +305,11 @@ function JustReleasedCard({
             {year && (
               <p className="text-[11px] text-text-tertiary">{year}</p>
             )}
-            <span className="text-[10px] text-success">
-              {movie.availability.streamCount}+ sources
-            </span>
+            {movie.availability.streamCount > 0 && (
+              <span className="text-[10px] text-success">
+                {movie.availability.streamCount}+ sources
+              </span>
+            )}
           </div>
         </div>
       </Link>

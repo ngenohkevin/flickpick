@@ -103,7 +103,7 @@ const FAILED_CHECK_TTL = 300;
  * Check Torrentio availability for a movie with caching
  * Cached for 1 hour
  */
-async function getCachedMovieAvailability(imdbId: string): Promise<AvailabilityStatus> {
+async function getCachedMovieAvailability(imdbId: string, year?: number): Promise<AvailabilityStatus> {
   const cacheKey = cacheKeys.torrentioMovie(imdbId);
 
   // Try cache first
@@ -113,7 +113,7 @@ async function getCachedMovieAvailability(imdbId: string): Promise<AvailabilityS
   }
 
   // Fetch fresh
-  const availability = await checkMovieAvailability(imdbId);
+  const availability = await checkMovieAvailability(imdbId, year);
 
   // Cache the answer, unavailable included, to avoid re-checking. A failed
   // check is cached briefly: an hour of "unavailable" after a provider blip
@@ -141,7 +141,8 @@ export async function getMovieWithAvailability(
       };
     }
 
-    const availability = await getCachedMovieAvailability(imdbId);
+    const year = Number(movie.release_date?.slice(0, 4)) || undefined;
+    const availability = await getCachedMovieAvailability(imdbId, year);
 
     return {
       ...movie,
@@ -222,28 +223,37 @@ export async function getTVShowWithAvailability(
 }
 
 /**
- * Filter movies to only those available (with valid streams)
- * Returns movies with availability info attached
+ * Filter movies to only those available (with valid streams), in order.
  *
- * OPTIMIZED: Uses parallel IMDB ID fetching and larger batch sizes
- * with Redis caching for both IMDB IDs and Torrentio results
+ * Checks run in small batches (bursts of 10 parallel requests drew 429s
+ * that then got Torrentio skipped app-wide). With a deadline, whatever was
+ * verified by then is returned instead of the whole run being thrown away.
  */
 export async function filterAvailableMovies(
   movies: Movie[],
-  limit: number = 15
+  limit: number = 15,
+  options: { deadline?: number } = {}
 ): Promise<MovieWithAvailability[]> {
   const availableMovies: MovieWithAvailability[] = [];
 
-  // Larger batch size since we have caching now
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = 5;
 
   for (let i = 0; i < movies.length && availableMovies.length < limit; i += BATCH_SIZE) {
+    const remaining = options.deadline ? options.deadline - Date.now() : Infinity;
+    if (remaining <= 0) break;
+
     const batch = movies.slice(i, i + BATCH_SIZE);
 
-    // Process all movies in batch in parallel
-    const results = await Promise.all(
-      batch.map((movie) => getMovieWithAvailability(movie))
-    );
+    // Process all movies in batch in parallel; a batch still running at the
+    // deadline is dropped (its checks finish and are cached for next time)
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const results = await Promise.race([
+      Promise.all(batch.map((movie) => getMovieWithAvailability(movie))),
+      ...(Number.isFinite(remaining)
+        ? [new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), remaining); })]
+        : []),
+    ]).finally(() => clearTimeout(timer));
+    if (!results) break;
 
     for (const result of results) {
       if (result.availability.available && availableMovies.length < limit) {

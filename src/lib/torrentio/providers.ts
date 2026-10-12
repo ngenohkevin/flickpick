@@ -28,7 +28,23 @@ const REQUEST_TIMEOUT = 8000; // 8 seconds per provider
 const providerHealth: Map<string, { failures: number; lastCheck: number }> = new Map();
 
 const HEALTH_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
-const MAX_FAILURES_BEFORE_SKIP = 3;
+// Only outages count (network errors, timeouts, 5xx, 429), and any answer
+// resets the count: three failures used to bench Torrentio app-wide for five
+// minutes after a single burst of rate limiting.
+const MAX_FAILURES_BEFORE_SKIP = 5;
+
+/** An HTTP error from a provider, with its status. */
+class ProviderHttpError extends Error {
+  constructor(provider: string, readonly status: number) {
+    super(`${provider} error: ${status}`);
+  }
+}
+
+/** Whether a provider error means it's down (vs. a 4xx answer about this title). */
+function isOutage(error: unknown): boolean {
+  if (error instanceof ProviderHttpError) return error.status >= 500 || error.status === 429;
+  return true; // network error or timeout
+}
 
 /**
  * Check if a provider should be skipped due to recent failures
@@ -119,7 +135,7 @@ export const TorrentioProvider: StreamProvider = {
     const response = await fetchWithTimeout(
       `https://torrentio.strem.fun/stream/movie/${imdbId}.json`
     );
-    if (!response.ok) throw new Error(`Torrentio error: ${response.status}`);
+    if (!response.ok) throw new ProviderHttpError('Torrentio', response.status);
     return response.json();
   },
 
@@ -127,7 +143,7 @@ export const TorrentioProvider: StreamProvider = {
     const response = await fetchWithTimeout(
       `https://torrentio.strem.fun/stream/series/${imdbId}:${season}:${episode}.json`
     );
-    if (!response.ok) throw new Error(`Torrentio error: ${response.status}`);
+    if (!response.ok) throw new ProviderHttpError('Torrentio', response.status);
     return response.json();
   },
 };
@@ -235,7 +251,7 @@ export const TorrentsDBProvider: StreamProvider = {
     const response = await fetchWithTimeout(
       `https://torrentsdb.com/stream/movie/${imdbId}.json`
     );
-    if (!response.ok) throw new Error(`TorrentsDB error: ${response.status}`);
+    if (!response.ok) throw new ProviderHttpError('TorrentsDB', response.status);
     return response.json();
   },
 
@@ -243,7 +259,7 @@ export const TorrentsDBProvider: StreamProvider = {
     const response = await fetchWithTimeout(
       `https://torrentsdb.com/stream/series/${imdbId}:${season}:${episode}.json`
     );
-    if (!response.ok) throw new Error(`TorrentsDB error: ${response.status}`);
+    if (!response.ok) throw new ProviderHttpError('TorrentsDB', response.status);
     return response.json();
   },
 };
@@ -301,15 +317,13 @@ export interface StreamLookup {
 }
 
 /**
- * All available providers, sorted by priority
+ * Providers in the order tried. Checked 2026-10-12: Comet answers 403,
+ * MediaFusion answers an empty list without a user config (which read as a
+ * real "no streams" and hid titles during Torrentio outages), and
+ * Knightcrawler redirects to an HTML page — so only TorrentsDB remains as a
+ * fallback.
  */
-export const ALL_PROVIDERS: StreamProvider[] = [
-  TorrentioProvider,
-  CometProvider,
-  MediaFusionProvider,
-  TorrentsDBProvider,
-  KnightcrawlerProvider,
-].sort((a, b) => a.priority - b.priority);
+export const ALL_PROVIDERS: StreamProvider[] = [TorrentioProvider, TorrentsDBProvider];
 
 /**
  * Get movie streams with automatic fallback
@@ -321,6 +335,9 @@ export async function getMovieStreamsWithFallback(
   const errors: string[] = [];
   let anyAnswered = false;
 
+  // The first provider that answers is the answer, streams or not: falling
+  // through on "no streams" cost up to four more slow calls per title.
+  // Only an outage moves on to the next provider.
   for (const provider of ALL_PROVIDERS) {
     // Skip providers with recent failures
     if (shouldSkipProvider(provider.name)) {
@@ -329,19 +346,16 @@ export async function getMovieStreamsWithFallback(
 
     try {
       const response = await provider.getMovieStreams(imdbId);
-      anyAnswered = true;
-
-      if (response.streams && response.streams.length > 0) {
-        recordSuccess(provider.name);
-        return {
-          streams: response.streams,
-          provider: provider.name,
-          checked: true,
-        };
-      }
+      recordSuccess(provider.name);
+      return { streams: response.streams ?? [], provider: provider.name, checked: true };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       errors.push(`${provider.name}: ${errorMsg}`);
+      if (!isOutage(error)) {
+        recordSuccess(provider.name);
+        anyAnswered = true;
+        continue;
+      }
       recordFailure(provider.name);
     }
   }
@@ -370,19 +384,16 @@ export async function getTVStreamsWithFallback(
 
     try {
       const response = await provider.getTVStreams(imdbId, season, episode);
-      anyAnswered = true;
-
-      if (response.streams && response.streams.length > 0) {
-        recordSuccess(provider.name);
-        return {
-          streams: response.streams,
-          provider: provider.name,
-          checked: true,
-        };
-      }
+      recordSuccess(provider.name);
+      return { streams: response.streams ?? [], provider: provider.name, checked: true };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       errors.push(`${provider.name}: ${errorMsg}`);
+      if (!isOutage(error)) {
+        recordSuccess(provider.name);
+        anyAnswered = true;
+        continue;
+      }
       recordFailure(provider.name);
     }
   }

@@ -189,10 +189,13 @@ export const cacheKeys = {
   tvImdbId: (id: number) => `tv:${id}:imdb`,
 
   // Torrentio availability
-  torrentioMovie: (imdbId: string) => `torrentio:movie:${imdbId}`,
+  // v2: quality is read from the release name only (v1 counted tracker names)
+  torrentioMovie: (imdbId: string) => `torrentio:movie:v2:${imdbId}`,
   torrentioTV: (imdbId: string, season: number, episode: number) =>
     `torrentio:tv:${imdbId}:${season}:${episode}`,
-  justReleasedMovies: () => `just-released:movies`,
+  justReleasedMovies: () => `just-released:movies:v2`,
+  /** Last verified list, kept for days: served while a refresh runs or fails */
+  justReleasedLastGood: () => `just-released:movies:v2:last-good`,
 
   search: (query: string, page: number) => `search:${query}:${page}`,
   trending: (type: string, window: string, page: number) =>

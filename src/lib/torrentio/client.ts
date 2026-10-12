@@ -26,29 +26,69 @@ import {
 // ==========================================================================
 // Helper Functions
 // ==========================================================================
+//
+// A stream looks like:
+//   name:  "Torrentio\n4k DV | HDR"          (addon, then its quality tag)
+//   title: "Movie.2026.2160p.WEB-DL.DDP5.1.Atmos.DV.H.265-GRP\n👤 21 💾 10.4 GB ⚙️ Wolfmax4k\n🇬🇧"
+// Only the tag and the first title line describe the file. The rest is
+// seeders, size, tracker/uploader and languages — matching on all of it made
+// an uploader named "Wolfmax4k" turn three 1080p/720p releases into "4K".
+
+/** The addon's quality tag: the lines of `name` after the addon name. */
+function qualityTag(stream: TorrentioStream): string {
+  return (stream.name ?? '').split('\n').slice(1).join(' ').toUpperCase();
+}
+
+/** The release name: the first line of `title` (plus the file name, if given). */
+function releaseName(stream: TorrentioStream): string {
+  const first = (stream.title ?? '').split('\n')[0] ?? '';
+  return `${first} ${stream.behaviorHints?.filename ?? ''}`.toUpperCase();
+}
+
+/** Text that describes the file itself (tag + release name, no tracker). */
+function describedText(stream: TorrentioStream): string {
+  return `${qualityTag(stream)} ${releaseName(stream)}`;
+}
+
+const UHD = /\b(2160P|4K|UHD)\b/;
 
 /**
- * Extract quality from stream name/title
+ * Resolution of a stream. The addon's tag wins; otherwise the release name,
+ * where a stated 1080p/720p beats "UHD" (a UHD source encoded at 1080p).
  */
 function extractQuality(stream: TorrentioStream): string | null {
-  const text = `${stream.name} ${stream.title}`.toUpperCase();
+  const tag = qualityTag(stream);
+  if (UHD.test(tag)) return '2160p';
+  if (/\b1080P\b/.test(tag)) return '1080p';
+  if (/\b720P\b/.test(tag)) return '720p';
+  if (/\b480P\b/.test(tag)) return '480p';
 
-  // Check for quality indicators
-  if (text.includes('2160P') || text.includes('4K') || text.includes('UHD')) {
-    return '2160p';
-  }
-  if (text.includes('1080P')) return '1080p';
-  if (text.includes('720P')) return '720p';
-  if (text.includes('480P')) return '480p';
+  const name = releaseName(stream);
+  if (/\b1080P\b/.test(name)) return '1080p';
+  if (/\b720P\b/.test(name)) return '720p';
+  if (/\b480P\b/.test(name)) return '480p';
+  if (UHD.test(name)) return '2160p';
 
   return null;
 }
 
 /**
- * Extract source type from stream title
+ * Whether the release name names a different film's year. Addons sometimes
+ * return other titles for an IMDb ID (e.g. "Shades of the Heart 2021" for a
+ * 2026 film); a release whose years are all more than a year off is one.
+ */
+function isOtherYear(stream: TorrentioStream, year: number | undefined): boolean {
+  if (!year) return false;
+  const years = releaseName(stream).match(/\b(19|20)\d{2}\b/g);
+  if (!years) return false;
+  return !years.some((y) => Math.abs(Number(y) - year) <= 1);
+}
+
+/**
+ * Extract source type from the release name
  */
 function extractSource(stream: TorrentioStream): string | null {
-  const text = stream.title.toUpperCase();
+  const text = releaseName(stream);
 
   // Check for valid sources
   for (const source of VALID_SOURCES) {
@@ -65,7 +105,12 @@ function extractSource(stream: TorrentioStream): string | null {
  * Uses multiple detection methods for better accuracy
  */
 function isLowQualitySource(stream: TorrentioStream): boolean {
-  const text = `${stream.name} ${stream.title}`.toUpperCase();
+  // Torrentio tags early releases itself ("CAM", "TeleSync", "SCR")
+  if (/\b(CAM|TELESYNC|TELECINE|TS|TC|SCR|SCREENER)\b/.test(qualityTag(stream))) {
+    return true;
+  }
+
+  const text = describedText(stream);
 
   // Check for excluded sources with word boundaries
   for (const excluded of EXCLUDED_SOURCES) {
@@ -90,7 +135,7 @@ function isLowQualitySource(stream: TorrentioStream): boolean {
  * This is stricter - the stream must explicitly contain a valid source indicator
  */
 function hasValidSource(stream: TorrentioStream): boolean {
-  const text = `${stream.name} ${stream.title}`.toUpperCase();
+  const text = releaseName(stream);
 
   for (const source of VALID_SOURCES) {
     // Use word boundary for more accurate matching
@@ -107,7 +152,7 @@ function hasValidSource(stream: TorrentioStream): boolean {
  * Extract audio codec from stream title
  */
 function extractAudioCodec(stream: TorrentioStream): string | null {
-  const text = `${stream.name} ${stream.title}`.toUpperCase();
+  const text = describedText(stream);
 
   // Check for audio codecs in priority order (highest first)
   const sortedCodecs = [...PREFERRED_AUDIO_CODECS].sort((a, b) => {
@@ -138,7 +183,7 @@ function extractAudioCodec(stream: TorrentioStream): string | null {
  * Extract video codec from stream title
  */
 function extractVideoCodec(stream: TorrentioStream): string | null {
-  const text = `${stream.name} ${stream.title}`.toUpperCase();
+  const text = describedText(stream);
 
   for (const codec of PREFERRED_VIDEO_CODECS) {
     const pattern = new RegExp(`\\b${codec.toUpperCase().replace(/[.-]/g, '[.-]?')}\\b`);
@@ -154,17 +199,15 @@ function extractVideoCodec(stream: TorrentioStream): string | null {
  * Check if stream is 4K/2160p quality
  */
 function is4KQuality(stream: TorrentioStream): boolean {
-  const text = `${stream.name} ${stream.title}`.toUpperCase();
-  return text.includes('2160P') || text.includes('4K') || text.includes('UHD');
+  return extractQuality(stream) === '2160p';
 }
 
 /**
- * Check if stream has HDR
+ * Check if stream has HDR (HDR10, HDR10+, Dolby Vision). Whole words only:
+ * "HDRip" is a rip, not HDR, and "DV" must not match DVD or a tracker name.
  */
 function hasHDR(stream: TorrentioStream): boolean {
-  const text = `${stream.name} ${stream.title}`.toUpperCase();
-  return text.includes('HDR') || text.includes('HDR10') || text.includes('HDR10+') ||
-         text.includes('DOLBY VISION') || text.includes('DOLBY.VISION') || text.includes('DV');
+  return /\b(HDR|HDR10\+?|DV|DOVI|DOLBY[ .]?VISION)\b/.test(describedText(stream));
 }
 
 /**
@@ -200,7 +243,9 @@ function getBestQuality(qualities: string[]): string | null {
  * Uses multiple providers with automatic fallback
  */
 export async function checkMovieAvailability(
-  imdbId: string
+  imdbId: string,
+  /** The film's release year: releases naming another year are ignored */
+  year?: number
 ): Promise<AvailabilityStatus> {
   try {
     const { streams, provider, checked } = await getMovieStreamsWithFallback(imdbId);
@@ -218,7 +263,7 @@ export async function checkMovieAvailability(
       };
     }
 
-    const availability = parseStreamsToAvailability(streams);
+    const availability = parseStreamsToAvailability(streams, year);
 
     // Log which provider succeeded (for debugging)
     if (availability.available && provider !== 'none') {
@@ -296,7 +341,7 @@ export async function checkTVAvailability(
  * - Requires confirmed valid source (WEB-DL, BluRay, Remux)
  * - Filters out all low-quality sources (CAM, TS, etc.)
  */
-function parseStreamsToAvailability(streams: TorrentioStream[]): AvailabilityStatus {
+function parseStreamsToAvailability(streams: TorrentioStream[], year?: number): AvailabilityStatus {
   const unavailable: AvailabilityStatus = {
     available: false,
     streamCount: 0,
@@ -312,7 +357,10 @@ function parseStreamsToAvailability(streams: TorrentioStream[]): AvailabilitySta
   }
 
   // Step 1: Filter out streams that are explicitly low quality (CAM, TS, etc.)
-  const nonLowQualityStreams = streams.filter((stream) => !isLowQualitySource(stream));
+  // or that are another film altogether
+  const nonLowQualityStreams = streams.filter(
+    (stream) => !isLowQualitySource(stream) && !isOtherYear(stream, year)
+  );
 
   if (nonLowQualityStreams.length === 0) {
     return unavailable;
