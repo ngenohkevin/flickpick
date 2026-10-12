@@ -13,7 +13,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { InfiniteContentGrid } from '@/components/content';
-import { useWatchlist } from '@/stores/watchlist';
+import { useWatchlist, watchlistKey } from '@/stores/watchlist';
 import { trackCategoryView } from '@/lib/analytics';
 import { CURATED_CATEGORIES } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -63,7 +63,7 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
 
   // Watchlist
   const watchlist = useWatchlist();
-  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => item.id));
+  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => watchlistKey(item.media_type, item.id)));
 
   // Get icon for this category
   const Icon = CATEGORY_ICONS[category.slug] || Sparkles;

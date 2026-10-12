@@ -7,6 +7,7 @@ import { DisplayAdSlot } from '@/components/ads';
 import { useInfiniteScroll } from '@/lib/hooks';
 import { shouldShowDisplayAds, DISPLAY_AD_CONFIG } from '@/lib/ads/config';
 import type { Content } from '@/types';
+import { contentWatchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
 // Content Grid Component
@@ -21,7 +22,7 @@ interface ContentGridProps {
   showYear?: boolean;
   isLoading?: boolean;
   loadingCount?: number;
-  watchlistIds?: Set<number>;
+  watchlistIds?: Set<string>; // watchlistKey() values
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
   /** Enable display ads in the grid (default: false - opt-in only) */
@@ -79,7 +80,7 @@ export function ContentGrid({
             showTypeBadge={showTypeBadge}
             showRating={showRating}
             showYear={showYear}
-            isInWatchlist={watchlistIds?.has(item.id)}
+            isInWatchlist={watchlistIds?.has(contentWatchlistKey(item))}
             onWatchlistToggle={onWatchlistToggle}
           />
           {/* Show ad slot after every N items (only if enabled) */}

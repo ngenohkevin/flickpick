@@ -10,7 +10,7 @@ import { FilterSidebar, defaultFilters, type FilterState } from '@/components/br
 import { MobileFilterSheet } from '@/components/browse/MobileFilterSheet';
 import { SortDropdown, type SortOption } from '@/components/browse/SortDropdown';
 import { SkeletonGrid } from '@/components/ui';
-import { useWatchlist } from '@/stores/watchlist';
+import { useWatchlist, watchlistKey } from '@/stores/watchlist';
 import { cn } from '@/lib/utils';
 import type { Content, Movie, PaginatedResponse, WatchlistItem } from '@/types';
 
@@ -84,7 +84,7 @@ export function NewMoviesPageContent() {
 
   // Watchlist
   const watchlist = useWatchlist();
-  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => item.id));
+  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => watchlistKey(item.media_type, item.id)));
 
   // Scroll direction for auto-hide sticky bar
   const [isBarVisible, setIsBarVisible] = useState(true);
@@ -385,7 +385,7 @@ export function NewMoviesPageContent() {
                     priority={index < 6}
                     showTypeBadge={false}
                     showNewBadge={true}
-                    isInWatchlist={watchlistIds.has(movie.id)}
+                    isInWatchlist={watchlistIds.has(watchlistKey('movie', movie.id))}
                     onWatchlistToggle={handleWatchlistToggle}
                   />
                 ))}
@@ -425,7 +425,7 @@ export function NewMoviesPageContent() {
                     priority={false}
                     showTypeBadge={false}
                     showNewBadge={true}
-                    isInWatchlist={watchlistIds.has(movie.id)}
+                    isInWatchlist={watchlistIds.has(watchlistKey('movie', movie.id))}
                     onWatchlistToggle={handleWatchlistToggle}
                   />
                 ))}

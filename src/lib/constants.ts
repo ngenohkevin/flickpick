@@ -97,13 +97,29 @@ export const GENRE_SLUGS: Record<string, number> = {
   thriller: 53,
   war: 10752,
   western: 37,
+  'tv-movie': 10770,
   // TV specific
   'action-adventure': 10759,
   kids: 10762,
   reality: 10764,
   'sci-fi-fantasy': 10765,
   'war-politics': 10768,
+  news: 10763,
+  soap: 10766,
+  talk: 10767,
 };
+
+/**
+ * URL slug for a TMDB genre ID ("science-fiction" for 878), or null.
+ * Building slugs from genre names produced 404s ("science fiction",
+ * "action-&-adventure").
+ */
+export function getGenreSlug(genreId: number): string | null {
+  for (const [slug, id] of Object.entries(GENRE_SLUGS)) {
+    if (id === genreId) return slug;
+  }
+  return null;
+}
 
 // ==========================================================================
 // Keyword to Genre Mapping (for AI fallback)

@@ -6,7 +6,7 @@ import { FilterSidebar, defaultFilters, type FilterState } from './FilterSidebar
 import { SortDropdown, type SortOption } from './SortDropdown';
 import { MobileFilterSheet } from './MobileFilterSheet';
 import { InfiniteContentGrid } from '@/components/content';
-import { useWatchlist } from '@/stores/watchlist';
+import { useWatchlist, watchlistKey } from '@/stores/watchlist';
 import { useScrollRestoration } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import type { Content, ContentType, PaginatedResponse, WatchlistItem } from '@/types';
@@ -64,7 +64,7 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
 
   // Watchlist
   const watchlist = useWatchlist();
-  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => item.id));
+  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => watchlistKey(item.media_type, item.id)));
 
   // Ref to track if we're restoring pages
   const isRestoringPagesRef = useRef(false);

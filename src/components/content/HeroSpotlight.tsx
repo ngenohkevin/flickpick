@@ -17,6 +17,7 @@ import {
   isMovie,
 } from '@/lib/utils';
 import type { Content } from '@/types';
+import { watchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
 // Hero Spotlight Component
@@ -27,7 +28,7 @@ interface HeroSpotlightProps {
   items: Content[];
   autoRotate?: boolean;
   rotateInterval?: number;
-  watchlistIds?: Set<number>;
+  watchlistIds?: Set<string>; // watchlistKey() values
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
 }
@@ -86,7 +87,7 @@ export function HeroSpotlight({
   const isTV = !isMovie(currentItem);
   const detailUrl = isTV ? `/tv/${currentItem.id}` : `/movie/${currentItem.id}`;
   const similarUrl = isTV ? `/similar/tv/${currentItem.id}` : `/similar/movie/${currentItem.id}`;
-  const isInWatchlist = watchlistIds?.has(currentItem.id);
+  const isInWatchlist = watchlistIds?.has(watchlistKey(isTV ? 'tv' : 'movie', currentItem.id));
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();

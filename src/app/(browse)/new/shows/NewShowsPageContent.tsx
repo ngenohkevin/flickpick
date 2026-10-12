@@ -8,7 +8,7 @@ import { TVShowCard, CompactTVShowCard } from '@/components/tv';
 import { SkeletonGrid } from '@/components/ui';
 import { FilterSidebar, defaultFilters, type FilterState } from '@/components/browse/FilterSidebar';
 import { MobileFilterSheet } from '@/components/browse/MobileFilterSheet';
-import { useWatchlist } from '@/stores/watchlist';
+import { useWatchlist, watchlistKey } from '@/stores/watchlist';
 import { cn } from '@/lib/utils';
 import type { TVShow, EpisodeStatus, PaginatedResponse, WatchlistItem } from '@/types';
 
@@ -82,7 +82,7 @@ export function NewShowsPageContent() {
 
   // Watchlist
   const watchlist = useWatchlist();
-  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => item.id));
+  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => watchlistKey(item.media_type, item.id)));
 
   // Scroll direction for auto-hide sticky bar
   const [isBarVisible, setIsBarVisible] = useState(true);
@@ -403,7 +403,7 @@ export function NewShowsPageContent() {
                     key={show.id}
                     show={show}
                     priority={index < 8}
-                    isInWatchlist={watchlistIds.has(show.id)}
+                    isInWatchlist={watchlistIds.has(watchlistKey('tv', show.id))}
                     onWatchlistToggle={handleWatchlistToggle}
                   />
                 ))}
@@ -414,7 +414,7 @@ export function NewShowsPageContent() {
                   <CompactTVShowCard
                     key={show.id}
                     show={show}
-                    isInWatchlist={watchlistIds.has(show.id)}
+                    isInWatchlist={watchlistIds.has(watchlistKey('tv', show.id))}
                     onWatchlistToggle={handleWatchlistToggle}
                   />
                 ))}

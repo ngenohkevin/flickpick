@@ -6,6 +6,7 @@ import { ContentPoster } from '@/components/content/ContentPoster';
 import { cn } from '@/lib/utils';
 import type { EnrichedRecommendation } from '@/lib/ai/types';
 import type { Content } from '@/types';
+import { watchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
 // Discover Results Component
@@ -17,7 +18,7 @@ interface DiscoverResultsProps {
   isLoading?: boolean;
   provider?: string;
   isFallback?: boolean;
-  watchlistIds?: Set<number>;
+  watchlistIds?: Set<string>; // watchlistKey() values
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
 }
@@ -114,7 +115,7 @@ export function DiscoverResults({
             key={`${result.id}-${result.media_type}`}
             result={result}
             priority={index < 6}
-            isInWatchlist={watchlistIds?.has(result.id)}
+            isInWatchlist={watchlistIds?.has(watchlistKey(result.media_type, result.id))}
             onWatchlistToggle={onWatchlistToggle}
           />
         ))}

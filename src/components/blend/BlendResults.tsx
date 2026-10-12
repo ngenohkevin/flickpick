@@ -10,6 +10,7 @@ import { Plus, Check, Star, Zap, Database } from 'lucide-react';
 import { ContentPoster } from '@/components/content/ContentPoster';
 import { cn } from '@/lib/utils';
 import type { ContentType, Content } from '@/types';
+import { watchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
 // Types
@@ -33,7 +34,7 @@ interface BlendResultsProps {
   results: BlendResultItem[];
   isLoading?: boolean;
   provider?: string;
-  watchlistIds?: Set<number>;
+  watchlistIds?: Set<string>; // watchlistKey() values
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
 }
@@ -117,7 +118,7 @@ export function BlendResults({
             key={`${result.id}-${result.media_type}`}
             result={result}
             priority={index < 6}
-            isInWatchlist={watchlistIds?.has(result.id)}
+            isInWatchlist={watchlistIds?.has(watchlistKey(result.media_type, result.id))}
             onWatchlistToggle={onWatchlistToggle}
           />
         ))}

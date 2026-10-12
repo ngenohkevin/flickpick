@@ -12,6 +12,7 @@ import {
   cn,
 } from '@/lib/utils';
 import type { MovieWithAvailability } from '@/lib/torrentio';
+import { watchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
 // Just Released Row Component
@@ -20,7 +21,7 @@ import type { MovieWithAvailability } from '@/lib/torrentio';
 
 interface JustReleasedRowProps {
   movies: MovieWithAvailability[];
-  watchlistIds?: Set<number>;
+  watchlistIds?: Set<string>; // watchlistKey() values
   onWatchlistToggle?: (movie: MovieWithAvailability) => void;
   className?: string;
 }
@@ -140,7 +141,7 @@ export function JustReleasedRow({
               <JustReleasedCard
                 movie={movie}
                 priority={index < 4}
-                isInWatchlist={watchlistIds?.has(movie.id)}
+                isInWatchlist={watchlistIds?.has(watchlistKey('movie', movie.id))}
                 onWatchlistToggle={onWatchlistToggle}
               />
             </div>

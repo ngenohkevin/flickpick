@@ -361,3 +361,13 @@ describe('Watchlist selector hooks', () => {
     });
   });
 });
+
+describe('watchlist keys', () => {
+  it('distinguish a movie and a TV show with the same TMDB id', async () => {
+    const { watchlistKey, contentWatchlistKey } = await import('@/stores/watchlist');
+    expect(watchlistKey('movie', 1396)).not.toBe(watchlistKey('tv', 1396));
+    const saved = new Set([watchlistKey('movie', 1396)]);
+    const show = { id: 1396, name: 'Breaking Bad', first_air_date: '2008-01-20', media_type: 'tv' };
+    expect(saved.has(contentWatchlistKey(show as never))).toBe(false);
+  });
+});

@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { Star, Clock, Calendar, Play, ExternalLink, Globe, DollarSign, Film, Clapperboard } from 'lucide-react';
 import { getMovieDetailsExtended } from '@/lib/tmdb/movies';
 import { getPosterUrl, getBackdropUrl, formatRuntime, extractYear, cn, createSlug } from '@/lib/utils';
-import { ANIMATION_GENRE_ID } from '@/lib/constants';
+import { ANIMATION_GENRE_ID, getGenreSlug } from '@/lib/constants';
 import dynamic from 'next/dynamic';
 import { CastSection } from '@/components/movie/CastSection';
 import { StreamingProviders } from '@/components/movie/StreamingProviders';
@@ -232,7 +232,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
       ? [
           {
             name: primaryGenre.name,
-            url: `${BASE_URL}/genre/movie/${primaryGenre.name.toLowerCase().replace(/\s+/g, '-')}`,
+            url: `${BASE_URL}/genre/movie/${getGenreSlug(primaryGenre.id) ?? primaryGenre.id}`,
           },
         ]
       : []),
@@ -322,7 +322,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 {year && (
                   <p className="mt-1 text-xs text-text-secondary">{year}</p>
                 )}
-                {movie.runtime && movie.runtime > 0 && (
+                {(movie.runtime ?? 0) > 0 && (
                   <p className="text-xs text-text-secondary">{formatRuntime(movie.runtime)}</p>
                 )}
               </div>
@@ -350,7 +350,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 {movie.genres?.slice(0, 3).map((genre) => (
                   <Link
                     key={genre.id}
-                    href={`/genre/movie/${genre.name.toLowerCase()}`}
+                    href={`/genre/movie/${getGenreSlug(genre.id) ?? genre.id}`}
                     className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
                   >
                     {genre.name}
@@ -362,7 +362,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 {movie.genres?.slice(0, 3).map((genre) => (
                   <Link
                     key={genre.id}
-                    href={`/genre/movie/${genre.name.toLowerCase()}`}
+                    href={`/genre/movie/${getGenreSlug(genre.id) ?? genre.id}`}
                     className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
                   >
                     {genre.name}
@@ -408,7 +408,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                 )}
 
                 {/* Runtime */}
-                {movie.runtime && movie.runtime > 0 && (
+                {(movie.runtime ?? 0) > 0 && (
                   <div className="flex items-center gap-1.5 text-text-secondary">
                     <Clock className="h-4 w-4" />
                     <span className="font-medium">{formatRuntime(movie.runtime)}</span>
@@ -460,6 +460,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                   title={movie.title}
                   mediaType="movie"
                   posterPath={movie.poster_path}
+                  contentType={contentType}
                   variant="hero"
                 />
 
@@ -526,7 +527,7 @@ export default async function MoviePage({ params }: MoviePageProps) {
                     })}
                   />
                 )}
-                {movie.runtime && movie.runtime > 0 && (
+                {(movie.runtime ?? 0) > 0 && (
                   <DetailItem
                     icon={<Clock className="h-4 w-4" />}
                     label="Runtime"
@@ -547,18 +548,18 @@ export default async function MoviePage({ params }: MoviePageProps) {
                     value={movie.status}
                   />
                 )}
-                {movie.budget && movie.budget > 0 && (
+                {(movie.budget ?? 0) > 0 && (
                   <DetailItem
                     icon={<DollarSign className="h-4 w-4" />}
                     label="Budget"
-                    value={`$${movie.budget.toLocaleString()}`}
+                    value={`$${(movie.budget ?? 0).toLocaleString()}`}
                   />
                 )}
-                {movie.revenue && movie.revenue > 0 && (
+                {(movie.revenue ?? 0) > 0 && (
                   <DetailItem
                     icon={<DollarSign className="h-4 w-4" />}
                     label="Box Office"
-                    value={`$${movie.revenue.toLocaleString()}`}
+                    value={`$${(movie.revenue ?? 0).toLocaleString()}`}
                   />
                 )}
               </div>

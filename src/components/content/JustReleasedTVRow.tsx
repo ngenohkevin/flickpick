@@ -9,6 +9,7 @@ import { ContentRating } from './ContentRating';
 import { Tooltip, useToast } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import type { TVShow } from '@/types';
+import { watchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
 // Just Released TV Row Component
@@ -34,7 +35,7 @@ export interface JustReleasedTVShowData extends TVShow {
 
 interface JustReleasedTVRowProps {
   shows: JustReleasedTVShowData[];
-  watchlistIds?: Set<number>;
+  watchlistIds?: Set<string>; // watchlistKey() values
   onWatchlistToggle?: (show: JustReleasedTVShowData) => void;
   className?: string;
 }
@@ -156,7 +157,7 @@ export function JustReleasedTVRow({
               <JustReleasedTVCard
                 show={show}
                 priority={index < 4}
-                isInWatchlist={watchlistIds?.has(show.id)}
+                isInWatchlist={watchlistIds?.has(watchlistKey('tv', show.id))}
                 onWatchlistToggle={onWatchlistToggle}
               />
             </div>

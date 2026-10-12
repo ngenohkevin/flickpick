@@ -7,7 +7,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { trackWatchlistAdd, trackWatchlistRemove, trackWatchlistPickRandom } from '@/lib/analytics';
-import type { WatchlistItem, MediaType, ContentType } from '@/types';
+import type { WatchlistItem, MediaType, ContentType, Content } from '@/types';
+import { isMovie } from '@/lib/utils';
 
 // ==========================================================================
 // Types
@@ -292,6 +293,17 @@ export const useIsInWatchlist = (id: number, mediaType: MediaType) =>
 // Returns the array of IDs - use with useMemo to create a Set if needed
 export const useWatchlistItems = () => useWatchlist((state) => state.items);
 
-// Hook that returns watchlist IDs as an array (stable reference with shallow comparison)
+/**
+ * Watchlist membership key. Movies and TV shows share TMDB's numeric ID
+ * space, so a set of bare IDs marked a show as saved when a movie with the
+ * same ID was.
+ */
+export const watchlistKey = (mediaType: MediaType, id: number): string => `${mediaType}:${id}`;
+
+/** Membership key for a Content item (movie or TV show). */
+export const contentWatchlistKey = (content: Content): string =>
+  watchlistKey(isMovie(content) ? 'movie' : 'tv', content.id);
+
+// Hook that returns watchlist keys as an array (stable reference with shallow comparison)
 export const useWatchlistIdArray = () =>
-  useWatchlist(useShallow((state) => state.items.map((item) => item.id)));
+  useWatchlist(useShallow((state) => state.items.map((item) => watchlistKey(item.media_type, item.id))));

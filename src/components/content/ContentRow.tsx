@@ -7,6 +7,7 @@ import { ContentCard } from './ContentCard';
 import { SkeletonRow } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import type { Content } from '@/types';
+import { contentWatchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
 // Content Row Component
@@ -22,7 +23,7 @@ interface ContentRowProps {
   showRating?: boolean;
   isLoading?: boolean;
   loadingCount?: number;
-  watchlistIds?: Set<number>;
+  watchlistIds?: Set<string>; // watchlistKey() values
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
 }
@@ -164,7 +165,7 @@ export function ContentRow({
                   priority={index < 4}
                   showTypeBadge={showTypeBadge}
                   showRating={showRating}
-                  isInWatchlist={watchlistIds?.has(item.id)}
+                  isInWatchlist={watchlistIds?.has(contentWatchlistKey(item))}
                   onWatchlistToggle={onWatchlistToggle}
                 />
               </div>

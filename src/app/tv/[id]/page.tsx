@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { Star, Calendar, Play, ExternalLink, Tv, Film, Globe, Users } from 'lucide-react';
 import { getTVShowDetailsExtended } from '@/lib/tmdb/tv';
 import { getPosterUrl, getBackdropUrl, extractYear, cn, createSlug } from '@/lib/utils';
-import { ANIMATION_GENRE_ID } from '@/lib/constants';
+import { ANIMATION_GENRE_ID, getGenreSlug } from '@/lib/constants';
 import dynamic from 'next/dynamic';
 import {
   generateTVShowJsonLd,
@@ -244,7 +244,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
       ? [
           {
             name: primaryGenre.name,
-            url: `${BASE_URL}/genre/tv/${primaryGenre.name.toLowerCase().replace(/\s+/g, '-')}`,
+            url: `${BASE_URL}/genre/tv/${getGenreSlug(primaryGenre.id) ?? primaryGenre.id}`,
           },
         ]
       : []),
@@ -372,7 +372,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 {show.genres?.slice(0, 3).map((genre) => (
                   <Link
                     key={genre.id}
-                    href={`/genre/tv/${genre.name.toLowerCase()}`}
+                    href={`/genre/tv/${getGenreSlug(genre.id) ?? genre.id}`}
                     className="rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
                   >
                     {genre.name}
@@ -384,7 +384,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
                 {show.genres?.slice(0, 3).map((genre) => (
                   <Link
                     key={genre.id}
-                    href={`/genre/tv/${genre.name.toLowerCase()}`}
+                    href={`/genre/tv/${getGenreSlug(genre.id) ?? genre.id}`}
                     className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-text-primary backdrop-blur-sm transition-colors hover:bg-white/20"
                   >
                     {genre.name}
@@ -518,6 +518,7 @@ export default async function TVShowPage({ params }: TVPageProps) {
                   title={show.name}
                   mediaType="tv"
                   posterPath={show.poster_path}
+                  contentType={contentType}
                   variant="hero"
                 />
 

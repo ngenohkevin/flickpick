@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ChevronRight, TrendingUp, Star } from 'lucide-react';
 import { InfiniteContentGrid, ContentRow } from '@/components/content';
 import { SortDropdown, type SortOption } from '@/components/browse';
-import { useWatchlist } from '@/stores/watchlist';
+import { useWatchlist, watchlistKey } from '@/stores/watchlist';
 import { MOVIE_GENRES, TV_GENRES, GENRE_SLUGS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import type { Content, PaginatedResponse, Genre, WatchlistItem } from '@/types';
@@ -53,7 +53,7 @@ export function GenrePageContent({
 
   // Watchlist
   const watchlist = useWatchlist();
-  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => item.id));
+  const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => watchlistKey(item.media_type, item.id)));
 
   // Get other genres for quick navigation
   const genreList = type === 'movie' ? MOVIE_GENRES : TV_GENRES;

@@ -21,7 +21,7 @@ import {
   Shield,
   Compass,
 } from 'lucide-react';
-import { MOVIE_GENRES, TV_GENRES, GENRE_SLUGS } from '@/lib/constants';
+import { MOVIE_GENRES, TV_GENRES, getGenreSlug } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 // ==========================================================================
@@ -102,9 +102,8 @@ const GENRE_COLORS: Record<number, string> = {
 // Helper Functions
 // ==========================================================================
 
-function getGenreSlug(genreId: number): string {
-  const entry = Object.entries(GENRE_SLUGS).find(([, id]) => id === genreId);
-  return entry ? entry[0] : String(genreId);
+function slugFor(genreId: number): string {
+  return getGenreSlug(genreId) ?? String(genreId);
 }
 
 // ==========================================================================
@@ -120,7 +119,7 @@ export function GenreGrid({ type, className = '' }: GenreGridProps) {
         const genreId = parseInt(id, 10);
         const Icon = GENRE_ICONS[genreId] || Sparkles;
         const gradient = GENRE_COLORS[genreId] || 'from-gray-500 to-gray-600';
-        const slug = getGenreSlug(genreId);
+        const slug = slugFor(genreId);
 
         return (
           <Link
@@ -172,7 +171,7 @@ export function GenreList({ type, activeGenre, className = '' }: GenreListProps)
     <div className={cn('space-y-1', className)}>
       {Object.entries(genres).map(([id, name]) => {
         const genreId = parseInt(id, 10);
-        const slug = getGenreSlug(genreId);
+        const slug = slugFor(genreId);
         const isActive = genreId === activeGenre;
 
         return (
@@ -211,7 +210,7 @@ export function GenrePills({ type, activeGenre, className = '' }: GenrePillsProp
     <div className={cn('flex gap-2 overflow-x-auto scrollbar-hide pb-2', className)}>
       {Object.entries(genres).map(([id, name]) => {
         const genreId = parseInt(id, 10);
-        const slug = getGenreSlug(genreId);
+        const slug = slugFor(genreId);
         const isActive = genreId === activeGenre;
 
         return (
