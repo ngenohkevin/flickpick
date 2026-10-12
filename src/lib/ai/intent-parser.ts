@@ -114,6 +114,16 @@ const LANGUAGE_KEYWORDS: Record<string, string> = {
  * Parse user intent from natural language prompt
  * Extracts genres, year ranges, quality preferences, and media type
  */
+/**
+ * True when `phrase` appears as whole word(s) in `text`. Plain substring
+ * matching mapped "heartwarming" to War, "beloved" to Romance and "intense"
+ * to Thriller.
+ */
+export function hasPhrase(text: string, phrase: string): boolean {
+  const escaped = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:$|[^\\p{L}\\p{N}])`, 'u').test(text);
+}
+
 export function parseUserIntent(
   prompt: string,
   contentTypes?: ContentType[]
@@ -151,7 +161,7 @@ export function parseUserIntent(
 
   // Check for anime keywords
   for (const keyword of ANIME_KEYWORDS) {
-    if (lowerPrompt.includes(keyword)) {
+    if (hasPhrase(lowerPrompt, keyword)) {
       intent.keywords.push('anime');
       break;
     }
@@ -159,7 +169,7 @@ export function parseUserIntent(
 
   // Extract genres from keyword mapping
   for (const [keyword, genreIds] of Object.entries(GENRE_KEYWORDS)) {
-    if (lowerPrompt.includes(keyword)) {
+    if (hasPhrase(lowerPrompt, keyword)) {
       for (const genreId of genreIds) {
         if (!intent.genres.includes(genreId)) {
           intent.genres.push(genreId);
@@ -174,7 +184,7 @@ export function parseUserIntent(
   // Detect mood
   for (const [mood, keywords] of Object.entries(MOOD_KEYWORDS)) {
     for (const keyword of keywords) {
-      if (lowerPrompt.includes(keyword)) {
+      if (hasPhrase(lowerPrompt, keyword)) {
         intent.mood = mood;
         break;
       }
@@ -184,7 +194,7 @@ export function parseUserIntent(
 
   // Detect language preference
   for (const [keyword, langCode] of Object.entries(LANGUAGE_KEYWORDS)) {
-    if (lowerPrompt.includes(keyword)) {
+    if (hasPhrase(lowerPrompt, keyword)) {
       intent.language = langCode;
       break;
     }

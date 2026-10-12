@@ -3,6 +3,7 @@
 // POST /api/recommendations - Get personalized recommendations based on watchlist
 // ==========================================================================
 
+import { MIN_SIMILAR_VOTES } from '@/lib/tmdb/movies';
 import { NextRequest, NextResponse } from 'next/server';
 import { discoverMovies, discoverTVShows } from '@/lib/tmdb/discover';
 import { getSimilarMovies, getMovieRecommendations, toMovie } from '@/lib/tmdb/movies';
@@ -82,7 +83,11 @@ async function getSimilarContent(
       getMovieRecommendations(item.id).catch(() => ({ results: [] })),
     ]);
 
-    const combined = [...(similar.results ?? []), ...(recommendations.results ?? [])];
+    // Recommendations first; /similar only fills gaps (see getRelatedMovies).
+    const combined = [
+      ...(recommendations.results ?? []),
+      ...(similar.results ?? []).filter((m) => (m.vote_count ?? 0) >= MIN_SIMILAR_VOTES),
+    ];
     const uniqueMap = new Map<number, Content>();
 
     combined.forEach((m) => {
@@ -102,7 +107,10 @@ async function getSimilarContent(
       getTVShowRecommendations(item.id).catch(() => ({ results: [] })),
     ]);
 
-    const combined = [...(similar.results ?? []), ...(recommendations.results ?? [])];
+    const combined = [
+      ...(recommendations.results ?? []),
+      ...(similar.results ?? []).filter((s) => (s.vote_count ?? 0) >= MIN_SIMILAR_VOTES),
+    ];
     const uniqueMap = new Map<number, Content>();
 
     combined.forEach((s) => {

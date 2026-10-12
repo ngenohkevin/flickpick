@@ -19,6 +19,30 @@ const PROVIDER_NAME = 'tmdb';
 // TMDB Provider Implementation
 // ==========================================================================
 
+/** Movie genre IDs mapped to TMDB's TV genres (null: no TV equivalent). */
+const MOVIE_TO_TV_GENRE: Record<number, number | null> = {
+  28: 10759, // Action -> Action & Adventure
+  12: 10759, // Adventure -> Action & Adventure
+  878: 10765, // Science Fiction -> Sci-Fi & Fantasy
+  14: 10765, // Fantasy -> Sci-Fi & Fantasy
+  10752: 10768, // War -> War & Politics
+  53: 9648, // Thriller -> Mystery
+  27: null, // Horror
+  10749: null, // Romance
+  36: null, // History
+  10402: null, // Music
+  10770: null, // TV Movie
+};
+
+export function toTVGenres(movieGenres: number[]): number[] {
+  const out = new Set<number>();
+  for (const id of movieGenres) {
+    const tv = id in MOVIE_TO_TV_GENRE ? MOVIE_TO_TV_GENRE[id] : id; // shared IDs (16, 18, 35, 80, 99, 9648, 10751, 37)
+    if (tv != null) out.add(tv);
+  }
+  return [...out];
+}
+
 export const TMDBProvider: AIProvider = {
   name: PROVIDER_NAME,
 
@@ -45,8 +69,9 @@ export const TMDBProvider: AIProvider = {
       'vote_count.gte': 100, // Ensure some popularity
     };
 
+    // Any of the matched genres (OR), not all of them (AND).
     if (intent.genres.length > 0) {
-      baseParams.with_genres = intent.genres.join(',');
+      baseParams.with_genres = intent.genres.join('|');
     }
 
     if (intent.voteAverage) {
@@ -97,7 +122,15 @@ export const TMDBProvider: AIProvider = {
 
     if (intent.mediaType === 'tv' || intent.mediaType === 'both') {
       try {
-        const tvResults = await discoverTVShows(baseParams);
+        // TV uses its own genre IDs; movie IDs like 28 (Action) match nothing.
+        const tvGenres = toTVGenres(intent.genres);
+        const tvParams = { ...baseParams };
+        if (tvGenres.length > 0) {
+          tvParams.with_genres = tvGenres.join('|');
+        } else {
+          delete tvParams.with_genres;
+        }
+        const tvResults = await discoverTVShows(tvParams);
 
         for (const show of (tvResults.results ?? []).slice(0, 6)) {
           const genreIds = show.genre_ids ?? [];

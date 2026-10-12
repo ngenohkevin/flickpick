@@ -9,6 +9,8 @@ import { deepseekProvider } from './providers/deepseek';
 import { TasteDiveProvider } from './providers/tastedive';
 import { TMDBProvider } from './providers/tmdb';
 import { searchMovies, searchTVShows } from '@/lib/tmdb/search';
+import type { TMDBMovie as TMDBMovieResult } from '@/lib/tmdb/movies';
+import type { TMDBTVShow as TMDBTVResult } from '@/lib/tmdb/tv';
 import { getMovieProviders, getTVProviders, getStreamingProviders } from '@/lib/tmdb/providers';
 import { ANIMATION_GENRE_ID, DEFAULT_COUNTRY } from '@/lib/constants';
 import type { AIProvider, AIRecommendation, EnrichedRecommendation } from './types';
@@ -82,7 +84,8 @@ async function withRetry<T>(
         errorMessage.includes('model_not_found') ||
         errorMessage.includes('model_decommissioned') ||
         errorMessage.includes('error: 429') ||
-        errorMessage.includes('rate limit')
+        errorMessage.includes('rate limit') ||
+        errorMessage.includes('timed out')
       ) {
         throw lastError;
       }
@@ -126,126 +129,188 @@ async function getProviderIds(
   }
 }
 
+/** Lowercase letters and digits only, so punctuation and "&"/"and" don't block a match. */
+function normTitle(value: string): string {
+  return value.toLowerCase().replace(/&/g, 'and').replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+function yearOf(date: string | undefined | null): number | null {
+  return date ? Number(date.slice(0, 4)) || null : null;
+}
+
+export interface MatchCandidate {
+  title: string;
+  original: string;
+  year: number | null;
+  votes: number;
+}
+
 /**
- * Search TMDB for a title and return the best match
+ * Index of the search result that is really the title the AI meant, or -1.
+ * Search results are ranked by popularity, so taking the first hit returned
+ * a different film whenever a more popular one shared words with the title.
+ * A candidate must match the title (or original-language title); among
+ * matches the closest year wins, then the most votes. `tolerance` is the
+ * allowed year difference when the AI gave a year.
+ */
+export function pickBestMatch(
+  candidates: MatchCandidate[],
+  title: string,
+  year: number | undefined,
+  tolerance: number
+): number {
+  const want = normTitle(title);
+  const wantBase = normTitle(title.split(':')[0] ?? title);
+  if (!want) return -1;
+
+  let best = -1;
+  let bestScore = -1;
+  candidates.forEach((c, i) => {
+    const yearDiff = year && c.year ? Math.abs(c.year - year) : 0;
+    if (year && c.year && yearDiff > tolerance) return;
+
+    let titleScore = 0;
+    if (normTitle(c.title) === want || normTitle(c.original) === want) {
+      titleScore = 2;
+    } else if (yearDiff === 0 && (normTitle(c.title.split(':')[0] ?? '') === want || normTitle(c.title) === wantBase)) {
+      titleScore = 1; // "Borat" vs "Borat: Cultural Learnings...", same year
+    } else {
+      return;
+    }
+
+    const score = titleScore * 1e9 + (10 - yearDiff) * 1e7 + Math.min(c.votes, 9_999_999);
+    if (score > bestScore) {
+      best = i;
+      bestScore = score;
+    }
+  });
+  return best;
+}
+
+/** Search with the AI's year first, then without it (AI years are often off by one). */
+async function searchBestMovie(title: string, year: number | undefined): Promise<TMDBMovieResult | null> {
+  const pick = (results: TMDBMovieResult[], tolerance: number) => {
+    const i = pickBestMatch(
+      results.map((m) => ({ title: m.title, original: m.original_title ?? '', year: yearOf(m.release_date), votes: m.vote_count ?? 0 })),
+      title,
+      year,
+      tolerance
+    );
+    return i >= 0 ? (results[i] ?? null) : null;
+  };
+  if (year) {
+    const withYear = await searchMovies({ query: title, primary_release_year: year });
+    const match = pick(withYear.results ?? [], 0);
+    if (match) return match;
+  }
+  const anyYear = await searchMovies({ query: title });
+  return pick(anyYear.results ?? [], 1);
+}
+
+async function searchBestTV(title: string, year: number | undefined): Promise<TMDBTVResult | null> {
+  const pick = (results: TMDBTVResult[], tolerance: number) => {
+    const i = pickBestMatch(
+      results.map((s) => ({ title: s.name, original: s.original_name ?? '', year: yearOf(s.first_air_date), votes: s.vote_count ?? 0 })),
+      title,
+      year,
+      tolerance
+    );
+    return i >= 0 ? (results[i] ?? null) : null;
+  };
+  if (year) {
+    const withYear = await searchTVShows({ query: title, first_air_date_year: year });
+    const match = pick(withYear.results ?? [], 0);
+    if (match) return match;
+  }
+  const anyYear = await searchTVShows({ query: title });
+  return pick(anyYear.results ?? [], 1);
+}
+
+function enrichMovie(match: TMDBMovieResult, reason: string, fallbackYear: number): EnrichedRecommendation {
+  const genreIds = match.genre_ids ?? [];
+  const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
+  const isJapanese = match.original_language === 'ja';
+  let contentType: ContentType = 'movie';
+  if (isAnimation && isJapanese) {
+    contentType = 'anime';
+  } else if (isAnimation) {
+    contentType = 'animation';
+  }
+  return {
+    id: match.id,
+    title: match.title,
+    year: yearOf(match.release_date) ?? fallbackYear,
+    media_type: 'movie',
+    content_type: contentType,
+    poster_path: match.poster_path,
+    backdrop_path: match.backdrop_path,
+    vote_average: match.vote_average,
+    vote_count: match.vote_count,
+    overview: match.overview ?? '',
+    popularity: match.popularity,
+    genre_ids: genreIds,
+    original_language: match.original_language ?? 'en',
+    reason,
+  };
+}
+
+function enrichTV(match: TMDBTVResult, reason: string, fallbackYear: number): EnrichedRecommendation {
+  const genreIds = match.genre_ids ?? [];
+  const originCountry = match.origin_country ?? [];
+  const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
+  const isJapanese = originCountry.includes('JP') || match.original_language === 'ja';
+  let contentType: ContentType = 'tv';
+  if (isAnimation && isJapanese) {
+    contentType = 'anime';
+  } else if (isAnimation) {
+    contentType = 'animation';
+  }
+  return {
+    id: match.id,
+    title: match.name,
+    year: yearOf(match.first_air_date) ?? fallbackYear,
+    media_type: 'tv',
+    content_type: contentType,
+    poster_path: match.poster_path,
+    backdrop_path: match.backdrop_path,
+    vote_average: match.vote_average,
+    vote_count: match.vote_count ?? 0,
+    overview: match.overview ?? '',
+    popularity: match.popularity,
+    genre_ids: genreIds,
+    original_language: match.original_language ?? 'en',
+    reason,
+  };
+}
+
+/**
+ * Find the TMDB entry the AI meant. Anime is searched as TV first (most
+ * anime the AI names are series; movie-first matched "Death Note" to the
+ * live-action film).
  */
 async function findInTMDB(
   recommendation: AIRecommendation
 ): Promise<EnrichedRecommendation | null> {
-  const { title, year, type, reason } = recommendation;
+  const { title, type, reason } = recommendation;
+  // A missing year parses as 0; don't send that to TMDB as a filter.
+  const year = recommendation.year && recommendation.year > 1870 ? recommendation.year : undefined;
 
   try {
-    // Determine search type based on AI recommendation
-    // Anime can be either movie or TV, so we search both
-    if (type === 'movie' || type === 'anime') {
-      const movieResults = await searchMovies({
-        query: title,
-        primary_release_year: year,
-      });
-
-      // Find best match in movie results
-      if (movieResults.results && movieResults.results.length > 0) {
-        // Try exact year match first
-        const exactMatch = movieResults.results.find((m) => {
-          const releaseYear = m.release_date
-            ? new Date(m.release_date).getFullYear()
-            : null;
-          return releaseYear === year;
-        });
-
-        // Fall back to first result if no exact match
-        const match = exactMatch ?? movieResults.results[0];
-
-        if (match) {
-          const genreIds = match.genre_ids ?? [];
-          const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
-          const isJapanese = match.original_language === 'ja';
-
-          let contentType: ContentType = 'movie';
-          if (isAnimation && isJapanese) {
-            contentType = 'anime';
-          } else if (isAnimation) {
-            contentType = 'animation';
-          }
-
-          return {
-            id: match.id,
-            title: match.title,
-            year: match.release_date ? new Date(match.release_date).getFullYear() : year,
-            media_type: 'movie',
-            content_type: contentType,
-            poster_path: match.poster_path,
-            backdrop_path: match.backdrop_path,
-            vote_average: match.vote_average,
-            vote_count: match.vote_count,
-            overview: match.overview ?? '',
-            popularity: match.popularity,
-            genre_ids: genreIds,
-            original_language: match.original_language ?? 'en',
-            reason,
-          };
-        }
-      }
+    if (type === 'movie') {
+      const movie = await searchBestMovie(title, year);
+      return movie ? enrichMovie(movie, reason, recommendation.year) : null;
     }
-
-    // Search TV shows
-    if (type === 'tv' || type === 'anime') {
-      const tvResults = await searchTVShows({
-        query: title,
-        first_air_date_year: year,
-      });
-
-      if (tvResults.results && tvResults.results.length > 0) {
-        // Try exact year match first
-        const exactMatch = tvResults.results.find((s) => {
-          const airYear = s.first_air_date
-            ? new Date(s.first_air_date).getFullYear()
-            : null;
-          return airYear === year;
-        });
-
-        // Fall back to first result
-        const match = exactMatch ?? tvResults.results[0];
-
-        if (match) {
-          const genreIds = match.genre_ids ?? [];
-          const originCountry = match.origin_country ?? [];
-          const isAnimation = genreIds.includes(ANIMATION_GENRE_ID);
-          const isJapanese = originCountry.includes('JP') || match.original_language === 'ja';
-
-          let contentType: ContentType = 'tv';
-          if (isAnimation && isJapanese) {
-            contentType = 'anime';
-          } else if (isAnimation) {
-            contentType = 'animation';
-          }
-
-          return {
-            id: match.id,
-            title: match.name,
-            year: match.first_air_date ? new Date(match.first_air_date).getFullYear() : year,
-            media_type: 'tv',
-            content_type: contentType,
-            poster_path: match.poster_path,
-            backdrop_path: match.backdrop_path,
-            vote_average: match.vote_average,
-            vote_count: match.vote_count ?? 0,
-            overview: match.overview ?? '',
-            popularity: match.popularity,
-            genre_ids: genreIds,
-            original_language: match.original_language ?? 'en',
-            reason,
-          };
-        }
-      }
+    if (type === 'tv') {
+      const show = await searchBestTV(title, year);
+      return show ? enrichTV(show, reason, recommendation.year) : null;
     }
+    // anime: TV first, then movie
+    const show = await searchBestTV(title, year);
+    if (show) return enrichTV(show, reason, recommendation.year);
+    const movie = await searchBestMovie(title, year);
+    if (movie) return enrichMovie(movie, reason, recommendation.year);
 
-    // If anime didn't find results, try the opposite type
-    if (type === 'anime') {
-      // Already searched both above, so if we're here, no match found
-      console.warn(`Could not find "${title}" (${year}) in TMDB`);
-    }
-
+    console.warn(`Could not find "${title}" (${recommendation.year}) in TMDB`);
     return null;
   } catch (error) {
     console.error(`Error searching TMDB for "${title}":`, error);
@@ -313,6 +378,13 @@ export interface DiscoveryResult {
  * - Enriches results with TMDB data
  * - Filters out excluded IDs
  */
+/**
+ * After this long, skip the remaining AI providers and go straight to the
+ * TMDB fallback. Cloudflare drops requests at 100s, and three 45s attempts
+ * per provider could otherwise take minutes.
+ */
+const CHAIN_DEADLINE_MS = 40000;
+
 export async function getRecommendations(
   prompt: string,
   contentTypes?: ContentType[],
@@ -325,6 +397,11 @@ export async function getRecommendations(
   for (let i = 0; i < AI_PROVIDERS.length; i++) {
     const provider = AI_PROVIDERS[i];
     if (!provider) continue;
+
+    if (provider.name !== 'tmdb' && Date.now() - startTime > CHAIN_DEADLINE_MS) {
+      console.warn(`[AI] Deadline passed, skipping ${provider.name}`);
+      continue;
+    }
 
     try {
       // Check if provider is available

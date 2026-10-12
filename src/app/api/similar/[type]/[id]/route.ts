@@ -4,6 +4,7 @@
 // Primary: TasteDive, Fallback: TMDB Similar
 // ==========================================================================
 
+import { TMDBApiError } from '@/lib/tmdb/client';
 import { NextRequest, NextResponse } from 'next/server';
 import { getMovieDetailsExtended, getRelatedMovies, toMovie } from '@/lib/tmdb/movies';
 import { getTVShowDetailsExtended, getRelatedTVShows, toTVShow } from '@/lib/tmdb/tv';
@@ -452,7 +453,7 @@ export async function GET(
     console.error('Similar Content API error:', error);
 
     // Check if it's a 404 from TMDB
-    if (error instanceof Error && error.message.includes('404')) {
+    if ((error instanceof TMDBApiError && error.httpStatus === 404) || (error instanceof Error && error.message.includes('404'))) {
       return NextResponse.json(
         { error: 'Content not found', code: 'NOT_FOUND' },
         { status: 404 }

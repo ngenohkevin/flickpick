@@ -4,6 +4,7 @@
 // Returns movie details with credits, videos, providers, and similar movies
 // ==========================================================================
 
+import { TMDBApiError } from '@/lib/tmdb/client';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getMovieDetailsExtended,
@@ -136,7 +137,7 @@ export async function GET(
     console.error('Movie API error:', error);
 
     // Check if it's a 404 from TMDB
-    if (error instanceof Error && error.message.includes('404')) {
+    if ((error instanceof TMDBApiError && error.httpStatus === 404) || (error instanceof Error && error.message.includes('404'))) {
       const apiError: ApiError = {
         error: 'Movie not found',
         code: 'NOT_FOUND',

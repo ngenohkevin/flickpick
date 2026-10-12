@@ -226,8 +226,11 @@ export async function getMovieRecommendations(
   return tmdbFetch<TMDBResponse<TMDBMovie>>(`/movie/${movieId}/recommendations`, { page });
 }
 
+/** /similar entries below this vote count are too obscure to show. */
+export const MIN_SIMILAR_VOTES = 50;
+
 /**
- * Get combined similar and recommended movies (deduplicated)
+ * Get combined recommended and similar movies (deduplicated)
  */
 export async function getRelatedMovies(movieId: number): Promise<TMDBMovie[]> {
   const [similar, recommendations] = await Promise.all([
@@ -235,8 +238,13 @@ export async function getRelatedMovies(movieId: number): Promise<TMDBMovie[]> {
     getMovieRecommendations(movieId),
   ]);
 
-  // Combine and deduplicate by ID
-  const combined = [...(similar.results ?? []), ...(recommendations.results ?? [])];
+  // TMDB's /recommendations is far better than /similar, which ranks by
+  // genre/keyword overlap and returns obscure titles ("Soft Deceit" for
+  // Inception). Recommendations first; similar only fills gaps.
+  const combined = [
+    ...(recommendations.results ?? []),
+    ...(similar.results ?? []).filter((m) => (m.vote_count ?? 0) >= MIN_SIMILAR_VOTES),
+  ];
   const uniqueMap = new Map<number, TMDBMovie>();
 
   combined.forEach((movie) => {

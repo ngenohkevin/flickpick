@@ -4,6 +4,7 @@
 // Returns TV show details with credits, videos, providers, and similar shows
 // ==========================================================================
 
+import { TMDBApiError } from '@/lib/tmdb/client';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getTVShowDetailsExtended,
@@ -191,7 +192,7 @@ export async function GET(
     console.error('TV Show API error:', error);
 
     // Check if it's a 404 from TMDB
-    if (error instanceof Error && error.message.includes('404')) {
+    if ((error instanceof TMDBApiError && error.httpStatus === 404) || (error instanceof Error && error.message.includes('404'))) {
       const apiError: ApiError = {
         error: 'TV show not found',
         code: 'NOT_FOUND',

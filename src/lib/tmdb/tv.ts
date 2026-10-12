@@ -3,6 +3,7 @@
 // Functions for fetching TV show data from TMDB
 // ==========================================================================
 
+import { MIN_SIMILAR_VOTES } from './movies';
 import { tmdbFetch, type TMDBResponse } from './client';
 import type {
   TVShow,
@@ -322,7 +323,11 @@ export async function getRelatedTVShows(showId: number): Promise<TMDBTVShow[]> {
     getTVShowRecommendations(showId),
   ]);
 
-  const combined = [...(similar.results ?? []), ...(recommendations.results ?? [])];
+  // Recommendations first; /similar only fills gaps (see getRelatedMovies).
+  const combined = [
+    ...(recommendations.results ?? []),
+    ...(similar.results ?? []).filter((s) => (s.vote_count ?? 0) >= MIN_SIMILAR_VOTES),
+  ];
   const uniqueMap = new Map<number, TMDBTVShow>();
 
   combined.forEach((show) => {
