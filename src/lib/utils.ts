@@ -124,6 +124,21 @@ export function createSlug(title: string, year?: number | string): string {
 }
 
 /**
+ * Extract the TMDB ID from a slug: a bare "238" or "the-godfather-238".
+ * The ID is always the last segment. There is no minimum: TMDB's oldest,
+ * most popular titles have small IDs (Forrest Gump is 13), and an earlier
+ * "> 3000 means it isn't a year" rule 404'd every one of them.
+ */
+export function extractIdFromSlug(slug: string): number | null {
+  const last = slug.split('-').pop() ?? '';
+  if (!/^\d+$/.test(last)) {
+    return null;
+  }
+  const id = parseInt(last, 10);
+  return id > 0 ? id : null;
+}
+
+/**
  * Extract year from a date string
  */
 export function extractYear(dateString: string | undefined): number | undefined {

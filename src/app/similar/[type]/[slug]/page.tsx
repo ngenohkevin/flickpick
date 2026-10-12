@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
 import { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { SimilarPageContent } from './SimilarPageContent';
 import { SkeletonGrid } from '@/components/ui';
 import { getMovieDetails } from '@/lib/tmdb/movies';
 import { getTVShowDetails } from '@/lib/tmdb/tv';
 import { getTrendingMovies, getTrendingTVShows } from '@/lib/tmdb';
-import { createSlug, extractYear } from '@/lib/utils';
+import { createSlug, extractIdFromSlug, extractYear } from '@/lib/utils';
 import {
   generateBreadcrumbJsonLd,
   generateSimilarContentJsonLd,
@@ -38,33 +38,6 @@ function isValidMediaType(type: string): type is MediaType {
   return type === 'movie' || type === 'tv';
 }
 
-/**
- * Extract content ID from slug
- * Supports formats:
- * - Pure number: "27205"
- * - Slug with ID: "inception-27205"
- * - Slug with year: "inception-2010" (will search by title)
- */
-function extractIdFromSlug(slug: string): number | null {
-  // Check if slug is just a number
-  const pureNumber = parseInt(slug, 10);
-  if (!isNaN(pureNumber) && String(pureNumber) === slug) {
-    return pureNumber;
-  }
-
-  // Try to extract ID from end of slug (format: title-id)
-  const parts = slug.split('-');
-  const lastPart = parts[parts.length - 1];
-  if (lastPart) {
-    const possibleId = parseInt(lastPart, 10);
-    // TMDB IDs are typically larger numbers (not years like 2010, 2024)
-    if (!isNaN(possibleId) && possibleId > 3000) {
-      return possibleId;
-    }
-  }
-
-  return null;
-}
 
 // ==========================================================================
 // SEO-Optimized Metadata Generation
@@ -267,6 +240,12 @@ export default async function SimilarPage({ params }: PageProps) {
 
   const canonicalSlug = title ? `${createSlug(title)}-${contentId}` : slug;
   const pageUrl = `${BASE_URL}/similar/${type}/${canonicalSlug}`;
+
+  // Bare-ID links (/similar/movie/238) are served as-is with a canonical tag;
+  // a titled slug that doesn't match goes to the canonical URL.
+  if (title && !/^\d+$/.test(slug) && slug !== canonicalSlug) {
+    permanentRedirect(`/similar/${type}/${canonicalSlug}`);
+  }
 
   // Generate Breadcrumb JSON-LD
   const breadcrumbJsonLd = generateBreadcrumbJsonLd([

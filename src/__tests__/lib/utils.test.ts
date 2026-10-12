@@ -627,3 +627,21 @@ describe('randomItem', () => {
     expect(randomItem([])).toBeUndefined();
   });
 });
+
+describe('extractIdFromSlug', () => {
+  it('accepts small TMDB IDs used by classic titles', async () => {
+    const { extractIdFromSlug } = await import('@/lib/utils');
+    expect(extractIdFromSlug('the-godfather-238')).toBe(238);
+    expect(extractIdFromSlug('forrest-gump-13')).toBe(13);
+    expect(extractIdFromSlug('star-wars-the-empire-strikes-back-1891')).toBe(1891);
+  });
+
+  it('handles bare IDs, titles ending in numbers, and bad input', async () => {
+    const { extractIdFromSlug } = await import('@/lib/utils');
+    expect(extractIdFromSlug('27205')).toBe(27205);
+    expect(extractIdFromSlug('blade-runner-2049-335984')).toBe(335984);
+    expect(extractIdFromSlug('inception')).toBeNull();
+    expect(extractIdFromSlug('movie-0')).toBeNull();
+    expect(extractIdFromSlug('')).toBeNull();
+  });
+});
