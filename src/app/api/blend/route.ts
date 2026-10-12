@@ -10,7 +10,9 @@ import { getBlendEnriched, isTasteDiveAvailable } from '@/lib/tastedive';
 import { getMovieDetails } from '@/lib/tmdb/movies';
 import { getTVShowDetails } from '@/lib/tmdb/tv';
 import { getMovieProviders, getTVProviders, getStreamingProviders } from '@/lib/tmdb/providers';
-import { DEFAULT_COUNTRY } from '@/lib/constants';
+import { DEFAULT_COUNTRY, RATE_LIMITS } from '@/lib/constants';
+import { getClientIP } from '@/lib/client-ip';
+import { getCache, setCache, isRateLimited } from '@/lib/redis';
 import type { EnrichedTasteDiveResult } from '@/lib/tastedive';
 
 // ==========================================================================
@@ -54,7 +56,7 @@ interface BlendResult {
 interface BlendResponse {
   source_items: BlendSourceItem[];
   results: BlendResult[];
-  provider: 'tastedive' | 'gemini';
+  provider: string; // 'tastedive', an AI provider name, or 'tmdb'
 }
 
 // ==========================================================================
@@ -158,8 +160,20 @@ function toBlendResult(
 // Route Handler
 // ==========================================================================
 
+/** Blend results are cached per set of titles; non-AI fallbacks only briefly. */
+const BLEND_CACHE_TTL = 86400;
+const BLEND_FALLBACK_CACHE_TTL = 1800;
+
 export async function POST(request: NextRequest) {
   try {
+    // Blend can run the paid AI chain, so it's rate-limited like discover.
+    if (await isRateLimited(getClientIP(request), 'blend', RATE_LIMITS.BLEND)) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a moment.', code: 'RATE_LIMITED' },
+        { status: 429 }
+      );
+    }
+
     // Parse request body
     const body = await request.json();
     const validationResult = BlendRequestSchema.safeParse(body);
@@ -176,6 +190,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { items } = validationResult.data;
+
+    const cacheKey = `blend:${items.map((i) => `${i.type}:${i.id}`).sort().join(',')}`;
+    const cached = await getCache<BlendResponse>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
 
     // Fetch source item details
     const sourcePromises = items.map((item) => fetchTitle(item.id, item.type));
@@ -202,7 +222,7 @@ export async function POST(request: NextRequest) {
     // Check TasteDive availability
     const tasteDiveAvailable = await isTasteDiveAvailable();
     let results: BlendResult[] = [];
-    let provider: 'tastedive' | 'gemini' = 'tastedive';
+    let provider = 'tastedive';
 
     if (tasteDiveAvailable) {
       try {
@@ -227,8 +247,6 @@ export async function POST(request: NextRequest) {
 
     // Fallback to Gemini if TasteDive failed
     if (results.length === 0) {
-      provider = 'gemini';
-
       try {
         // Use AI provider for blend
         const { getRecommendations } = await import('@/lib/ai');
@@ -249,8 +267,8 @@ export async function POST(request: NextRequest) {
           blend_reason: r.reason,
         }));
 
-        // Use the actual provider that succeeded
-        provider = aiResult.provider === 'gemini' ? 'gemini' : 'tastedive';
+        // Report the provider that actually answered
+        provider = aiResult.provider;
       } catch (error) {
         console.error('AI blend fallback failed:', error);
         return NextResponse.json(
@@ -278,6 +296,10 @@ export async function POST(request: NextRequest) {
       provider,
     };
 
+    if (resultsWithProviders.length > 0) {
+      await setCache(cacheKey, response, provider === 'tmdb' ? BLEND_FALLBACK_CACHE_TTL : BLEND_CACHE_TTL);
+    }
+
     return NextResponse.json(response);
   } catch (error) {
     console.error('Blend API error:', error);
@@ -292,6 +314,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-// Cache blend results for 24 hours
-export const revalidate = 86400;

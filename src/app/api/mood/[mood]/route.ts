@@ -5,7 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getRecommendations } from '@/lib/ai';
-import { getCached } from '@/lib/redis';
+import { getCache, setCache } from '@/lib/redis';
+import type { DiscoveryResult } from '@/lib/ai';
 import { MOODS, CACHE_TTL } from '@/lib/constants';
 import type { DiscoverResponse, DiscoverError } from '@/lib/ai/types';
 
@@ -59,16 +60,17 @@ export async function GET(
     // Cache key based on mood
     const cacheKey = `mood:${mood}:recommendations`;
 
-    // Try to get cached results
-    const results = await getCached(
-      cacheKey,
-      async () => {
-        console.log(`[Mood] Generating recommendations for: ${mood}`);
-        const result = await getRecommendations(prompt);
-        return result;
-      },
-      CACHE_TTL.SIMILAR // Cache for 24 hours
-    );
+    // Cached AI results last 24h; non-AI fallback results only 30 min so they
+    // don't stick around after the AI recovers.
+    let results = await getCache<DiscoveryResult>(cacheKey);
+    if (!results) {
+      console.log(`[Mood] Generating recommendations for: ${mood}`);
+      results = await getRecommendations(prompt);
+      const nonAI = results.provider === 'tmdb' || results.provider === 'tastedive';
+      if (results.results.length > 0) {
+        await setCache(cacheKey, results, nonAI ? 1800 : CACHE_TTL.SIMILAR);
+      }
+    }
 
     const response: DiscoverResponse = {
       results: results.results,

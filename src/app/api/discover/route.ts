@@ -4,6 +4,7 @@
 // ==========================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getClientIP } from '@/lib/client-ip';
 import { z } from 'zod';
 import { getRecommendations, EXAMPLE_PROMPTS } from '@/lib/ai';
 import {
@@ -53,29 +54,12 @@ const DiscoverRequestSchema = z.object({
 // Helper Functions
 // ==========================================================================
 
-/**
- * Get client IP from request headers
- */
-function getClientIP(request: NextRequest): string {
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    const firstIP = forwardedFor.split(',')[0];
-    if (firstIP) {
-      return firstIP.trim();
-    }
-  }
-
-  const realIP = request.headers.get('x-real-ip');
-  if (realIP) {
-    return realIP;
-  }
-
-  return 'unknown';
-}
 
 // ==========================================================================
 // Route Handler
 // ==========================================================================
+
+const FALLBACK_CACHE_TTL = 1800;
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -122,7 +106,7 @@ export async function POST(request: NextRequest) {
     const canUseCache = !excludeIds || excludeIds.length === 0;
 
     if (canUseCache) {
-      const cachedResult = await getCachedPromptResults<DiscoveryResult>(prompt);
+      const cachedResult = await getCachedPromptResults<DiscoveryResult>(prompt, contentTypes);
 
       if (cachedResult) {
         const duration = Date.now() - startTime;
@@ -151,11 +135,12 @@ export async function POST(request: NextRequest) {
       excludeIds
     );
 
-    // Cache ALL successful results (if we can use cache)
-    // TTL: Example prompts 24h, regular prompts 6h
+    // Cache successful results: example prompts 24h, others 6h. Fallback
+    // (non-AI) results only 30 min, so they don't stick after the AI recovers.
     if (canUseCache && result.results.length > 0) {
-      const cacheTTL = isExamplePrompt ? 86400 : 21600; // 24h or 6h
-      await cachePromptResults(prompt, result, cacheTTL);
+      const nonAI = result.provider === 'tmdb' || result.provider === 'tastedive';
+      const cacheTTL = nonAI ? FALLBACK_CACHE_TTL : isExamplePrompt ? 86400 : 21600;
+      await cachePromptResults(prompt, result, cacheTTL, contentTypes);
     }
 
     const response: DiscoverResponse = {

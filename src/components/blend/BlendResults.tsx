@@ -32,7 +32,7 @@ export interface BlendResultItem {
 interface BlendResultsProps {
   results: BlendResultItem[];
   isLoading?: boolean;
-  provider?: 'tastedive' | 'gemini';
+  provider?: string;
   watchlistIds?: Set<number>;
   onWatchlistToggle?: (content: Content) => void;
   className?: string;
@@ -50,6 +50,8 @@ function getProviderInfo(provider?: string) {
         label: 'Blended Results',
         description: 'Combined from your selected titles',
       };
+    case 'groq':
+    case 'deepseek':
     case 'gemini':
       return {
         icon: <Zap className="h-4 w-4" />,

@@ -396,6 +396,7 @@ export const CACHE_TTL = {
 
 export const RATE_LIMITS = {
   DISCOVER: { requests: 10, window: 60 }, // 10 req/min
+  BLEND: { requests: 10, window: 60 }, // 10 req/min (runs the AI chain)
   SEARCH: { requests: 30, window: 60 }, // 30 req/min
   DEFAULT: { requests: 100, window: 60 }, // 100 req/min
   TASTEDIVE: { requests: 300, window: 3600 }, // 300 req/hour (TasteDive limit)

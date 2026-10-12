@@ -32,7 +32,7 @@ interface BlendResponse {
     year: number;
   }>;
   results: BlendResultItem[];
-  provider: 'tastedive' | 'gemini';
+  provider: string;
 }
 
 interface BlendError {
@@ -77,7 +77,7 @@ export default function BlendPage() {
 
   // Results state
   const [results, setResults] = useState<BlendResultItem[]>([]);
-  const [provider, setProvider] = useState<'tastedive' | 'gemini' | undefined>();
+  const [provider, setProvider] = useState<string | undefined>();
 
   // Loading and error state
   const [isLoading, setIsLoading] = useState(false);

@@ -69,25 +69,27 @@ export async function getCached<T>(
     return fetcher();
   }
 
+  // Read from cache; a Redis failure here just means a miss.
   try {
-    // Try to get from cache
     const cached = await client.get(key);
     if (cached) {
       return JSON.parse(cached) as T;
     }
-
-    // Fetch fresh data
-    const data = await fetcher();
-
-    // Cache the result
-    await client.setex(key, ttl, JSON.stringify(data));
-
-    return data;
   } catch (error) {
-    console.error('Cache error:', error);
-    // Fallback to fetcher on error
-    return fetcher();
+    console.error('Cache read error:', error);
   }
+
+  // Fetch once. Errors propagate: retrying the whole fetcher on any error
+  // ran failing TMDB/AI calls twice.
+  const data = await fetcher();
+
+  try {
+    await client.setex(key, ttl, JSON.stringify(data));
+  } catch (error) {
+    console.error('Cache write error:', error);
+  }
+
+  return data;
 }
 
 /**
@@ -219,12 +221,11 @@ export async function isRateLimited(
   const key = cacheKeys.rateLimit(identifier, endpoint);
 
   try {
+    // Create the window with its expiry first (NX: only if absent), then
+    // count. INCR keeps the TTL, so a failure can't leave a key that never
+    // expires and blocks the visitor for good.
+    await client.set(key, 0, 'EX', config.window, 'NX');
     const current = await client.incr(key);
-
-    // Set expiry on first request
-    if (current === 1) {
-      await client.expire(key, config.window);
-    }
 
     return current > config.requests;
   } catch (error) {
@@ -307,7 +308,7 @@ export function normalizePrompt(prompt: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, ' ') // Collapse multiple spaces
-    .replace(/[^\w\s]/g, '') // Remove punctuation
+    .replace(/[^\p{L}\p{N}\s]/gu, '') // Remove punctuation; keep letters in any script
     .split(' ')
     .filter((word) => !['a', 'an', 'the', 'i', 'me', 'my', 'want', 'to', 'watch', 'see', 'find', 'show', 'give'].includes(word))
     .join(' ')
@@ -317,9 +318,10 @@ export function normalizePrompt(prompt: string): string {
 /**
  * Generate cache key for a prompt
  */
-export function getPromptCacheKey(prompt: string): string {
+export function getPromptCacheKey(prompt: string, contentTypes?: readonly string[]): string {
   const normalized = normalizePrompt(prompt);
-  return `discover:prompt:${normalized}`;
+  const types = contentTypes && contentTypes.length > 0 ? [...contentTypes].sort().join(',') : 'all';
+  return `discover:prompt:${types}:${normalized}`;
 }
 
 /**
@@ -391,11 +393,14 @@ export async function isPromptPopular(prompt: string): Promise<boolean> {
 /**
  * Get cached prompt results
  */
-export async function getCachedPromptResults<T>(prompt: string): Promise<T | null> {
+export async function getCachedPromptResults<T>(
+  prompt: string,
+  contentTypes?: readonly string[]
+): Promise<T | null> {
   const client = getRedisClient();
   if (!client) return null;
 
-  const key = getPromptCacheKey(prompt);
+  const key = getPromptCacheKey(prompt, contentTypes);
 
   try {
     const cached = await client.get(key);
@@ -412,12 +417,13 @@ export async function getCachedPromptResults<T>(prompt: string): Promise<T | nul
 export async function cachePromptResults<T>(
   prompt: string,
   results: T,
-  ttl: number = PROMPT_CACHE_TTL
+  ttl: number = PROMPT_CACHE_TTL,
+  contentTypes?: readonly string[]
 ): Promise<void> {
   const client = getRedisClient();
   if (!client) return;
 
-  const key = getPromptCacheKey(prompt);
+  const key = getPromptCacheKey(prompt, contentTypes);
 
   try {
     await client.setex(key, ttl, JSON.stringify(results));
