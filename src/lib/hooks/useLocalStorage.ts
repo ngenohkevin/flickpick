@@ -70,17 +70,19 @@ export function useLocalStorage<T>(
   // Setter function that persists to localStorage
   const setValue = useCallback(
     (value: T | ((val: T) => T)) => {
-      try {
-        setStoredValue((currentValue) => {
-          const valueToStore = value instanceof Function ? value(currentValue) : value;
+      setStoredValue((currentValue) => {
+        const valueToStore = value instanceof Function ? value(currentValue) : value;
+        // React runs this updater during render, outside any try/catch around
+        // setStoredValue, so a blocked or full storage threw into the component.
+        try {
           if (typeof window !== 'undefined') {
             window.localStorage.setItem(key, JSON.stringify(valueToStore));
           }
-          return valueToStore;
-        });
-      } catch (error) {
-        console.warn(`Error setting localStorage key "${key}":`, error);
-      }
+        } catch (error) {
+          console.warn(`Error setting localStorage key "${key}":`, error);
+        }
+        return valueToStore;
+      });
     },
     [key]
   );

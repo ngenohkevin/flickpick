@@ -68,6 +68,7 @@ export function SearchBar({
   // State
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [resultsFor, setResultsFor] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -90,11 +91,15 @@ export function SearchBar({
     }
   }, [autoFocus]);
 
-  // Fetch search results
+  // Fetch search results. `cancelled` drops responses for an older query
+  // that arrive after a newer one; `resultsFor` records which query the
+  // shown results belong to (so "No results" only shows for a finished search).
   useEffect(() => {
+    let cancelled = false;
     const fetchResults = async () => {
       if (debouncedQuery.trim().length < 2) {
         setResults([]);
+        setResultsFor('');
         setIsLoading(false);
         return;
       }
@@ -104,22 +109,30 @@ export function SearchBar({
         const response = await fetch(
           `/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=8`
         );
+        if (cancelled) return;
         if (response.ok) {
           const data = await response.json();
+          if (cancelled) return;
           const searchResults = data.results || [];
           setResults(searchResults);
+          setResultsFor(debouncedQuery);
           // Track search event
           trackSearch(debouncedQuery, 'all', searchResults.length);
         }
       } catch (error) {
+        if (cancelled) return;
         console.error('Search error:', error);
         setResults([]);
+        setResultsFor(debouncedQuery);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     fetchResults();
+    return () => {
+      cancelled = true;
+    };
   }, [debouncedQuery]);
 
   // Close dropdown when clicking outside
@@ -271,7 +284,9 @@ export function SearchBar({
 
   const showDropdown =
     isOpen && (query.length > 0 || recentSearches.length > 0);
-  const showResults = query.length >= 2 && (results.length > 0 || isLoading);
+  // The no-results message lives inside the results section, which used to
+  // require at least one result, so it could never show.
+  const showResults = query.length >= 2 && (results.length > 0 || isLoading || resultsFor === query);
   const showRecentSearches =
     !showResults && recentSearches.length > 0 && query.length === 0;
 
@@ -337,7 +352,7 @@ export function SearchBar({
                     onSelect={() => handleSelect(result, index)}
                   />
                 ))
-              ) : query.length >= 2 && !isLoading ? (
+              ) : resultsFor === query && !isLoading ? (
                 <div className="py-8 text-center text-text-tertiary">
                   No results found for &ldquo;{query}&rdquo;
                 </div>
