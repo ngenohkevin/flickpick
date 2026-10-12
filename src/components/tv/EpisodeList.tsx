@@ -64,6 +64,7 @@ function EpisodeRow({ episode }: EpisodeRowProps) {
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
+      timeZone: 'UTC', // air_date is a date-only (UTC) string
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -255,6 +256,7 @@ export function EpisodeCard({ episode, className = '' }: EpisodeCardProps) {
         {airDate && (
           <p className="text-xs text-text-tertiary mt-1">
             {airDate.toLocaleDateString('en-US', {
+      timeZone: 'UTC', // air_date is a date-only (UTC) string
               month: 'long',
               day: 'numeric',
               year: 'numeric',

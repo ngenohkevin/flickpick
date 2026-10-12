@@ -22,7 +22,11 @@ interface ReleaseModalProps {
 export function ReleaseModal({ isOpen, onClose, day }: ReleaseModalProps) {
   if (!day) return null;
 
-  const formattedDate = formatDate(day.date.toISOString().split('T')[0], {
+  // day.date is local midnight; toISOString() shifted it to the previous
+  // day east of UTC (e.g. Oct 15 titled "October 14" in Nairobi).
+  const d = day.date;
+  const localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const formattedDate = formatDate(localDate, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

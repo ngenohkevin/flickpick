@@ -16,7 +16,6 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/api/',           // Block API routes
-          '/_next/',         // Block Next.js internal routes
           '/private/',       // Block any private routes
         ],
       },

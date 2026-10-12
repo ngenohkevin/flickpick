@@ -142,9 +142,11 @@ export function extractIdFromSlug(slug: string): number | null {
  * Extract year from a date string
  */
 export function extractYear(dateString: string | undefined): number | undefined {
-  if (!dateString) return undefined;
-  const year = new Date(dateString).getFullYear();
-  return isNaN(year) ? undefined : year;
+  // Read the year from "YYYY-MM-DD" directly: new Date() parses date-only
+  // strings as UTC midnight, so getFullYear() gave the previous year for
+  // Jan 1 releases west of UTC.
+  const match = dateString?.match(/^(\d{4})/);
+  return match ? Number(match[1]) : undefined;
 }
 
 // ==========================================================================
@@ -177,7 +179,10 @@ export function formatDate(
   if (!dateString) return '';
   try {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', options);
+    // Date-only strings ("2026-10-15", how TMDB sends dates) parse as UTC
+    // midnight; format them in UTC so they don't show a day early west of UTC.
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateString);
+    return date.toLocaleDateString('en-US', dateOnly ? { timeZone: 'UTC', ...options } : options);
   } catch {
     return '';
   }

@@ -243,7 +243,7 @@ export function generateOrganizationJsonLd(url: string): object {
     '@type': 'Organization',
     name: 'FlickPick',
     url,
-    logo: `${url}/icon.png`,
+    logo: `${url}/icons/icon-512x512.png`,
     sameAs: [],
   };
 }

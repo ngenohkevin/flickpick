@@ -645,3 +645,17 @@ describe('extractIdFromSlug', () => {
     expect(extractIdFromSlug('')).toBeNull();
   });
 });
+
+describe('date-only strings are not shifted by the viewer time zone', () => {
+  it('extractYear reads the year from the string', async () => {
+    const { extractYear } = await import('@/lib/utils');
+    expect(extractYear('2026-01-01')).toBe(2026);
+    expect(extractYear('')).toBeUndefined();
+    expect(extractYear(undefined)).toBeUndefined();
+  });
+
+  it('formatDate formats date-only strings in UTC', async () => {
+    const { formatDate } = await import('@/lib/utils');
+    expect(formatDate('2026-10-15', { month: 'long', day: 'numeric' })).toBe('October 15');
+  });
+});
