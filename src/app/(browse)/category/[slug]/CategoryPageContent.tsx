@@ -83,12 +83,13 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
 
   useScrollRestoration({ loadedPages: list.page, onRestorePages: list.restoreTo });
 
-  // Track category view on mount
-  const hasTracked = useRef(false);
+  // Track each category viewed (category links reuse this component, so a
+  // once-only flag skipped every category after the first)
+  const trackedSlug = useRef<string | null>(null);
   useEffect(() => {
-    if (!hasTracked.current) {
+    if (trackedSlug.current !== category.slug) {
       trackCategoryView(category.slug);
-      hasTracked.current = true;
+      trackedSlug.current = category.slug;
     }
   }, [category.slug]);
 

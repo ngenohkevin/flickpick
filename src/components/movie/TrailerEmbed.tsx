@@ -9,7 +9,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Play, X } from 'lucide-react';
 import { getBestTrailer } from '@/lib/video-utils';
-import { shouldShowPrerollAds, adProvider } from '@/lib/ads';
+import { shouldShowPrerollAds, markVideoAdShown, adProvider } from '@/lib/ads';
 import { trackTrailerPlay } from '@/lib/analytics';
 import { AdPlayer } from '@/components/ads';
 import type { Video } from '@/types';
@@ -101,6 +101,7 @@ export function TrailerEmbed({
         });
 
         if (response.ad) {
+          markVideoAdShown();
           setCurrentAd(response.ad);
           setPlayerState('showing_ad');
           return;

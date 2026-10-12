@@ -50,10 +50,13 @@ export function MonetAgScripts({ enabled }: MonetAgScriptsProps) {
 
   return (
     <>
-      {/* Polyfill for Monetag performance marks bug */}
+      {/* Polyfill for Monetag performance marks bug. afterInteractive, not
+          beforeInteractive: that strategy only works in the root layout's
+          server render, and this component renders after mount. It still
+          runs before the lazyOnload ad scripts below. */}
       <Script
         id="monetag-performance-polyfill"
-        strategy="beforeInteractive"
+        strategy="afterInteractive"
       >
         {`
           (function() {

@@ -133,11 +133,34 @@ export function shouldShowAds(): boolean {
   return true;
 }
 
+const VIDEO_AD_SHOWN_KEY = 'flickpick-video-ad-shown-at';
+
+/** Records that a video ad was just shown (starts the cooldown). */
+export function markVideoAdShown(): void {
+  try {
+    sessionStorage.setItem(VIDEO_AD_SHOWN_KEY, String(Date.now()));
+  } catch {
+    // Storage unavailable (private mode): no cooldown tracking
+  }
+}
+
+/** True within videoAdCooldown seconds of the last video ad this session. */
+function isVideoAdCoolingDown(): boolean {
+  try {
+    const shownAt = Number(sessionStorage.getItem(VIDEO_AD_SHOWN_KEY));
+    return shownAt > 0 && Date.now() - shownAt < DEFAULT_AD_CONFIG.videoAdCooldown * 1000;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Check if pre-roll ads should be shown for trailers
+ * Check if pre-roll ads should be shown for trailers.
+ * Enforces the per-session cooldown (it was configured but never checked,
+ * so every trailer play requested an ad).
  */
 export function shouldShowPrerollAds(): boolean {
-  return shouldShowAds() && DEFAULT_AD_CONFIG.showPrerollAds;
+  return shouldShowAds() && DEFAULT_AD_CONFIG.showPrerollAds && !isVideoAdCoolingDown();
 }
 
 /**

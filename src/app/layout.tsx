@@ -73,6 +73,9 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
+// Mirrors getEffectiveTheme(); reads the persisted preferences store
+const THEME_INIT_SCRIPT = `(function(){try{var t=(JSON.parse(localStorage.getItem('flickpick-preferences')||'{}').state||{}).theme||'dark';if(t==='system'){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}var r=document.documentElement;r.setAttribute('data-theme',t);r.classList.toggle('dark',t==='dark');}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -90,6 +93,9 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://img.youtube.com" />
         {/* PWA Apple Touch Icon */}
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* Apply the saved theme before first paint; ThemeProvider only runs
+            after hydration, so light-mode users saw a dark flash on load */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <Analytics />

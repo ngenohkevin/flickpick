@@ -1,6 +1,7 @@
 'use client';
 
 import Script from 'next/script';
+import { flushAnalyticsQueue } from '@/lib/analytics';
 
 /**
  * Analytics component that loads the Umami tracking script
@@ -30,6 +31,8 @@ export function Analytics() {
       src={scriptUrl}
       data-website-id={websiteId}
       strategy="lazyOnload"
+      // Send events queued before the script loaded (landing-page views)
+      onLoad={flushAnalyticsQueue}
     />
   );
 }

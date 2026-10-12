@@ -18,12 +18,15 @@ export function ContentViewTracker({
   contentType,
   title,
 }: ContentViewTrackerProps) {
-  const hasTracked = useRef(false);
+  // Keyed on the title, not a once-only flag: moving from one movie page to
+  // another can reuse this component, and the second view went untracked
+  const trackedKey = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!hasTracked.current) {
+    const key = `${contentType}:${contentId}`;
+    if (trackedKey.current !== key) {
       trackContentView(contentId, contentType, title);
-      hasTracked.current = true;
+      trackedKey.current = key;
     }
   }, [contentId, contentType, title]);
 

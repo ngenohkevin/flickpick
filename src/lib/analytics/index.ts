@@ -8,6 +8,7 @@
 // Re-export all tracking functions
 export {
   trackEvent,
+  flushAnalyticsQueue,
   trackSearch,
   trackSearchResultClick,
   trackDiscoverSearch,

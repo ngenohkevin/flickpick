@@ -7,15 +7,32 @@
 
 import type { EventName, TrackableEvent } from './types';
 
-// Check if analytics is enabled (only in production with valid config)
-const isAnalyticsEnabled = (): boolean => {
-  if (typeof window === 'undefined') return false;
+const isAnalyticsConfigured = (): boolean =>
+  typeof window !== 'undefined' &&
+  Boolean(process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && process.env.NEXT_PUBLIC_UMAMI_URL);
 
-  const websiteId = process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID;
-  const umamiUrl = process.env.NEXT_PUBLIC_UMAMI_URL;
+// Events fired before the tracker script has loaded. It loads lazily (after
+// the page is idle), so events from a landing page's first render, such as
+// content and category views, were dropped; they now wait here.
+const pendingEvents: Array<[string, unknown]> = [];
+const MAX_PENDING_EVENTS = 50;
 
-  return Boolean(websiteId && umamiUrl && window.umami);
-};
+function send(eventName: string, data: unknown): void {
+  try {
+    window.umami?.track(eventName, data as Record<string, string | number | boolean> | undefined);
+  } catch (error) {
+    // Silently fail - analytics should never break the app
+    console.error('[Analytics] Failed to track event:', error);
+  }
+}
+
+/** Sends queued events; called once the Umami script has loaded. */
+export function flushAnalyticsQueue(): void {
+  if (typeof window === 'undefined' || !window.umami) return;
+  for (const [eventName, data] of pendingEvents.splice(0)) {
+    send(eventName, data);
+  }
+}
 
 /**
  * Track a custom event with Umami
@@ -25,7 +42,7 @@ export function trackEvent<T extends TrackableEvent>(
   eventName: T['name'],
   data?: T['data']
 ): void {
-  if (!isAnalyticsEnabled()) {
+  if (!isAnalyticsConfigured()) {
     // Log in development for debugging
     if (process.env.NODE_ENV === 'development') {
       console.log('[Analytics]', eventName, data);
@@ -33,12 +50,12 @@ export function trackEvent<T extends TrackableEvent>(
     return;
   }
 
-  try {
-    window.umami?.track(eventName, data);
-  } catch (error) {
-    // Silently fail - analytics should never break the app
-    console.error('[Analytics] Failed to track event:', error);
+  if (!window.umami) {
+    if (pendingEvents.length < MAX_PENDING_EVENTS) pendingEvents.push([eventName, data]);
+    return;
   }
+
+  send(eventName, data);
 }
 
 // Convenience functions for specific event types
