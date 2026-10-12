@@ -71,9 +71,25 @@ interface ContentItem {
   name?: string;
   poster_path: string | null;
   vote_average?: number;
+  vote_count?: number;
   release_date?: string;
   first_air_date?: string;
   media_type?: 'movie' | 'tv';
+}
+
+/**
+ * AggregateRating for a list item. Google rejects a rating without
+ * ratingCount/reviewCount, so items without votes get none.
+ */
+function listItemRating(item: ContentItem): object | undefined {
+  if (!item.vote_average || !item.vote_count) return undefined;
+  return {
+    '@type': 'AggregateRating',
+    ratingValue: item.vote_average.toFixed(1),
+    ratingCount: item.vote_count,
+    bestRating: 10,
+    worstRating: 0,
+  };
 }
 
 // ==========================================================================
@@ -244,7 +260,6 @@ export function generateOrganizationJsonLd(url: string): object {
     name: 'FlickPick',
     url,
     logo: `${url}/icons/icon-512x512.png`,
-    sameAs: [],
   };
 }
 
@@ -296,14 +311,7 @@ export function generateItemListJsonLd(
         name: item.title || item.name,
         url: `${BASE_URL}/${item.media_type === 'tv' ? 'tv' : 'movie'}/${item.id}`,
         image: item.poster_path ? `${TMDB_IMAGE_BASE_URL}/w500${item.poster_path}` : undefined,
-        aggregateRating: item.vote_average
-          ? {
-              '@type': 'AggregateRating',
-              ratingValue: item.vote_average.toFixed(1),
-              bestRating: 10,
-              worstRating: 0,
-            }
-          : undefined,
+        aggregateRating: listItemRating(item),
         datePublished: item.release_date || item.first_air_date || undefined,
       },
     })),
@@ -349,14 +357,7 @@ export function generateSimilarContentJsonLd(data: SimilarContentData, url: stri
         name: item.title || item.name,
         url: `${BASE_URL}/${item.media_type === 'tv' ? 'tv' : 'movie'}/${item.id}`,
         image: item.poster_path ? `${TMDB_IMAGE_BASE_URL}/w500${item.poster_path}` : undefined,
-        aggregateRating: item.vote_average
-          ? {
-              '@type': 'AggregateRating',
-              ratingValue: item.vote_average.toFixed(1),
-              bestRating: 10,
-              worstRating: 0,
-            }
-          : undefined,
+        aggregateRating: listItemRating(item),
       },
     })),
   };
