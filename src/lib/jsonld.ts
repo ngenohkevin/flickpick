@@ -4,8 +4,9 @@
 // ==========================================================================
 
 import { TMDB_IMAGE_BASE_URL } from './constants';
+import { SITE_URL } from '@/lib/site';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+const BASE_URL = SITE_URL;
 
 // ==========================================================================
 // Types

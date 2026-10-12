@@ -5,6 +5,7 @@
 
 import type { AdProvider, Ad, AdRequest, AdResponse } from '../types';
 import { PREROLL_CONFIG } from '../config';
+import { SITE_URL } from '@/lib/site';
 
 // ==========================================================================
 // Mock Ad Data
@@ -23,7 +24,7 @@ const MOCK_PREROLL_AD: Ad = {
   skippable: true,
   // Using a placeholder video - this would be replaced by real ad
   videoUrl: undefined, // No actual video - component will show placeholder UI
-  clickUrl: 'https://flickpick.site',
+  clickUrl: SITE_URL,
   title: 'Advertisement',
   advertiser: 'FlickPick',
 };
@@ -38,7 +39,7 @@ const MOCK_DISPLAY_ADS: Ad[] = [
     format: 'rectangle',
     skippable: false,
     imageUrl: undefined, // Component will show placeholder
-    clickUrl: 'https://flickpick.site',
+    clickUrl: SITE_URL,
     title: 'Your Ad Here',
     advertiser: 'Advertise with FlickPick',
   },
@@ -48,7 +49,7 @@ const MOCK_DISPLAY_ADS: Ad[] = [
     format: 'leaderboard',
     skippable: false,
     imageUrl: undefined,
-    clickUrl: 'https://flickpick.site',
+    clickUrl: SITE_URL,
     title: 'Your Ad Here',
     advertiser: 'Advertise with FlickPick',
   },

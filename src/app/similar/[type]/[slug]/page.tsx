@@ -13,6 +13,7 @@ import {
   generateFAQJsonLd,
   generateSimilarFAQs,
 } from '@/lib/jsonld';
+import { SITE_URL } from '@/lib/site';
 
 // ==========================================================================
 // Types
@@ -27,7 +28,7 @@ interface PageProps {
 
 type MediaType = 'movie' | 'tv';
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+const BASE_URL = SITE_URL;
 
 // ==========================================================================
 // Helper Functions

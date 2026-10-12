@@ -42,6 +42,7 @@ const TrailerEmbed = dynamic(
 );
 import { hasTrailer } from '@/lib/video-utils';
 import type { ContentType } from '@/types';
+import { SITE_URL } from '@/lib/site';
 
 // ==========================================================================
 // Types
@@ -51,7 +52,7 @@ interface MoviePageProps {
   params: Promise<{ id: string }>;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+const BASE_URL = SITE_URL;
 
 // ==========================================================================
 // SEO-Optimized Metadata Generation

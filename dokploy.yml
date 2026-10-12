@@ -43,8 +43,8 @@ replicas: 1
 
 # Domain configuration (set in Dokploy dashboard)
 # domains:
-#   - flickpick.site
-#   - www.flickpick.site
+#   - flickpick.iopulse.cloud
+# flickpick.site expires ~Nov 2026; src/proxy.ts redirects it here until then.
 
 # SSL (handled by Dokploy with Let's Encrypt)
 ssl: true

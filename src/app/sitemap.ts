@@ -9,13 +9,14 @@ import {
   getTrendingTVShows,
 } from '@/lib/tmdb';
 import { createSlug } from '@/lib/utils';
+import { SITE_URL } from '@/lib/site';
 
 // ==========================================================================
 // Dynamic Sitemap Generation
 // Comprehensive sitemap for maximum SEO coverage
 // ==========================================================================
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+const BASE_URL = SITE_URL;
 
 // Cache the sitemap generation results to avoid excessive API calls
 let cachedSitemap: MetadataRoute.Sitemap | null = null;

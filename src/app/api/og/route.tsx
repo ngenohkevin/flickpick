@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
+import { SITE_HOST } from '@/lib/site';
 
 // ==========================================================================
 // OG Image Generation API
@@ -287,7 +288,7 @@ export async function GET(request: NextRequest) {
                     <line x1="17" y1="17" x2="22" y2="17" />
                     <line x1="17" y1="7" x2="22" y2="7" />
                   </svg>
-                  flickpick.site
+                  {SITE_HOST}
                 </div>
               </div>
             </div>

@@ -5,6 +5,7 @@ import { Analytics } from '@/components/analytics';
 import { MonetAgScripts } from '@/components/ads';
 import { ServiceWorkerRegistration, InstallPWAPrompt } from '@/components/pwa';
 import './globals.css';
+import { SITE_URL } from '@/lib/site';
 
 const inter = Inter({
   variable: '--font-inter',
@@ -19,7 +20,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site'),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'FlickPick - Discover Your Next Favorite Watch',
     template: '%s | FlickPick',

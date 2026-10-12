@@ -26,6 +26,7 @@ import { CategoryGrid } from '@/components/browse';
 import { SkeletonRow } from '@/components/ui';
 import { GENRE_PILLS } from '@/lib/constants';
 import type { Content, Movie, TVShow } from '@/types';
+import { SITE_URL } from '@/lib/site';
 
 // Dynamic import for StreamingTabs - loads only when in viewport
 const StreamingTabs = dynamic(
@@ -316,7 +317,7 @@ export default async function HomePage() {
     popularAnime,
   } = await getHomepageData();
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+  const siteUrl = SITE_URL;
 
   return (
     <div className="bg-bg-primary">

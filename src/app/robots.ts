@@ -1,11 +1,12 @@
 import { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/site';
 
 // ==========================================================================
 // Robots.txt Configuration
 // Controls search engine crawler behavior
 // ==========================================================================
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+const BASE_URL = SITE_URL;
 
 export default function robots(): MetadataRoute.Robots {
   return {

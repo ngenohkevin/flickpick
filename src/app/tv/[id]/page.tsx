@@ -44,6 +44,7 @@ import { ShowStatus } from '@/components/tv/ShowStatus';
 import { WatchlistButton, ShareButton, SeenButton } from '@/components/ui';
 import { ContentViewTracker } from '@/components/analytics/ContentViewTracker';
 import type { ContentType, Season } from '@/types';
+import { SITE_URL } from '@/lib/site';
 
 // ==========================================================================
 // Types
@@ -53,7 +54,7 @@ interface TVPageProps {
   params: Promise<{ id: string }>;
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://flickpick.site';
+const BASE_URL = SITE_URL;
 
 // ==========================================================================
 // SEO-Optimized Metadata Generation
