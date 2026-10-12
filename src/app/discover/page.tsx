@@ -15,6 +15,8 @@ import {
 import { useWatchlist, useWatchlistIdArray } from '@/stores/watchlist';
 import { usePromptHistory } from '@/stores/promptHistory';
 import { trackDiscoverSearch } from '@/lib/analytics';
+import { useWatchRegion } from '@/lib/hooks';
+import { streamsOnAny } from '@/lib/streaming';
 import type { DiscoverResponse, DiscoverError, EnrichedRecommendation } from '@/lib/ai/types';
 import type { ContentType, Content } from '@/types';
 
@@ -31,6 +33,7 @@ export default function DiscoverPage() {
 
   // Streaming filter state
   const [streamingFilter, setStreamingFilter] = useState<number[]>([]);
+  const watchRegion = useWatchRegion();
 
   // Results state
   const [results, setResults] = useState<EnrichedRecommendation[]>([]);
@@ -155,19 +158,14 @@ export default function DiscoverPage() {
       filtered = filtered.filter((result) => contentTypes.includes(result.content_type));
     }
 
-    // Filter by streaming provider (if provider data is available)
+    // Filter by streaming service in the viewer's country (results with no
+    // data for that country are left out while the filter is on)
     if (streamingFilter.length > 0) {
-      filtered = filtered.filter((result) => {
-        // Check if result has provider data and matches selected providers
-        if (!result.providers || result.providers.length === 0) {
-          return false; // Exclude results without provider data when filter is active
-        }
-        return result.providers.some((p) => streamingFilter.includes(p));
-      });
+      filtered = filtered.filter((result) => streamsOnAny(result, streamingFilter, watchRegion));
     }
 
     return filtered;
-  }, [results, contentTypes, streamingFilter]);
+  }, [results, contentTypes, streamingFilter, watchRegion]);
 
   return (
     <main className="min-h-screen bg-bg-primary">

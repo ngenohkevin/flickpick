@@ -17,6 +17,8 @@ import { ContentTypeSelector, StreamingFilter } from '@/components/discover';
 import type { SelectedTitle, BlendResultItem } from '@/components/blend';
 import { useWatchlist, useWatchlistIdArray } from '@/stores/watchlist';
 import { trackBlendSearch } from '@/lib/analytics';
+import { useWatchRegion } from '@/lib/hooks';
+import { streamsOnAny } from '@/lib/streaming';
 import type { Content, ContentType } from '@/types';
 
 // ==========================================================================
@@ -74,6 +76,7 @@ export default function BlendPage() {
   // Filter state
   const [contentTypes, setContentTypes] = useState<ContentType[]>([]);
   const [streamingFilter, setStreamingFilter] = useState<number[]>([]);
+  const watchRegion = useWatchRegion();
 
   // Results state
   const [results, setResults] = useState<BlendResultItem[]>([]);
@@ -217,19 +220,14 @@ export default function BlendPage() {
       filtered = filtered.filter((result) => contentTypes.includes(result.content_type as ContentType));
     }
 
-    // Filter by streaming provider
+    // Filter by streaming service in the viewer's country (results with no
+    // data for that country are left out while the filter is on)
     if (streamingFilter.length > 0) {
-      filtered = filtered.filter((result) => {
-        // Check if result has provider data
-        if (!result.providers || result.providers.length === 0) {
-          return false;
-        }
-        return result.providers.some((p) => streamingFilter.includes(p));
-      });
+      filtered = filtered.filter((result) => streamsOnAny(result, streamingFilter, watchRegion));
     }
 
     return filtered;
-  }, [results, contentTypes, streamingFilter]);
+  }, [results, contentTypes, streamingFilter, watchRegion]);
 
   // ==========================================================================
   // Render

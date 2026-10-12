@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { discoverMovies, type MovieSortBy } from '@/lib/tmdb/discover';
 import { parseEnum, parseIdList, parsePage } from '@/lib/params';
 import { TMDB_MAX_PAGE } from '@/lib/tmdb/genres';
+import { providerTmdbIds } from '@/lib/constants';
 import type { PaginatedResponse, Movie } from '@/types';
 
 // ==========================================================================
@@ -88,6 +89,7 @@ export async function GET(request: NextRequest) {
     const ratingMin = ratingParam > 0 && ratingParam <= 10 ? ratingParam : undefined;
     const language = searchParams.get('language')?.match(/^[a-z]{2}$/)?.[0];
     const provider = searchParams.get('provider')?.match(/^\d+$/)?.[0];
+    const providerIds = provider ? providerTmdbIds(provider).join('|') : undefined;
     const watchRegion = searchParams.get('watch_region')?.match(/^[A-Z]{2}$/)?.[0] ?? 'US';
     // The page sends 'release_date' as 'date'; accept both
     const sortRaw = searchParams.get('sort');
@@ -122,7 +124,7 @@ export async function GET(request: NextRequest) {
       ...(excludeGenres && { without_genres: excludeGenres }),
       ...(ratingMin && { 'vote_average.gte': ratingMin }),
       ...(language && { with_original_language: language }),
-      ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
+      ...(providerIds && { with_watch_providers: providerIds, watch_region: watchRegion }),
       ...runtime,
     });
 

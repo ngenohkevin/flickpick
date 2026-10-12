@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Globe, Check } from 'lucide-react';
 import { usePreferences } from '@/stores/preferences';
 import { cn } from '@/lib/utils';
+import { SUPPORTED_COUNTRIES, type Country } from '@/lib/constants';
 
 // ==========================================================================
 // Types
@@ -17,63 +18,15 @@ import { cn } from '@/lib/utils';
 interface CountrySelectorProps {
   className?: string;
   compact?: boolean;
+  /** Which edge of the button the menu lines up with (default: right) */
+  align?: 'left' | 'right';
 }
-
-interface Country {
-  code: string;
-  name: string;
-  flag: string;
-}
-
-// ==========================================================================
-// Supported Countries
-// TMDB watch providers are available in these regions
-// ==========================================================================
-
-const SUPPORTED_COUNTRIES: Country[] = [
-  { code: 'US', name: 'United States', flag: '🇺🇸' },
-  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
-  { code: 'CA', name: 'Canada', flag: '🇨🇦' },
-  { code: 'AU', name: 'Australia', flag: '🇦🇺' },
-  { code: 'DE', name: 'Germany', flag: '🇩🇪' },
-  { code: 'FR', name: 'France', flag: '🇫🇷' },
-  { code: 'ES', name: 'Spain', flag: '🇪🇸' },
-  { code: 'IT', name: 'Italy', flag: '🇮🇹' },
-  { code: 'JP', name: 'Japan', flag: '🇯🇵' },
-  { code: 'KR', name: 'South Korea', flag: '🇰🇷' },
-  { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
-  { code: 'MX', name: 'Mexico', flag: '🇲🇽' },
-  { code: 'IN', name: 'India', flag: '🇮🇳' },
-  { code: 'NL', name: 'Netherlands', flag: '🇳🇱' },
-  { code: 'SE', name: 'Sweden', flag: '🇸🇪' },
-  { code: 'NO', name: 'Norway', flag: '🇳🇴' },
-  { code: 'DK', name: 'Denmark', flag: '🇩🇰' },
-  { code: 'FI', name: 'Finland', flag: '🇫🇮' },
-  { code: 'PL', name: 'Poland', flag: '🇵🇱' },
-  { code: 'BE', name: 'Belgium', flag: '🇧🇪' },
-  { code: 'AT', name: 'Austria', flag: '🇦🇹' },
-  { code: 'CH', name: 'Switzerland', flag: '🇨🇭' },
-  { code: 'PT', name: 'Portugal', flag: '🇵🇹' },
-  { code: 'IE', name: 'Ireland', flag: '🇮🇪' },
-  { code: 'NZ', name: 'New Zealand', flag: '🇳🇿' },
-  { code: 'SG', name: 'Singapore', flag: '🇸🇬' },
-  { code: 'HK', name: 'Hong Kong', flag: '🇭🇰' },
-  { code: 'TW', name: 'Taiwan', flag: '🇹🇼' },
-  { code: 'TH', name: 'Thailand', flag: '🇹🇭' },
-  { code: 'PH', name: 'Philippines', flag: '🇵🇭' },
-  { code: 'MY', name: 'Malaysia', flag: '🇲🇾' },
-  { code: 'ID', name: 'Indonesia', flag: '🇮🇩' },
-  { code: 'AR', name: 'Argentina', flag: '🇦🇷' },
-  { code: 'CL', name: 'Chile', flag: '🇨🇱' },
-  { code: 'CO', name: 'Colombia', flag: '🇨🇴' },
-  { code: 'ZA', name: 'South Africa', flag: '🇿🇦' },
-];
 
 // ==========================================================================
 // Country Selector Component
 // ==========================================================================
 
-export function CountrySelector({ className, compact = false }: CountrySelectorProps) {
+export function CountrySelector({ className, compact = false, align = 'right' }: CountrySelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const country = usePreferences((state) => state.country);
@@ -144,7 +97,10 @@ export function CountrySelector({ className, compact = false }: CountrySelectorP
       {isOpen && (
         <div
           role="listbox"
-          className="absolute right-0 z-50 mt-2 max-h-72 w-56 overflow-y-auto rounded-lg border border-border-default bg-bg-elevated shadow-xl"
+          className={cn(
+            'absolute z-50 mt-2 max-h-72 w-56 overflow-y-auto rounded-lg border border-border-default bg-bg-elevated shadow-xl',
+            align === 'left' ? 'left-0' : 'right-0'
+          )}
         >
           <div className="p-1">
             {SUPPORTED_COUNTRIES.map((c) => (

@@ -27,7 +27,8 @@ export interface BlendResultItem {
   vote_average: number;
   overview: string;
   blend_reason: string;
-  providers?: number[]; // Streaming provider IDs for filtering
+  providers?: number[]; // US streaming provider IDs (older cached results)
+  providerRegions?: Record<string, number[]>; // Our services per country, for filtering
 }
 
 interface BlendResultsProps {

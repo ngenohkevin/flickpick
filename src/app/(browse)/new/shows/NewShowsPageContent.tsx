@@ -15,7 +15,7 @@ import {
 import { parseFilters, writeFilters, countActiveFilters, pushUrl } from '@/components/browse/filter-params';
 import { MobileFilterSheet } from '@/components/browse/MobileFilterSheet';
 import { useWatchlist, watchlistKey } from '@/stores/watchlist';
-import { usePagedList } from '@/lib/hooks';
+import { usePagedList, useScrollToResults } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import type { TVShow, EpisodeStatus, PaginatedResponse, WatchlistItem } from '@/types';
 
@@ -140,6 +140,7 @@ export function NewShowsPageContent() {
     getKey: showKey,
   });
   const shows = list.items;
+  const resultsRef = useScrollToResults<HTMLElement>(buildApiUrl(1));
 
   // ==========================================================================
   // URL Management
@@ -234,7 +235,7 @@ export function NewShowsPageContent() {
         <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <p className="text-sm text-text-tertiary">
+              <p className={cn('text-sm text-text-tertiary transition-opacity', list.isRefreshing && 'opacity-50')}>
                 {list.isLoading ? (
                   <span className="inline-block h-4 w-24 animate-pulse rounded bg-bg-tertiary" />
                 ) : list.error === 'initial' ? null : (
@@ -311,8 +312,12 @@ export function NewShowsPageContent() {
             </div>
           </aside>
 
-          {/* Content */}
-          <main className="flex-1">
+          {/* Content (the previous results stay, dimmed, while new ones load) */}
+          <main
+            ref={resultsRef}
+            className={cn('flex-1 transition-opacity duration-200', list.isRefreshing && 'pointer-events-none opacity-50')}
+            aria-busy={list.isLoading || list.isRefreshing}
+          >
             {list.isLoading ? (
               <SkeletonGrid count={12} columns={viewMode === 'list' ? 1 : 4} />
             ) : list.error === 'initial' ? (

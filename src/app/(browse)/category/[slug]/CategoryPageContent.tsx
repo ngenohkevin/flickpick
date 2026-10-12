@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { InfiniteContentGrid } from '@/components/content';
 import { useWatchlist, watchlistKey, contentWatchlistKey } from '@/stores/watchlist';
-import { usePagedList, useScrollRestoration } from '@/lib/hooks';
+import { usePagedList, useScrollRestoration, useScrollToResults } from '@/lib/hooks';
 import { pushUrl } from '@/components/browse/filter-params';
 import { trackCategoryView } from '@/lib/analytics';
 import { CURATED_CATEGORIES } from '@/lib/constants';
@@ -80,6 +80,7 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
   );
 
   const list = usePagedList<Content>({ buildUrl, getKey: itemKey });
+  const resultsRef = useScrollToResults(buildUrl(1));
 
   useScrollRestoration({ loadedPages: list.page, onRestorePages: list.restoreTo });
 
@@ -132,11 +133,10 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
               <p className="mt-2 max-w-2xl text-text-secondary">
                 {category.description}
               </p>
-              {!list.isLoading && !list.error && (
-                <p className="mt-2 text-sm text-text-tertiary">
-                  {list.totalResults.toLocaleString()} titles
-                </p>
-              )}
+              {/* Always rendered, so the header keeps its height while loading */}
+              <p className={`mt-2 text-sm text-text-tertiary transition-opacity ${list.isRefreshing ? 'opacity-50' : ''}`}>
+                {list.isLoading || list.error ? '\u00a0' : `${list.totalResults.toLocaleString()} titles`}
+              </p>
             </div>
           </div>
 
@@ -185,9 +185,10 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
       </div>
 
       {/* Content Grid */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div ref={resultsRef} className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <InfiniteContentGrid
           items={list.items}
+          isRefreshing={list.isRefreshing}
           columns={6}
           showTypeBadge={filter === 'all'}
           isLoading={list.isLoading}

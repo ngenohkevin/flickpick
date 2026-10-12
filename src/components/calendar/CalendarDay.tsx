@@ -20,8 +20,10 @@ export function CalendarDay({ day, onClick }: CalendarDayProps) {
   return (
     <div
       onClick={onClick}
+      /* Fixed height (fits 3 releases + "more"), so loading a month or
+         switching the type filter never changes the page height */
       className={`
-        min-h-[100px] rounded-lg border p-2 transition-colors
+        h-[136px] overflow-hidden rounded-lg border p-2 transition-colors
         ${day.isCurrentMonth ? 'bg-bg-secondary' : 'bg-bg-primary/50'}
         ${day.isToday ? 'border-accent-primary bg-accent-light/10' : 'border-border-subtle'}
         ${hasReleases ? 'cursor-pointer hover:border-border-default hover:bg-bg-tertiary' : ''}

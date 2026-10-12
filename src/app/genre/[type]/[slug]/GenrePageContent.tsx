@@ -8,7 +8,7 @@ import { InfiniteContentGrid, ContentRow } from '@/components/content';
 import { SortDropdown, type SortOption } from '@/components/browse';
 import { pushUrl } from '@/components/browse/filter-params';
 import { useWatchlist, watchlistKey } from '@/stores/watchlist';
-import { usePagedList, useScrollRestoration } from '@/lib/hooks';
+import { usePagedList, useScrollRestoration, useScrollToResults } from '@/lib/hooks';
 import { MOVIE_GENRES, TV_GENRES, GENRE_SLUGS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import type { Content, PaginatedResponse, Genre, WatchlistItem } from '@/types';
@@ -75,6 +75,7 @@ export function GenrePageContent({
   );
 
   const list = usePagedList<Content>({ buildUrl, getKey: itemKey });
+  const resultsRef = useScrollToResults(buildUrl(1));
 
   useScrollRestoration({ loadedPages: list.page, onRestorePages: list.restoreTo });
 
@@ -148,11 +149,10 @@ export function GenrePageContent({
               {genreName} {typeLabel}
             </h1>
             <p className="mt-2 max-w-2xl text-text-secondary">{description}</p>
-            {!list.isLoading && !list.error && (
-              <p className="mt-2 text-sm text-text-tertiary">
-                {list.totalResults.toLocaleString()} titles
-              </p>
-            )}
+            {/* Always rendered, so the header keeps its height while loading */}
+            <p className={`mt-2 text-sm text-text-tertiary transition-opacity ${list.isRefreshing ? 'opacity-50' : ''}`}>
+              {list.isLoading || list.error ? '\u00a0' : `${list.totalResults.toLocaleString()} titles`}
+            </p>
           </div>
 
           {/* Quick Genre Navigation */}
@@ -224,7 +224,7 @@ export function GenrePageContent({
 
       {/* Full Content Grid */}
       <div className="border-t border-border-subtle">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div ref={resultsRef} className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-6 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-text-primary">
               Browse All {genreName} {typeLabel}
@@ -233,6 +233,7 @@ export function GenrePageContent({
           </div>
           <InfiniteContentGrid
             items={list.items}
+            isRefreshing={list.isRefreshing}
             columns={6}
             showTypeBadge={false}
             isLoading={list.isLoading}

@@ -13,6 +13,7 @@ import type { TMDBMovie as TMDBMovieResult } from '@/lib/tmdb/movies';
 import type { TMDBTVShow as TMDBTVResult } from '@/lib/tmdb/tv';
 import { getMovieProviders, getTVProviders, getStreamingProviders } from '@/lib/tmdb/providers';
 import { ANIMATION_GENRE_ID, DEFAULT_COUNTRY } from '@/lib/constants';
+import { serviceRegions } from '@/lib/streaming';
 import type { AIProvider, AIRecommendation, EnrichedRecommendation } from './types';
 import type { ContentType } from '@/types';
 
@@ -106,26 +107,27 @@ async function withRetry<T>(
 // ==========================================================================
 
 /**
- * Fetch streaming provider IDs for a title
- * Returns array of provider IDs (flatrate/ads only, not rent/buy)
+ * Where a title streams (flatrate/ads only, not rent/buy): raw US provider
+ * IDs, plus our services per country so the filter can follow the viewer's
+ * country. One TMDB call covers every country.
  */
 async function getProviderIds(
   mediaType: 'movie' | 'tv',
   id: number
-): Promise<number[]> {
+): Promise<{ providers: number[]; providerRegions: Record<string, number[]> }> {
   try {
     const response = mediaType === 'movie'
       ? await getMovieProviders(id)
       : await getTVProviders(id);
 
     const countryProviders = response.results[DEFAULT_COUNTRY];
-    if (!countryProviders) return [];
-
-    const streamingProviders = getStreamingProviders(countryProviders);
-    return streamingProviders.map((p) => p.provider_id);
+    return {
+      providers: countryProviders ? getStreamingProviders(countryProviders).map((p) => p.provider_id) : [],
+      providerRegions: serviceRegions(response.results),
+    };
   } catch (error) {
     console.warn(`Failed to fetch providers for ${mediaType}/${id}:`, error);
-    return [];
+    return { providers: [], providerRegions: {} };
   }
 }
 
@@ -353,8 +355,7 @@ async function enrichRecommendations(
   // This enables the streaming filter feature
   const resultsWithProviders = await Promise.all(
     uniqueResults.map(async (result) => {
-      const providers = await getProviderIds(result.media_type, result.id);
-      return { ...result, providers };
+      return { ...result, ...(await getProviderIds(result.media_type, result.id)) };
     })
   );
 

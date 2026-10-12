@@ -17,7 +17,7 @@ import { MobileFilterSheet } from '@/components/browse/MobileFilterSheet';
 import { SortDropdown, type SortOption } from '@/components/browse/SortDropdown';
 import { SkeletonGrid } from '@/components/ui';
 import { useWatchlist, watchlistKey } from '@/stores/watchlist';
-import { usePagedList } from '@/lib/hooks';
+import { usePagedList, useScrollToResults, useWatchRegion } from '@/lib/hooks';
 import { cn, formatDate } from '@/lib/utils';
 import type { Content, Movie, PaginatedResponse, WatchlistItem } from '@/types';
 
@@ -148,6 +148,9 @@ export function NewMoviesPageContent() {
     }
   }, []);
 
+  // Streaming filters use the country title pages show providers for
+  const watchRegion = useWatchRegion();
+
   // Build API URL for main grid
   const buildApiUrl = useCallback(
     (pageNum: number) => {
@@ -155,12 +158,14 @@ export function NewMoviesPageContent() {
       params.set('period', activePeriod);
       params.set('page', String(pageNum));
       params.set('sort', sortBy === 'release_date' ? 'date' : sortBy);
+      if (filters.provider) params.set('watch_region', watchRegion);
       return `/api/new/movies?${params.toString()}`;
     },
-    [activePeriod, sortBy, filters]
+    [activePeriod, sortBy, filters, watchRegion]
   );
 
   const list = usePagedList<Movie, NewMoviesResponse>({ buildUrl: buildApiUrl, getKey: movieKey });
+  const resultsRef = useScrollToResults<HTMLElement>(buildApiUrl(1));
   const dateRange = list.firstPage?.date_range ?? null;
 
   // ==========================================================================
@@ -343,7 +348,7 @@ export function NewMoviesPageContent() {
         <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <p className="text-sm text-text-tertiary">
+              <p className={cn('text-sm text-text-tertiary transition-opacity', list.isRefreshing && 'opacity-50')}>
                 {list.isLoading ? (
                   <span className="inline-block h-4 w-24 animate-pulse rounded bg-bg-tertiary" />
                 ) : list.error ? null : (
@@ -384,9 +389,10 @@ export function NewMoviesPageContent() {
           </aside>
 
           {/* Content Grid */}
-          <main className="flex-1">
+          <main ref={resultsRef} className="flex-1">
             <InfiniteContentGrid
               items={list.items}
+              isRefreshing={list.isRefreshing}
               columns={5}
               showTypeBadge={false}
               isLoading={list.isLoading}

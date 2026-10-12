@@ -367,22 +367,97 @@ export const LANGUAGES: Record<string, string> = {
 // Streaming Providers (TMDB Provider IDs)
 // ==========================================================================
 
-export const STREAMING_PROVIDERS: { id: number; name: string; logo: string }[] = [
-  { id: 8, name: 'Netflix', logo: '/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
-  { id: 9, name: 'Amazon Prime Video', logo: '/emthp39XA2YScoYL1p0sdbAH2WA.jpg' },
-  { id: 337, name: 'Disney+', logo: '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg' },
-  { id: 1899, name: 'Max', logo: '/6Q3ZYUNA9Hsgj6iWnVsw2gR5V6z.jpg' },
-  { id: 15, name: 'Hulu', logo: '/zxrVdFjIjLqkfnwyghnfywTn3Lh.jpg' },
-  { id: 386, name: 'Peacock', logo: '/8VCV78prwd9QzZnEm0ReO6bERDa.jpg' },
-  { id: 531, name: 'Paramount+', logo: '/xbhHHa1YgtpwhC8lb1NQ3ACVcLd.jpg' },
-  { id: 350, name: 'Apple TV+', logo: '/6uhKBfmtzFqOcLousHwZuzcrScK.jpg' },
-  { id: 283, name: 'Crunchyroll', logo: '/8Gt1iClBlzTeQs8WQm8rRwbNBNz.jpg' },
-  { id: 2, name: 'Apple TV', logo: '/peURlLlr8jggOwK53fJ5wdQl05y.jpg' },
+export interface StreamingProvider {
+  /** ID used in URLs (provider=…) */
+  id: number;
+  name: string;
+  logo: string;
+  /** Every TMDB provider ID that counts as this service (tiers), when more than `id` */
+  tmdbIds?: number[];
+}
+
+// Subscription services only. TMDB IDs checked 2026-10: Paramount+ moved
+// from 531 (4 titles left) to its Premium/Essential tiers, and ID 2 is the
+// Apple TV *store* (rent/buy), which matches nearly every film.
+export const STREAMING_PROVIDERS: StreamingProvider[] = [
+  { id: 8, name: 'Netflix', logo: '/rK1KljqmbvO9HQa1PBFLILWah72.png' },
+  { id: 9, name: 'Amazon Prime Video', logo: '/gMZdpavHmxFNnLpMHwVxfqeux2g.png' },
+  { id: 337, name: 'Disney+', logo: '/5eZ872CghnHFLB1j8grszbrx0dx.png' },
+  { id: 1899, name: 'HBO Max', logo: '/skypuy7SXuugIQeYg0IglmzoKaS.png' },
+  { id: 15, name: 'Hulu', logo: '/44uAnmSqvA4yBOdbPWN8YgQHjWm.png' },
+  { id: 386, name: 'Peacock', logo: '/a1UIdq5BrkcAxnxcUhFsNbXnxeu.png', tmdbIds: [386, 387] },
+  { id: 2303, name: 'Paramount+', logo: '/4N4BMd0Mm0kHAmF7RZgL5lW3cwc.png', tmdbIds: [2303, 2616] },
+  { id: 350, name: 'Apple TV', logo: '/9icYBfYFcwgCbky5VdGUIKJ4C5i.png' },
+  { id: 283, name: 'Crunchyroll', logo: '/uFL3c4Cq8M6WoLymlC5Y8bmGytV.png' },
 ];
+
+/** Retired IDs still found in old links and bookmarks */
+const LEGACY_PROVIDER_IDS: Record<number, number> = { 531: 2303, 384: 1899 };
+
+/** The provider list entry for a URL value, or undefined if it isn't one of ours. */
+export function findStreamingProvider(id: number | string | null | undefined): StreamingProvider | undefined {
+  const num = Number(id);
+  const canonical = LEGACY_PROVIDER_IDS[num] ?? num;
+  return STREAMING_PROVIDERS.find((p) => p.id === canonical);
+}
+
+/** TMDB provider IDs to query for a URL value (all tiers of the service). */
+export function providerTmdbIds(id: number | string): number[] {
+  const provider = findStreamingProvider(id);
+  if (!provider) return Number.isInteger(Number(id)) && Number(id) > 0 ? [Number(id)] : [];
+  return provider.tmdbIds ?? [provider.id];
+}
 
 // ==========================================================================
 // Default Values
 // ==========================================================================
+
+export interface Country {
+  code: string;
+  name: string;
+  flag: string;
+}
+
+// Countries offered for streaming availability (TMDB watch-provider regions)
+export const SUPPORTED_COUNTRIES: Country[] = [
+  { code: 'US', name: 'United States', flag: '🇺🇸' },
+  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
+  { code: 'CA', name: 'Canada', flag: '🇨🇦' },
+  { code: 'AU', name: 'Australia', flag: '🇦🇺' },
+  { code: 'DE', name: 'Germany', flag: '🇩🇪' },
+  { code: 'FR', name: 'France', flag: '🇫🇷' },
+  { code: 'ES', name: 'Spain', flag: '🇪🇸' },
+  { code: 'IT', name: 'Italy', flag: '🇮🇹' },
+  { code: 'JP', name: 'Japan', flag: '🇯🇵' },
+  { code: 'KR', name: 'South Korea', flag: '🇰🇷' },
+  { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
+  { code: 'MX', name: 'Mexico', flag: '🇲🇽' },
+  { code: 'IN', name: 'India', flag: '🇮🇳' },
+  { code: 'NL', name: 'Netherlands', flag: '🇳🇱' },
+  { code: 'SE', name: 'Sweden', flag: '🇸🇪' },
+  { code: 'NO', name: 'Norway', flag: '🇳🇴' },
+  { code: 'DK', name: 'Denmark', flag: '🇩🇰' },
+  { code: 'FI', name: 'Finland', flag: '🇫🇮' },
+  { code: 'PL', name: 'Poland', flag: '🇵🇱' },
+  { code: 'BE', name: 'Belgium', flag: '🇧🇪' },
+  { code: 'AT', name: 'Austria', flag: '🇦🇹' },
+  { code: 'CH', name: 'Switzerland', flag: '🇨🇭' },
+  { code: 'PT', name: 'Portugal', flag: '🇵🇹' },
+  { code: 'IE', name: 'Ireland', flag: '🇮🇪' },
+  { code: 'NZ', name: 'New Zealand', flag: '🇳🇿' },
+  { code: 'SG', name: 'Singapore', flag: '🇸🇬' },
+  { code: 'HK', name: 'Hong Kong', flag: '🇭🇰' },
+  { code: 'TW', name: 'Taiwan', flag: '🇹🇼' },
+  { code: 'TH', name: 'Thailand', flag: '🇹🇭' },
+  { code: 'PH', name: 'Philippines', flag: '🇵🇭' },
+  { code: 'MY', name: 'Malaysia', flag: '🇲🇾' },
+  { code: 'ID', name: 'Indonesia', flag: '🇮🇩' },
+  { code: 'AR', name: 'Argentina', flag: '🇦🇷' },
+  { code: 'CL', name: 'Chile', flag: '🇨🇱' },
+  { code: 'CO', name: 'Colombia', flag: '🇨🇴' },
+  { code: 'ZA', name: 'South Africa', flag: '🇿🇦' },
+  { code: 'KE', name: 'Kenya', flag: '🇰🇪' },
+];
 
 export const DEFAULT_COUNTRY = 'US';
 export const DEFAULT_LANGUAGE = 'en-US';

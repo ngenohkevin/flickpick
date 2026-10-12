@@ -5,7 +5,8 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { ContentRow } from '@/components/content';
 import { SkeletonRow } from '@/components/ui';
-import { STREAMING_PROVIDERS } from '@/lib/constants';
+import { findStreamingProvider, type StreamingProvider } from '@/lib/constants';
+import { useRegionProviders } from '@/lib/hooks/useRegionProviders';
 import type { Content } from '@/types';
 
 // ==========================================================================
@@ -13,22 +14,22 @@ import type { Content } from '@/types';
 // Tabbed interface showing popular content by streaming provider
 // ==========================================================================
 
-// Provider subset for homepage tabs
-const HOMEPAGE_PROVIDERS = [
-  STREAMING_PROVIDERS[0], // Netflix
-  STREAMING_PROVIDERS[1], // Amazon Prime
-  STREAMING_PROVIDERS[2], // Disney+
-  STREAMING_PROVIDERS[3], // Max
-  STREAMING_PROVIDERS[4], // Hulu
-  STREAMING_PROVIDERS[7], // Apple TV+
-].filter(Boolean) as typeof STREAMING_PROVIDERS;
+// Netflix, Prime Video, Disney+, HBO Max, Hulu, Apple TV
+const HOMEPAGE_PROVIDERS = [8, 9, 337, 1899, 15, 350]
+  .map((id) => findStreamingProvider(id))
+  .filter((p): p is StreamingProvider => p !== undefined);
 
 interface StreamingTabsProps {
   className?: string;
 }
 
 export function StreamingTabs({ className }: StreamingTabsProps) {
-  const [activeProvider, setActiveProvider] = useState(HOMEPAGE_PROVIDERS[0]!);
+  const [selectedProvider, setSelectedProvider] = useState(HOMEPAGE_PROVIDERS[0]!);
+  // Tabs for the services offered in the viewer's streaming country (all
+  // of them until that is known), and rows for that country's catalogue
+  const { region, ids: regionIds } = useRegionProviders();
+  const tabs = regionIds ? HOMEPAGE_PROVIDERS.filter((p) => regionIds.has(p.id)) : HOMEPAGE_PROVIDERS;
+  const activeProvider = tabs.find((p) => p.id === selectedProvider.id) ?? tabs[0];
   const [content, setContent] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,14 +37,14 @@ export function StreamingTabs({ className }: StreamingTabsProps) {
   // Clicking tabs quickly must not let an older provider's response land last
   const requestIdRef = useRef(0);
 
-  const fetchContent = useCallback(async (providerId: number) => {
+  const fetchContent = useCallback(async (providerId: number, watchRegion: string) => {
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
 
     try {
       const response = await fetch(
-        `/api/browse/movies?provider=${providerId}&watch_region=US&sort_by=popularity&page=1`
+        `/api/browse/movies?provider=${providerId}&watch_region=${watchRegion}&sort_by=popularity&page=1`
       );
 
       if (!response.ok) {
@@ -63,10 +64,14 @@ export function StreamingTabs({ className }: StreamingTabsProps) {
     }
   }, []);
 
-  // Fetch content when provider changes
+  // Fetch content when the provider or country changes
+  const activeId = activeProvider?.id;
   useEffect(() => {
-    fetchContent(activeProvider.id);
-  }, [activeProvider, fetchContent]);
+    if (activeId !== undefined) fetchContent(activeId, region);
+  }, [activeId, region, fetchContent]);
+
+  // None of these services operate in the viewer's country
+  if (!activeProvider) return null;
 
   return (
     <section className={className}>
@@ -77,10 +82,10 @@ export function StreamingTabs({ className }: StreamingTabsProps) {
 
       {/* Provider Tabs */}
       <div className="scrollbar-hide -mx-4 mb-6 flex gap-2 overflow-x-auto px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        {HOMEPAGE_PROVIDERS.map((provider) => (
+        {tabs.map((provider) => (
           <button
             key={provider.id}
-            onClick={() => setActiveProvider(provider)}
+            onClick={() => setSelectedProvider(provider)}
             className={cn(
               'flex flex-shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all',
               activeProvider.id === provider.id
@@ -107,7 +112,7 @@ export function StreamingTabs({ className }: StreamingTabsProps) {
         <div className="rounded-lg bg-bg-secondary p-8 text-center">
           <p className="text-text-secondary">{error}</p>
           <button
-            onClick={() => fetchContent(activeProvider.id)}
+            onClick={() => fetchContent(activeProvider.id, region)}
             className="mt-4 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
           >
             Try Again

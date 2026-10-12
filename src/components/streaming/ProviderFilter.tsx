@@ -9,16 +9,11 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STREAMING_PROVIDERS, type StreamingProvider } from '@/lib/constants';
 
 // ==========================================================================
 // Types
 // ==========================================================================
-
-interface StreamingProvider {
-  id: number;
-  name: string;
-  logo: string;
-}
 
 interface ProviderFilterProps {
   selectedProviders: number[];
@@ -26,23 +21,8 @@ interface ProviderFilterProps {
   className?: string;
 }
 
-// ==========================================================================
-// Popular Streaming Providers
-// Provider IDs from TMDB watch providers API
-// ==========================================================================
-
-const POPULAR_PROVIDERS: StreamingProvider[] = [
-  { id: 8, name: 'Netflix', logo: '/t2yyOv40HZeVlLjYsCsPHnWLk4W.jpg' },
-  { id: 9, name: 'Prime Video', logo: '/emthp39XA2YScoYL1p0sdbAH2WA.jpg' },
-  { id: 337, name: 'Disney+', logo: '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg' },
-  { id: 350, name: 'Apple TV+', logo: '/6uhKBfmtzFqOcLousHwZuzcrScK.jpg' },
-  { id: 384, name: 'HBO Max', logo: '/Ajqyt5aNxNGjmF9uOfxArGrdf3X.jpg' },
-  { id: 15, name: 'Hulu', logo: '/zxrVdFjIjLqkfnwyghnfywTn3Lh.jpg' },
-  { id: 531, name: 'Paramount+', logo: '/xbhHHa1YgtpwhC8lb1NQ3ACVcLd.jpg' },
-  { id: 283, name: 'Crunchyroll', logo: '/8Gt1iClBlzTeQs8WQm8UrCoIxnQ.jpg' },
-  { id: 386, name: 'Peacock', logo: '/8VCV78prwd9QzZnEm0ReO6bERDa.jpg' },
-  { id: 1899, name: 'Max', logo: '/6Q3ZYUNA9Hsgj6iWnVsw2gR5V6z.jpg' },
-];
+// The site-wide list (current TMDB IDs and logos)
+const POPULAR_PROVIDERS: StreamingProvider[] = STREAMING_PROVIDERS;
 
 const PROVIDER_IMAGE_BASE = 'https://image.tmdb.org/t/p/w45';
 

@@ -52,6 +52,43 @@ describe('usePagedList', () => {
     expect(result.current.items).toEqual([{ id: 2 }]);
   });
 
+  it('keeps the previous results (refreshing) until the new query answers', async () => {
+    const { respond } = deferredFetch();
+    const { result, rerender } = renderHook(({ q }) =>
+      usePagedList<Item>({ buildUrl: (p) => `/api?q=${q}&page=${p}`, getKey }),
+      { initialProps: { q: 'a' } }
+    );
+    await respond('/api?q=a&page=1', page([{ id: 1 }, { id: 2 }], 1, 3));
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    rerender({ q: 'b' });
+    // No skeleton: the old list stays (dimmed by the page), with no "load more" on it
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isRefreshing).toBe(true);
+    expect(result.current.items.map((i) => i.id)).toEqual([1, 2]);
+    expect(result.current.hasMore).toBe(false);
+
+    await respond('/api?q=b&page=1', page([{ id: 9 }], 1, 1));
+    await waitFor(() => expect(result.current.isRefreshing).toBe(false));
+    expect(result.current.items).toEqual([{ id: 9 }]);
+  });
+
+  it('shows an error, not the previous results, when the new query fails', async () => {
+    const { respond } = deferredFetch();
+    const { result, rerender } = renderHook(({ q }) =>
+      usePagedList<Item>({ buildUrl: (p) => `/api?q=${q}&page=${p}`, getKey }),
+      { initialProps: { q: 'a' } }
+    );
+    await respond('/api?q=a&page=1', page([{ id: 1 }], 1, 1));
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+
+    rerender({ q: 'b' });
+    await respond('/api?q=b&page=1', { error: 'boom' }, false);
+    await waitFor(() => expect(result.current.error).toBe('initial'));
+    expect(result.current.isRefreshing).toBe(false);
+    expect(result.current.items).toEqual([]);
+  });
+
   it('appends later pages without duplicates and stops at the last page', async () => {
     const { respond } = deferredFetch();
     const { result } = renderHook(() => usePagedList<Item>({ buildUrl: (p) => `/api?page=${p}`, getKey }));

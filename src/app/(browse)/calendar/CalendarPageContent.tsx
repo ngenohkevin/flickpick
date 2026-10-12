@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { pushUrl } from '@/components/browse/filter-params';
 import { Calendar, CalendarFilters, ReleaseModal, type CalendarTypeFilter } from '@/components/calendar';
 import { useScrollRestoration } from '@/lib/hooks';
+import { cn } from '@/lib/utils';
 import type { CalendarDay as CalendarDayType, CalendarRelease, CalendarResponse } from '@/types';
 
 // ==========================================================================
@@ -37,9 +38,12 @@ export function CalendarPageContent() {
 
   // Fetch state, tagged with the query it belongs to
   const queryKey = `${month}|${typeFilter}`;
-  const [result, setResult] = useState<{ key: string; releases: CalendarRelease[]; error: string | null } | null>(
-    null
-  );
+  const [result, setResult] = useState<{
+    key: string;
+    month: string;
+    releases: CalendarRelease[];
+    error: string | null;
+  } | null>(null);
   const [reloadCount, setReloadCount] = useState(0);
   const [selectedDay, setSelectedDay] = useState<CalendarDayType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,12 +61,13 @@ export function CalendarPageContent() {
       .then(async (response) => {
         if (!response.ok) throw new Error('Failed to fetch calendar data');
         const data: CalendarResponse = await response.json();
-        setResult({ key: queryKey, releases: data.releases, error: null });
+        setResult({ key: queryKey, month, releases: data.releases, error: null });
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
         setResult({
           key: queryKey,
+          month,
           releases: [],
           error: err instanceof Error ? err.message : 'An error occurred',
         });
@@ -74,7 +79,11 @@ export function CalendarPageContent() {
   const current = result?.key === queryKey ? result : null;
   const isLoading = !current;
   const error = current?.error ?? null;
-  const releases = current?.releases ?? [];
+  // Switching the type filter keeps this month's releases on screen (dimmed)
+  // until the new list arrives; a new month shows its empty grid instead.
+  // Either way the calendar stays in place, so nothing jumps.
+  const previous = !current && result && !result.error && result.month === month ? result : null;
+  const releases = (current ?? previous)?.releases ?? [];
 
   const retry = () => {
     setResult(null);
@@ -141,25 +150,29 @@ export function CalendarPageContent() {
               onFilterChange={handleFilterChange}
             />
 
-            {/* Stats */}
-            {!isLoading && (
-              <div className="flex items-center gap-4 text-sm text-text-secondary">
-                <span>
-                  <span className="font-medium text-text-primary">{totalReleases}</span> releases
-                </span>
-                {typeFilter === 'all' && (
-                  <>
-                    <span className="hidden sm:inline">|</span>
-                    <span className="hidden sm:inline">
-                      <span className="font-medium text-badge-movie">{movieCount}</span> movies
-                    </span>
-                    <span className="hidden sm:inline">
-                      <span className="font-medium text-badge-tv">{tvCount}</span> TV episodes
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
+            {/* Stats (always rendered, so the bar keeps its height while loading) */}
+            <div
+              className={cn(
+                'flex items-center gap-4 text-sm text-text-secondary transition-opacity',
+                isLoading && (previous ? 'opacity-50' : 'invisible')
+              )}
+              aria-hidden={isLoading && !previous}
+            >
+              <span>
+                <span className="font-medium text-text-primary">{totalReleases}</span> releases
+              </span>
+              {typeFilter === 'all' && (
+                <>
+                  <span className="hidden sm:inline">|</span>
+                  <span className="hidden sm:inline">
+                    <span className="font-medium text-badge-movie">{movieCount}</span> movies
+                  </span>
+                  <span className="hidden sm:inline">
+                    <span className="font-medium text-badge-tv">{tvCount}</span> TV episodes
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -176,15 +189,18 @@ export function CalendarPageContent() {
               Try Again
             </button>
           </div>
-        ) : isLoading ? (
-          <CalendarSkeleton />
         ) : (
-          <Calendar
-            month={month}
-            releases={releases}
-            onMonthChange={handleMonthChange}
-            onDayClick={handleDayClick}
-          />
+          <div
+            className={cn('transition-opacity duration-200', isLoading && 'opacity-60')}
+            aria-busy={isLoading}
+          >
+            <Calendar
+              month={month}
+              releases={releases}
+              onMonthChange={handleMonthChange}
+              onDayClick={handleDayClick}
+            />
+          </div>
         )}
       </div>
 
@@ -194,46 +210,6 @@ export function CalendarPageContent() {
         onClose={handleCloseModal}
         day={selectedDay}
       />
-    </div>
-  );
-}
-
-// ==========================================================================
-// CalendarSkeleton Component
-// Loading skeleton for the calendar
-// ==========================================================================
-
-function CalendarSkeleton() {
-  return (
-    <div className="w-full">
-      {/* Header Skeleton */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="h-8 w-48 animate-pulse rounded bg-bg-tertiary" />
-          <div className="h-8 w-16 animate-pulse rounded bg-bg-tertiary" />
-        </div>
-        <div className="flex gap-2">
-          <div className="h-10 w-10 animate-pulse rounded bg-bg-tertiary" />
-          <div className="h-10 w-10 animate-pulse rounded bg-bg-tertiary" />
-        </div>
-      </div>
-
-      {/* Days Header Skeleton */}
-      <div className="mb-2 grid grid-cols-7 gap-1">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="h-8 animate-pulse rounded bg-bg-tertiary" />
-        ))}
-      </div>
-
-      {/* Calendar Grid Skeleton */}
-      <div className="grid grid-cols-7 gap-1">
-        {Array.from({ length: 42 }).map((_, i) => (
-          <div
-            key={i}
-            className="min-h-[100px] animate-pulse rounded-lg border border-border-subtle bg-bg-tertiary"
-          />
-        ))}
-      </div>
     </div>
   );
 }

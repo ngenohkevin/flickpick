@@ -8,6 +8,7 @@ import { useInfiniteScroll } from '@/lib/hooks';
 import { shouldShowDisplayAds, DISPLAY_AD_CONFIG } from '@/lib/ads/config';
 import type { Content } from '@/types';
 import { contentWatchlistKey } from '@/stores/watchlist';
+import { cn } from '@/lib/utils';
 
 // ==========================================================================
 // Content Grid Component
@@ -129,6 +130,11 @@ interface InfiniteContentGridProps extends ContentGridProps {
    */
   error?: 'initial' | 'more' | null;
   onRetry?: () => void;
+  /**
+   * New results are loading and `items` are the previous ones: they stay in
+   * place, dimmed, so the page doesn't collapse to a skeleton and jump.
+   */
+  isRefreshing?: boolean;
 }
 
 export function InfiniteContentGrid({
@@ -154,6 +160,7 @@ export function InfiniteContentGrid({
   emptyState,
   error = null,
   onRetry,
+  isRefreshing = false,
 }: InfiniteContentGridProps) {
   // Determine if we should auto-load or show manual button
   // After maxAutoLoadPages, switch to manual "Load More" to allow footer access
@@ -188,7 +195,10 @@ export function InfiniteContentGrid({
   }
 
   return (
-    <div className={className}>
+    <div
+      className={cn(className, 'transition-opacity duration-200', isRefreshing && 'pointer-events-none opacity-50')}
+      aria-busy={isRefreshing || isLoading}
+    >
       <ContentGrid
         items={items}
         columns={columns}
@@ -241,7 +251,7 @@ export function InfiniteContentGrid({
       )}
 
       {/* End of results message */}
-      {!hasMore && !isLoading && items.length > 0 && showEndMessage && (
+      {!hasMore && !isLoading && !isRefreshing && items.length > 0 && showEndMessage && (
         <div className="mt-8 flex justify-center">
           <p className="text-sm text-text-tertiary">{endMessage}</p>
         </div>

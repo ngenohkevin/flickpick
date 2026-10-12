@@ -14,3 +14,5 @@ export {
 } from './useReducedMotion';
 export { useScrollRestoration } from './useScrollRestoration';
 export { usePagedList, type PagedResponse } from './usePagedList';
+export { useRegionProviders, useWatchRegion } from './useRegionProviders';
+export { useScrollToResults } from './useScrollToResults';

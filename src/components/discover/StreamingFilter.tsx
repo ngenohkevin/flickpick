@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { Tv, X } from 'lucide-react';
 import { STREAMING_PROVIDERS, TMDB_IMAGE_BASE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { CountrySelector } from '@/components/streaming/CountrySelector';
+import { useRegionProviders } from '@/lib/hooks/useRegionProviders';
 
 // ==========================================================================
 // Streaming Filter Component
@@ -17,15 +19,19 @@ interface StreamingFilterProps {
   className?: string;
 }
 
-// Top streaming providers to show
-const TOP_PROVIDERS = STREAMING_PROVIDERS.slice(0, 8);
-
 export function StreamingFilter({
   selected,
   onChange,
   disabled = false,
   className = '',
 }: StreamingFilterProps) {
+  // Services offered in the viewer's country (all of them until known); a
+  // selected one stays visible so it can be cleared
+  const regionProviders = useRegionProviders();
+  const visibleProviders = STREAMING_PROVIDERS.filter(
+    (p) => !regionProviders.ids || regionProviders.ids.has(p.id) || selected.includes(p.id)
+  );
+
   const handleToggle = (providerId: number) => {
     if (disabled) return;
 
@@ -46,7 +52,8 @@ export function StreamingFilter({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 text-text-tertiary">
           <Tv className="h-3.5 w-3.5" />
-          <span className="text-xs font-medium">Filter by streaming</span>
+          <span className="text-xs font-medium">Filter by streaming in</span>
+          <CountrySelector compact align="left" />
         </div>
         {selected.length > 0 && (
           <button
@@ -65,7 +72,7 @@ export function StreamingFilter({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {TOP_PROVIDERS.map((provider) => {
+        {visibleProviders.map((provider) => {
           const isSelected = selected.includes(provider.id);
 
           return (

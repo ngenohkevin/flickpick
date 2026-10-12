@@ -3,6 +3,11 @@
 // Fetches a paginated list (page 1, then "load more"), resetting whenever the
 // query changes. Each query gets a generation number and an AbortController,
 // so a slow response for an old query can never overwrite a newer one.
+//
+// While a new query loads, the previous query's results stay available
+// (isRefreshing) so the page can dim them instead of collapsing to a
+// skeleton: swapping a long list for a short skeleton made the browser clamp
+// the scroll position and the whole page jump on every filter click.
 // ==========================================================================
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -122,8 +127,14 @@ export function usePagedList<T, R extends PagedResponse<T> = PagedResponse<T>>(
     return () => controllerRef.current?.abort();
   }, [queryKey, loadFirstPage]);
 
-  // State left over from a previous query is never shown
+  // State left over from a previous query is never treated as this query's
   const current = state?.key === queryKey ? state : null;
+  // ...but its results stay on screen (dimmed) until this query's arrive
+  const previous =
+    !current && state && state.items.length > 0 && state.status !== 'error' && state.status !== 'loading'
+      ? state
+      : null;
+  const shown = current ?? previous;
 
   const loadMore = useCallback(() => {
     if (!current || loadMoreInFlightRef.current) return;
@@ -219,12 +230,16 @@ export function usePagedList<T, R extends PagedResponse<T> = PagedResponse<T>>(
   );
 
   return {
-    items: current?.items ?? [],
+    /** This query's items, or the previous query's while this one loads */
+    items: shown?.items ?? [],
     page: current?.page ?? 1,
     totalPages: current?.totalPages ?? 0,
-    totalResults: current?.totalResults ?? 0,
-    firstPage: current?.firstPage ?? null,
-    isLoading: !current || current.status === 'loading',
+    totalResults: shown?.totalResults ?? 0,
+    firstPage: shown?.firstPage ?? null,
+    /** Nothing to show yet (first load, or retrying after an error) */
+    isLoading: !shown || shown.status === 'loading',
+    /** A new query is loading; `items` are the previous query's results */
+    isRefreshing: !current && !!previous,
     isLoadingMore: current?.status === 'loading-more',
     /** 'initial': page 1 failed (nothing to show); 'more': a later page failed */
     error: current?.status === 'error' ? 'initial' : current?.status === 'error-more' ? 'more' : null,

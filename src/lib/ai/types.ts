@@ -37,8 +37,10 @@ export interface EnrichedRecommendation {
   genre_ids: number[];
   original_language: string;
   reason: string;
-  /** Streaming provider IDs (for filtering) */
+  /** Streaming provider IDs in the US (kept for results cached before providerRegions) */
   providers?: number[];
+  /** Our streaming service IDs per country (for the streaming filter) */
+  providerRegions?: Record<string, number[]>;
 }
 
 // ==========================================================================

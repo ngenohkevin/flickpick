@@ -11,6 +11,7 @@ import { getMovieDetails } from '@/lib/tmdb/movies';
 import { getTVShowDetails } from '@/lib/tmdb/tv';
 import { getMovieProviders, getTVProviders, getStreamingProviders } from '@/lib/tmdb/providers';
 import { DEFAULT_COUNTRY, RATE_LIMITS } from '@/lib/constants';
+import { serviceRegions } from '@/lib/streaming';
 import { getClientIP } from '@/lib/client-ip';
 import { getCache, setCache, isRateLimited } from '@/lib/redis';
 import type { EnrichedTasteDiveResult } from '@/lib/tastedive';
@@ -50,7 +51,8 @@ interface BlendResult {
   overview: string;
   year: number;
   blend_reason: string;
-  providers?: number[]; // Streaming provider IDs for filtering
+  providers?: number[]; // US streaming provider IDs (older cached results)
+  providerRegions?: Record<string, number[]>; // Our services per country, for filtering
 }
 
 interface BlendResponse {
@@ -97,24 +99,25 @@ async function fetchTitle(
 }
 
 /**
- * Fetch streaming provider IDs for a title
+ * Where a title streams: raw US provider IDs, plus our services per country
+ * so the filter follows the viewer's country (one TMDB call covers all)
  */
 async function getProviderIds(
   mediaType: 'movie' | 'tv',
   id: number
-): Promise<number[]> {
+): Promise<{ providers: number[]; providerRegions: Record<string, number[]> }> {
   try {
     const response =
       mediaType === 'movie' ? await getMovieProviders(id) : await getTVProviders(id);
 
     const countryProviders = response.results[DEFAULT_COUNTRY];
-    if (!countryProviders) return [];
-
-    const streamingProviders = getStreamingProviders(countryProviders);
-    return streamingProviders.map((p) => p.provider_id);
+    return {
+      providers: countryProviders ? getStreamingProviders(countryProviders).map((p) => p.provider_id) : [],
+      providerRegions: serviceRegions(response.results),
+    };
   } catch (error) {
     console.warn(`Failed to fetch providers for ${mediaType}/${id}:`, error);
-    return [];
+    return { providers: [], providerRegions: {} };
   }
 }
 
@@ -285,8 +288,7 @@ export async function POST(request: NextRequest) {
     // Fetch streaming providers for each result (in parallel, batched)
     const resultsWithProviders = await Promise.all(
       results.map(async (result) => {
-        const providers = await getProviderIds(result.media_type, result.id);
-        return { ...result, providers };
+        return { ...result, ...(await getProviderIds(result.media_type, result.id)) };
       })
     );
 

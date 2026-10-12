@@ -6,6 +6,7 @@
 // ==========================================================================
 
 import type { FilterState } from './FilterSidebar';
+import { findStreamingProvider } from '@/lib/constants';
 
 type ParamsLike = { get(name: string): string | null };
 
@@ -43,7 +44,8 @@ export function parseFilters(params: ParamsLike, { ratingParam = 'rating_min' }:
     yearTo: parseYear(params.get('year_to')),
     ratingMin: rating > 0 && rating <= 10 ? rating : null,
     language: language && /^[a-z]{2}$/.test(language) ? language : null,
-    provider: provider && /^\d+$/.test(provider) ? provider : null,
+    // Retired IDs (old links) map to the current one; unknown IDs are dropped
+    provider: provider && /^\d+$/.test(provider) ? (findStreamingProvider(provider)?.id.toString() ?? null) : null,
     runtime: (RUNTIMES as readonly string[]).includes(runtime ?? '') ? (runtime as FilterState['runtime']) : null,
   };
 }

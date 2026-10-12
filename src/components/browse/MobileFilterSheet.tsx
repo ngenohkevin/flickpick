@@ -19,6 +19,10 @@ interface MobileFilterSheetProps {
   sections?: readonly FilterSectionKey[];
   /** Genre IDs left out of the genre list */
   hiddenGenres?: readonly number[];
+  /** Language codes left out of the language list */
+  hiddenLanguages?: readonly string[];
+  /** How several included genres combine */
+  genreMatch?: 'any' | 'all';
 }
 
 // ==========================================================================
@@ -34,6 +38,8 @@ export function MobileFilterSheet({
   activeFilterCount,
   sections,
   hiddenGenres,
+  hiddenLanguages,
+  genreMatch,
 }: MobileFilterSheetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [dragY, setDragY] = useState(0);
@@ -198,6 +204,8 @@ export function MobileFilterSheet({
             contentType={contentType}
             sections={sections}
             hiddenGenres={hiddenGenres}
+            hiddenLanguages={hiddenLanguages}
+            genreMatch={genreMatch}
           />
         </div>
 

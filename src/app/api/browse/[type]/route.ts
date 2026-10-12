@@ -19,7 +19,7 @@ import type { TMDBMovie } from '@/lib/tmdb/movies';
 import type { TMDBTVShow } from '@/lib/tmdb/tv';
 import { TMDB_MAX_PAGE, toTVGenres } from '@/lib/tmdb/genres';
 import { parseEnum, parseIdList, parsePage } from '@/lib/params';
-import { RATING_SORT_MIN_VOTES } from '@/lib/constants';
+import { RATING_SORT_MIN_VOTES, providerTmdbIds } from '@/lib/constants';
 import type { ContentType, PaginatedResponse, Content } from '@/types';
 
 // ==========================================================================
@@ -34,6 +34,11 @@ type SortOption = 'popularity' | 'rating' | 'release_date' | 'title';
 const SORT_OPTIONS: SortOption[] = ['popularity', 'rating', 'release_date', 'title'];
 const RUNTIMES = ['any', 'short', 'medium', 'long'] as const;
 
+
+/** Year bounds in ascending order (either may be missing). */
+function orderedYears(from?: string, to?: string): [string | undefined, string | undefined] {
+  return from && to && from > to ? [to, from] : [from, to];
+}
 
 /**
  * Merges one movie page and one TV page into a single page.
@@ -103,12 +108,17 @@ export async function GET(
     const page = parsePage(searchParams.get('page'));
     const genreIds = parseIdList(searchParams.get('genre'));
     const excludeGenreIds = parseIdList(searchParams.get('exclude_genre'));
-    const yearFrom = searchParams.get('year_from')?.match(/^\d{4}$/)?.[0];
-    const yearTo = searchParams.get('year_to')?.match(/^\d{4}$/)?.[0];
+    // An inverted range (2020 → 2010) is read as 2010 → 2020, not as "nothing"
+    const [yearFrom, yearTo] = orderedYears(
+      searchParams.get('year_from')?.match(/^\d{4}$/)?.[0],
+      searchParams.get('year_to')?.match(/^\d{4}$/)?.[0]
+    );
     const ratingParam = parseFloat(searchParams.get('rating_min') ?? '');
     const ratingMin = ratingParam > 0 && ratingParam <= 10 ? ratingParam : undefined;
     const language = searchParams.get('language')?.match(/^[a-z]{2}$/)?.[0]; // ISO 639-1 language code
     const provider = searchParams.get('provider')?.match(/^\d+$/)?.[0];
+    // All tiers of the service (e.g. Paramount+ Premium | Essential)
+    const providerIds = provider ? providerTmdbIds(provider).join('|') : undefined;
     const watchRegion = searchParams.get('watch_region')?.match(/^[A-Z]{2}$/)?.[0] ?? 'US';
     const sortBy = parseEnum(searchParams.get('sort_by'), SORT_OPTIONS, 'popularity');
     const runtime = parseEnum(searchParams.get('runtime'), RUNTIMES, 'any');
@@ -145,15 +155,17 @@ export async function GET(
       ...(ratingMin && { 'vote_average.gte': ratingMin }),
       ...(minVotes > 0 && { 'vote_count.gte': minVotes }),
       ...(language && { with_original_language: language }),
-      ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
+      ...(providerIds && { with_watch_providers: providerIds, watch_region: watchRegion }),
     };
     // Genre IDs as sent (movie IDs on movie/animation/anime pages, TV IDs on the TV page)
     const unmappedBase = { ...baseParams, ...(excludeGenres && { without_genres: excludeGenres }) };
     // Animation/anime TV half: the sidebar listed movie genres, so map them
     const mappedTVBase = { ...baseParams, ...(tvExcludeGenres && { without_genres: tvExcludeGenres }) };
 
-    // Movie-specific params (runtime only works for movies)
-    const movieRuntimeParams = runtimeFilter
+    // Film runtime; on /discover/tv the same params filter on episode runtime,
+    // so "Long" on the animation/anime pages leaves the films (and a handful
+    // of feature-length specials) instead of ignoring the series half.
+    const runtimeParams = runtimeFilter
       ? {
           ...(runtimeFilter.gte && { 'with_runtime.gte': runtimeFilter.gte }),
           ...(runtimeFilter.lte && { 'with_runtime.lte': runtimeFilter.lte }),
@@ -174,7 +186,7 @@ export async function GET(
     if (contentType === 'movie') {
       response = await discoverMovies({
         ...unmappedBase,
-        ...movieRuntimeParams,
+        ...runtimeParams,
         ...movieDates,
         ...(genres && { with_genres: genres }),
         sort_by: sortMapping[sortBy].movie,
@@ -195,10 +207,10 @@ export async function GET(
 
       const [movieResponse, tvResponse] = await Promise.all([
         discoverMovie(
-          { ...unmappedBase, ...movieRuntimeParams, ...movieDates, sort_by: sortMapping[sortBy].movie },
+          { ...unmappedBase, ...runtimeParams, ...movieDates, sort_by: sortMapping[sortBy].movie },
           genreIds
         ),
-        discoverTV({ ...mappedTVBase, ...tvDates, sort_by: sortMapping[sortBy].tv }, genreIds),
+        discoverTV({ ...mappedTVBase, ...runtimeParams, ...tvDates, sort_by: sortMapping[sortBy].tv }, genreIds),
       ]);
 
       response = mergeMoviesAndTV(movieResponse, tvResponse, sortBy, page);

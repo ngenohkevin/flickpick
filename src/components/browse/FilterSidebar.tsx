@@ -7,6 +7,8 @@ import { MOVIE_GENRES, TV_GENRES, LANGUAGES, STREAMING_PROVIDERS, TMDB_IMAGE_BAS
 import { cn } from '@/lib/utils';
 import { trackFilterChange } from '@/lib/analytics';
 import { SkeletonFilterSidebar } from '@/components/ui';
+import { CountrySelector } from '@/components/streaming/CountrySelector';
+import { useRegionProviders } from '@/lib/hooks/useRegionProviders';
 
 // ==========================================================================
 // Types
@@ -52,6 +54,10 @@ interface FilterSidebarProps {
   sections?: readonly FilterSectionKey[];
   /** Genre IDs that can never match on this page (left out of the list) */
   hiddenGenres?: readonly number[];
+  /** Language codes that can never match on this page (left out of the list) */
+  hiddenLanguages?: readonly string[];
+  /** How several included genres combine: TMDB can only AND them on animation/anime */
+  genreMatch?: 'any' | 'all';
   className?: string;
   isLoading?: boolean;
 }
@@ -67,6 +73,8 @@ export function FilterSidebar({
   contentType,
   sections = ALL_FILTER_SECTIONS,
   hiddenGenres,
+  hiddenLanguages,
+  genreMatch = 'any',
   className = '',
   isLoading = false,
 }: FilterSidebarProps) {
@@ -77,6 +85,8 @@ export function FilterSidebar({
   // Slider position while dragging. Committing on every input event pushed a
   // URL and fired a request per step; the filter applies on release.
   const [ratingDraft, setRatingDraft] = useState<number | null>(null);
+  // Services offered in the viewer's streaming country (null = not known yet)
+  const regionProviders = useRegionProviders();
 
   // Show skeleton while loading
   if (isLoading) {
@@ -195,6 +205,15 @@ export function FilterSidebar({
 
   const currentYear = new Date().getFullYear();
   const yearOptions = Array.from({ length: 100 }, (_, i) => currentYear - i);
+  // Each end only offers years that keep the range the right way round
+  const fromOptions = filters.yearTo ? yearOptions.filter((y) => y <= filters.yearTo!) : yearOptions;
+  const toOptions = filters.yearFrom ? yearOptions.filter((y) => y >= filters.yearFrom!) : yearOptions;
+
+  // A selected service stays visible (so it can be cleared) even if the
+  // country changed to one that doesn't offer it
+  const visibleProviders = STREAMING_PROVIDERS.filter(
+    (p) => !regionProviders.ids || regionProviders.ids.has(p.id) || filters.provider === String(p.id)
+  );
 
   return (
     <aside className={cn('space-y-6', className)}>
@@ -248,6 +267,13 @@ export function FilterSidebar({
           <p className="mt-2 text-xs text-text-tertiary">
             Tap once to <span className="text-accent-primary font-medium">include</span>, tap again to <span className="text-red-400 font-medium">exclude</span>
           </p>
+          {filters.genres.length > 1 && (
+            <p className="mt-1 text-xs text-text-tertiary">
+              {genreMatch === 'all'
+                ? 'Showing titles with all of the included genres'
+                : 'Showing titles with any of the included genres'}
+            </p>
+          )}
         </FilterSection>
       )}
 
@@ -266,7 +292,7 @@ export function FilterSidebar({
               className="flex-1 rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
             >
               <option value="">From</option>
-              {yearOptions.map((year) => (
+              {fromOptions.map((year) => (
                 <option key={year} value={year}>
                   {year}
                 </option>
@@ -279,7 +305,7 @@ export function FilterSidebar({
               className="flex-1 rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
             >
               <option value="">To</option>
-              {yearOptions.map((year) => (
+              {toOptions.map((year) => (
                 <option key={year} value={year}>
                   {year}
                 </option>
@@ -333,7 +359,7 @@ export function FilterSidebar({
         </FilterSection>
       )}
 
-      {/* Runtime Filter (Movies only) */}
+      {/* Runtime Filter (films; series count by episode length) */}
       {show('runtime') && (contentType === 'movie' || contentType === 'animation') && (
         <FilterSection
           title="Runtime"
@@ -378,7 +404,9 @@ export function FilterSidebar({
             className="w-full rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
           >
             <option value="">All Languages</option>
-            {Object.entries(LANGUAGES).map(([code, name]) => (
+            {Object.entries(LANGUAGES)
+              .filter(([code]) => !hiddenLanguages?.includes(code) || filters.language === code)
+              .map(([code, name]) => (
               <option key={code} value={code}>
                 {name}
               </option>
@@ -395,8 +423,12 @@ export function FilterSidebar({
           onToggle={() => toggleSection('provider')}
           count={filters.provider ? 1 : 0}
         >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="text-xs text-text-tertiary">Available in</span>
+            <CountrySelector compact />
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            {STREAMING_PROVIDERS.map((provider) => {
+            {visibleProviders.map((provider) => {
               const isSelected = filters.provider === String(provider.id);
               return (
                 <button
