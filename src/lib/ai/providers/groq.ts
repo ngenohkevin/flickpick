@@ -1,6 +1,6 @@
 // ==========================================================================
 // Groq AI Provider
-// Free tier with generous limits using Llama/Mixtral models
+// Free tier: openai/gpt-oss-120b (30 req/min, 8K tokens/min)
 // ==========================================================================
 
 import { markAIProviderLimited, isAIProviderLimited } from '@/lib/redis';
@@ -15,11 +15,14 @@ import type { ContentType } from '@/types';
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const BASE_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL_NAME = 'llama-3.3-70b-versatile'; // Best quality free model
+// llama-3.3-70b-versatile was shut down on 2026-08-16.
+const MODEL_NAME = 'openai/gpt-oss-120b';
 const PROVIDER_NAME = 'groq';
 
 // Configuration
-const MAX_TOKENS = 4000;      // Increased for better responses
+// Groq counts max_tokens against the 8K tokens/min free tier up front; low
+// reasoning keeps a 15-title answer around 1K tokens.
+const MAX_TOKENS = 3000;
 const TEMPERATURE = 0.7;
 const RATE_LIMIT_TTL = 60;
 const REQUEST_TIMEOUT = 45000; // 45 seconds for complex prompts
@@ -82,6 +85,7 @@ export const groqProvider: AIProvider = {
           temperature: TEMPERATURE,
           max_tokens: MAX_TOKENS,
           response_format: { type: 'json_object' },
+          reasoning_effort: 'low',
         }),
         signal: controller.signal,
       });

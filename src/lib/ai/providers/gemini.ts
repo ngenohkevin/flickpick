@@ -1,9 +1,9 @@
 // ==========================================================================
 // Gemini AI Provider
-// Primary AI provider using Google's Gemini 2.0 Flash
+// Uses Gemini 3.6 Flash over the REST API (gemini-2.0-flash was shut down on
+// 2026-06-01; the old @google/generative-ai SDK predates thinking controls).
 // ==========================================================================
 
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { markAIProviderLimited, isAIProviderLimited } from '@/lib/redis';
 import type { AIProvider, AIRecommendation } from '../types';
 import { buildPrompt } from '../types';
@@ -15,36 +15,23 @@ import type { ContentType } from '@/types';
 // ==========================================================================
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL_NAME = 'gemini-2.0-flash';
+const MODEL_NAME = 'gemini-3.6-flash';
 const PROVIDER_NAME = 'gemini';
+const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent`;
 
-// Configuration
-const MAX_OUTPUT_TOKENS = 4096;  // Increased for better responses
+// maxOutputTokens includes thinking tokens; low thinking keeps responses fast.
+const MAX_OUTPUT_TOKENS = 4096;
 const TEMPERATURE = 0.7;
 const RATE_LIMIT_TTL = 60;
-
-// ==========================================================================
-// Gemini Client
-// ==========================================================================
-
-let genAI: GoogleGenerativeAI | null = null;
-
-function getClient(): GoogleGenerativeAI | null {
-  if (!GEMINI_API_KEY) {
-    console.warn('GEMINI_API_KEY is not set');
-    return null;
-  }
-
-  if (!genAI) {
-    genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  }
-
-  return genAI;
-}
+const REQUEST_TIMEOUT = 45000;
 
 // ==========================================================================
 // Gemini Provider Implementation
 // ==========================================================================
+
+interface GeminiResponse {
+  candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
+}
 
 export const GeminiProvider: AIProvider = {
   name: PROVIDER_NAME,
@@ -71,46 +58,43 @@ export const GeminiProvider: AIProvider = {
     prompt: string,
     contentTypes?: ContentType[]
   ): Promise<AIRecommendation[]> {
-    const client = getClient();
-    if (!client) {
-      throw new Error('Gemini client not available');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
-    const model = client.getGenerativeModel({
-      model: MODEL_NAME,
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-      ],
-      generationConfig: {
-        temperature: TEMPERATURE,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: MAX_OUTPUT_TOKENS,
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const fullPrompt = buildPrompt(prompt, contentTypes);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
     try {
-      const result = await model.generateContent(fullPrompt);
-      const response = result.response;
-      const text = response.text();
+      const response = await fetch(BASE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: buildPrompt(prompt, contentTypes) }] }],
+          generationConfig: {
+            temperature: TEMPERATURE,
+            maxOutputTokens: MAX_OUTPUT_TOKENS,
+            responseMimeType: 'application/json',
+            thinkingConfig: { thinkingLevel: 'low' },
+          },
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        if (response.status === 429) {
+          console.warn('[Gemini] Rate limited, marking as unavailable');
+          await markAIProviderLimited(PROVIDER_NAME, RATE_LIMIT_TTL);
+        }
+        throw new Error(`Gemini API error: ${response.status} - ${errorBody}`);
+      }
+
+      const data = (await response.json()) as GeminiResponse;
+      const text = data.candidates?.[0]?.content?.parts?.find((p) => !p.thought && p.text)?.text;
 
       if (!text) {
         throw new Error('Empty response from Gemini');
@@ -125,19 +109,13 @@ export const GeminiProvider: AIProvider = {
 
       console.log(`[Gemini] Parsed ${recommendations.length} recommendations`);
       return recommendations;
-    } catch (error: unknown) {
-      // Check for rate limiting (429 status)
-      if (
-        error instanceof Error &&
-        (error.message.includes('429') ||
-          error.message.includes('quota') ||
-          error.message.includes('rate'))
-      ) {
-        console.warn('Gemini rate limited, marking as unavailable');
-        await markAIProviderLimited(PROVIDER_NAME, RATE_LIMIT_TTL);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Gemini request timed out');
       }
-
       throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   },
 };

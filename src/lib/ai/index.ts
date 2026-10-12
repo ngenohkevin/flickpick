@@ -23,9 +23,9 @@ import type { ContentType } from '@/types';
  * When primary fails, try the next one
  *
  * Chain order:
- * 1. Groq - Primary AI (truly free, 14,400 req/day, very fast)
+ * 1. Groq - Primary AI (openai/gpt-oss-120b, free tier, very fast)
  * 2. DeepSeek - Secondary (requires balance but cheap)
- * 3. Gemini - Tertiary (free tier hits limits quickly)
+ * 3. Gemini - Tertiary (gemini-3.6-flash; free tier is 20 req/day)
  * 4. TasteDive - Extracts titles and finds similar content
  * 5. TMDB - Ultimate fallback, uses keyword→genre mapping + discover
  */
@@ -72,12 +72,17 @@ async function withRetry<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // Don't retry on certain errors
+      // Don't retry errors a retry can't fix: missing config, a retired
+      // model, or a rate limit (the next provider is the better bet).
       const errorMessage = lastError.message.toLowerCase();
       if (
         errorMessage.includes('not configured') ||
         errorMessage.includes('api key') ||
-        errorMessage.includes('insufficient balance')
+        errorMessage.includes('insufficient balance') ||
+        errorMessage.includes('model_not_found') ||
+        errorMessage.includes('model_decommissioned') ||
+        errorMessage.includes('error: 429') ||
+        errorMessage.includes('rate limit')
       ) {
         throw lastError;
       }

@@ -119,7 +119,7 @@ CONTENT TYPES:
 - anime: Japanese animation (movies or series)
 
 RULES:
-1. Only recommend real, existing titles that were released before 2024
+1. Only recommend real, existing titles that have already been released
 2. Mix content types unless user specifies (e.g., "anime only", "movies only")
 3. Prioritize content from 1990-present unless user asks for classics
 4. Diversify recommendations (different directors, studios, countries)
@@ -127,18 +127,22 @@ RULES:
 6. For anime requests, prefer highly-rated series (MAL 8+)
 7. Consider both popular and lesser-known titles for variety
 8. Never include unreleased or upcoming titles
+9. Never recommend a title the user named in their request - they want something like it, not the same thing
 
-OUTPUT FORMAT (strict JSON array, no markdown, no explanation):
-[
-  {
-    "title": "Exact Title",
-    "year": 2020,
-    "type": "movie" | "tv" | "anime",
-    "reason": "One compelling sentence explaining why this matches"
-  }
-]
+OUTPUT FORMAT (strict JSON object, no markdown, no explanation):
+{
+  "recommendations": [
+    {
+      "title": "Exact Title",
+      "year": 2020,
+      "type": "movie" | "tv" | "anime",
+      "reason": "One compelling sentence explaining why this matches"
+    }
+  ]
+}
 
-IMPORTANT: Return ONLY the JSON array. No markdown code blocks, no additional text.`;
+IMPORTANT: Return ONLY the JSON object. No markdown code blocks, no additional text.
+If fewer titles fit, return as many as you can - never an error, refusal or apology.`;
 
 /**
  * Build the full prompt for AI
