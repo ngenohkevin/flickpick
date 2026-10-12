@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'My Watchlist | FlickPick',
+  title: 'My Watchlist',
   description:
     'Your personal watchlist of movies and TV shows to watch. Keep track of what you want to see next.',
   openGraph: {

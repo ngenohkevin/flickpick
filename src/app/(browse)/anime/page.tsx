@@ -8,7 +8,7 @@ import { SkeletonGrid } from '@/components/ui';
 // ==========================================================================
 
 export const metadata: Metadata = {
-  title: 'Browse Anime | FlickPick',
+  title: 'Browse Anime',
   description:
     'Discover the best anime movies and series. From classics like Studio Ghibli to the latest seasonal hits, find your next anime obsession.',
   openGraph: {

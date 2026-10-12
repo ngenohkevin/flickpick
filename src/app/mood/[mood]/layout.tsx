@@ -31,12 +31,15 @@ export async function generateMetadata({ params }: MoodLayoutProps): Promise<Met
 
   if (!moodConfig) {
     return {
-      title: 'Mood Not Found | FlickPick',
+      title: 'Mood Not Found',
       description: 'The requested mood could not be found.',
     };
   }
 
-  const title = `${moodConfig.name} Movies & Shows | FlickPick`;
+  // The root layout's template appends " | FlickPick" to the page title;
+  // social titles aren't templated, so they carry it explicitly
+  const title = `${moodConfig.name} Movies & Shows`;
+  const socialTitle = `${title} | FlickPick`;
   const description = `${moodConfig.description}. Discover ${moodConfig.name.toLowerCase()} movies and TV shows with AI-powered recommendations tailored to your mood.`;
 
   return {
@@ -53,7 +56,7 @@ export async function generateMetadata({ params }: MoodLayoutProps): Promise<Met
       'FlickPick',
     ],
     openGraph: {
-      title,
+      title: socialTitle,
       description,
       type: 'website',
       siteName: 'FlickPick',
@@ -61,7 +64,7 @@ export async function generateMetadata({ params }: MoodLayoutProps): Promise<Met
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: socialTitle,
       description,
     },
     alternates: {

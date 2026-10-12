@@ -16,7 +16,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   const { q } = await searchParams;
   const query = (Array.isArray(q) ? q[0] : q)?.trim();
   return {
-    title: query ? `“${query}” – Search | FlickPick` : 'Search | FlickPick',
+    title: query ? `“${query}” – Search` : 'Search',
     robots: { index: false, follow: true },
   };
 }

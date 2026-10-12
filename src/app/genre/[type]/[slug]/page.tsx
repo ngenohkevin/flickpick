@@ -85,7 +85,7 @@ export async function generateMetadata({ params }: GenrePageProps): Promise<Meta
   const description = getGenreDescription(genre.name, type as 'movie' | 'tv');
 
   return {
-    title: `${title} | FlickPick`,
+    title,
     description: `${description}. Browse and discover the best ${genre.name.toLowerCase()} ${typeLabel.toLowerCase()}.`,
     openGraph: {
       title: `${title} | FlickPick`,

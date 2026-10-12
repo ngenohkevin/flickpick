@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
   const movieId = parseInt(id, 10);
 
   if (isNaN(movieId)) {
-    return { title: 'Movie Not Found | FlickPick' };
+    return { title: 'Movie Not Found' };
   }
 
   try {
@@ -168,7 +168,7 @@ export async function generateMetadata({ params }: MoviePageProps): Promise<Meta
       },
     };
   } catch {
-    return { title: 'Movie Not Found | FlickPick' };
+    return { title: 'Movie Not Found' };
   }
 }
 

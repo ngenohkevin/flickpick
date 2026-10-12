@@ -65,7 +65,7 @@ export async function generateMetadata({ params }: TVPageProps): Promise<Metadat
   const showId = parseInt(id, 10);
 
   if (isNaN(showId)) {
-    return { title: 'TV Show Not Found | FlickPick' };
+    return { title: 'TV Show Not Found' };
   }
 
   try {
@@ -171,7 +171,7 @@ export async function generateMetadata({ params }: TVPageProps): Promise<Metadat
       },
     };
   } catch {
-    return { title: 'TV Show Not Found | FlickPick' };
+    return { title: 'TV Show Not Found' };
   }
 }
 

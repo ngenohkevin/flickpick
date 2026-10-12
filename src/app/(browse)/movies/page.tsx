@@ -8,7 +8,7 @@ import { SkeletonGrid } from '@/components/ui';
 // ==========================================================================
 
 export const metadata: Metadata = {
-  title: 'Browse Movies | FlickPick',
+  title: 'Browse Movies',
   description:
     'Discover and browse thousands of movies. Filter by genre, year, rating, and more to find your next favorite film.',
   openGraph: {

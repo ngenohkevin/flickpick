@@ -8,7 +8,7 @@ import { SkeletonGrid } from '@/components/ui';
 // ==========================================================================
 
 export const metadata: Metadata = {
-  title: 'Browse Animation | FlickPick',
+  title: 'Browse Animation',
   description:
     'Discover animated movies and TV shows from Disney, Pixar, DreamWorks, and more. Find your next favorite animated feature.',
   openGraph: {

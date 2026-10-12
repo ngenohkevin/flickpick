@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Content Blend | FlickPick',
+  title: 'Content Blend',
   description:
     'Blend 2-3 of your favorite movies or TV shows to discover content that combines their best elements. Find your perfect hybrid recommendation.',
   openGraph: {

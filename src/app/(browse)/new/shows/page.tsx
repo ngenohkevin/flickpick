@@ -8,7 +8,7 @@ import { SkeletonGrid } from '@/components/ui';
 // ==========================================================================
 
 export const metadata: Metadata = {
-  title: 'New TV Shows & Episodes | FlickPick',
+  title: 'New TV Shows & Episodes',
   description:
     'Track currently airing TV shows and new episodes. See episode release schedules, season progress, and find out when your favorite shows return.',
   openGraph: {

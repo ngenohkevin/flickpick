@@ -48,12 +48,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { type, slug } = await params;
 
   if (!isValidMediaType(type)) {
-    return { title: 'Not Found | FlickPick' };
+    return { title: 'Not Found' };
   }
 
   const contentId = extractIdFromSlug(slug);
   if (!contentId) {
-    return { title: 'Similar Content | FlickPick' };
+    return { title: 'Similar Content' };
   }
 
   try {
@@ -156,7 +156,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   } catch {
     return {
-      title: 'Find Similar Movies & TV Shows | FlickPick',
+      title: 'Find Similar Movies & TV Shows',
       description:
         'Discover movies and TV shows similar to your favorites. Get personalized recommendations based on genre, style, and themes.',
     };

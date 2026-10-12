@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'AI Discovery | FlickPick',
+  title: 'AI Discovery',
   description:
     'Discover your next favorite movie or TV show with AI-powered recommendations. Describe what you want to watch and get personalized suggestions.',
   openGraph: {

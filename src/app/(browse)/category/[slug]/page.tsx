@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   }
 
   return {
-    title: `${category.name} | FlickPick`,
+    title: category.name,
     description: `${category.description}. Discover the best ${category.name.toLowerCase()} movies and TV shows.`,
     openGraph: {
       title: `${category.name} | FlickPick`,

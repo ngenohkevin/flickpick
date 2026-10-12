@@ -7,7 +7,7 @@ import { CalendarPageContent } from './CalendarPageContent';
 // ==========================================================================
 
 export const metadata: Metadata = {
-  title: 'Release Calendar | FlickPick',
+  title: 'Release Calendar',
   description:
     'Track upcoming movie releases and TV show episodes. View the release calendar to plan your next watch.',
   openGraph: {

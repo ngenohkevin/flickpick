@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: SeasonPageProps): Promise<Met
   const seasonNum = parseInt(season, 10);
 
   if (isNaN(showId) || isNaN(seasonNum)) {
-    return { title: 'Season Not Found | FlickPick' };
+    return { title: 'Season Not Found' };
   }
 
   try {
@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: SeasonPageProps): Promise<Met
     const title = `${show.name} - ${seasonDetails.name}`;
 
     return {
-      title: `${title} | FlickPick`,
+      title,
       description:
         seasonDetails.overview ||
         `View all episodes of ${show.name} ${seasonDetails.name}. See air dates, episode details, and track your progress.`,
@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: SeasonPageProps): Promise<Met
       },
     };
   } catch {
-    return { title: 'Season Not Found | FlickPick' };
+    return { title: 'Season Not Found' };
   }
 }
 
