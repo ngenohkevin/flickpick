@@ -79,10 +79,13 @@ export async function GET() {
     let availableMovies: MovieWithAvailability[] = [];
     let torrentioWorked = false;
 
+    // The timer is cleared once the race settles: left running, it kept every
+    // request's timer alive and logged a "timeout" even after a fast check
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       console.log('[Just Released API] Checking Torrentio for', candidateMovies.length, 'movies...');
       const timeoutPromise = new Promise<MovieWithAvailability[]>((resolve) => {
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           console.log('[Just Released API] Torrentio timeout after 15s');
           resolve([]);
         }, 15000);
@@ -95,6 +98,8 @@ export async function GET() {
       console.log('[Just Released API] Torrentio returned', availableMovies.length, 'movies');
     } catch (error) {
       console.error('[Just Released API] Torrentio check failed:', error);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     // If Torrentio failed or returned nothing, return recent popular movies as fallback

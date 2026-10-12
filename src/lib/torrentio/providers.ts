@@ -290,6 +290,16 @@ export const KnightcrawlerProvider: StreamProvider = {
 // Provider Chain
 // ==========================================================================
 
+export interface StreamLookup {
+  streams: TorrentioStream[];
+  provider: string;
+  /**
+   * False when no provider answered (all errored or were skipped): "no
+   * streams" is then unknown, not a real answer, and mustn't be cached as one
+   */
+  checked: boolean;
+}
+
 /**
  * All available providers, sorted by priority
  */
@@ -307,8 +317,9 @@ export const ALL_PROVIDERS: StreamProvider[] = [
  */
 export async function getMovieStreamsWithFallback(
   imdbId: string
-): Promise<{ streams: TorrentioStream[]; provider: string }> {
+): Promise<StreamLookup> {
   const errors: string[] = [];
+  let anyAnswered = false;
 
   for (const provider of ALL_PROVIDERS) {
     // Skip providers with recent failures
@@ -318,12 +329,14 @@ export async function getMovieStreamsWithFallback(
 
     try {
       const response = await provider.getMovieStreams(imdbId);
+      anyAnswered = true;
 
       if (response.streams && response.streams.length > 0) {
         recordSuccess(provider.name);
         return {
           streams: response.streams,
           provider: provider.name,
+          checked: true,
         };
       }
     } catch (error) {
@@ -333,9 +346,10 @@ export async function getMovieStreamsWithFallback(
     }
   }
 
-  // All providers failed
-  console.error(`All providers failed for movie ${imdbId}:`, errors);
-  return { streams: [], provider: 'none' };
+  if (!anyAnswered) {
+    console.error(`All providers failed for movie ${imdbId}:`, errors);
+  }
+  return { streams: [], provider: 'none', checked: anyAnswered };
 }
 
 /**
@@ -345,8 +359,9 @@ export async function getTVStreamsWithFallback(
   imdbId: string,
   season: number,
   episode: number
-): Promise<{ streams: TorrentioStream[]; provider: string }> {
+): Promise<StreamLookup> {
   const errors: string[] = [];
+  let anyAnswered = false;
 
   for (const provider of ALL_PROVIDERS) {
     if (shouldSkipProvider(provider.name)) {
@@ -355,12 +370,14 @@ export async function getTVStreamsWithFallback(
 
     try {
       const response = await provider.getTVStreams(imdbId, season, episode);
+      anyAnswered = true;
 
       if (response.streams && response.streams.length > 0) {
         recordSuccess(provider.name);
         return {
           streams: response.streams,
           provider: provider.name,
+          checked: true,
         };
       }
     } catch (error) {
@@ -370,8 +387,10 @@ export async function getTVStreamsWithFallback(
     }
   }
 
-  console.error(`All providers failed for TV ${imdbId}:${season}:${episode}:`, errors);
-  return { streams: [], provider: 'none' };
+  if (!anyAnswered) {
+    console.error(`All providers failed for TV ${imdbId}:${season}:${episode}:`, errors);
+  }
+  return { streams: [], provider: 'none', checked: anyAnswered };
 }
 
 /**

@@ -91,6 +91,14 @@ const UNAVAILABLE: AvailabilityStatus = {
   hasHDR: false,
 };
 
+/** Seconds to cache an availability result. */
+function cacheTTLFor(availability: AvailabilityStatus): number {
+  return availability.checkFailed ? FAILED_CHECK_TTL : CACHE_TTL.TORRENTIO;
+}
+
+/** Providers were unreachable: retry after a few minutes, not an hour */
+const FAILED_CHECK_TTL = 300;
+
 /**
  * Check Torrentio availability for a movie with caching
  * Cached for 1 hour
@@ -107,8 +115,10 @@ async function getCachedMovieAvailability(imdbId: string): Promise<AvailabilityS
   // Fetch fresh
   const availability = await checkMovieAvailability(imdbId);
 
-  // Cache result (even unavailable ones to avoid re-checking)
-  await setCache(cacheKey, availability, CACHE_TTL.TORRENTIO);
+  // Cache the answer, unavailable included, to avoid re-checking. A failed
+  // check is cached briefly: an hour of "unavailable" after a provider blip
+  // hid every title from the just-released lists.
+  await setCache(cacheKey, availability, cacheTTLFor(availability));
 
   return availability;
 }
@@ -168,8 +178,8 @@ async function getCachedTVAvailability(
   // Fetch fresh
   const availability = await checkTVAvailability(imdbId, season, episode);
 
-  // Cache result
-  await setCache(cacheKey, availability, CACHE_TTL.TORRENTIO);
+  // Cache result (a failed check only briefly; see getCachedMovieAvailability)
+  await setCache(cacheKey, availability, cacheTTLFor(availability));
 
   return availability;
 }

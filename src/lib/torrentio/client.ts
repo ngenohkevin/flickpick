@@ -203,7 +203,7 @@ export async function checkMovieAvailability(
   imdbId: string
 ): Promise<AvailabilityStatus> {
   try {
-    const { streams, provider } = await getMovieStreamsWithFallback(imdbId);
+    const { streams, provider, checked } = await getMovieStreamsWithFallback(imdbId);
 
     if (streams.length === 0) {
       return {
@@ -214,6 +214,7 @@ export async function checkMovieAvailability(
         audioCodec: null,
         videoCodec: null,
         hasHDR: false,
+        ...(!checked && { checkFailed: true }),
       };
     }
 
@@ -235,6 +236,7 @@ export async function checkMovieAvailability(
       audioCodec: null,
       videoCodec: null,
       hasHDR: false,
+      checkFailed: true,
     };
   }
 }
@@ -249,7 +251,7 @@ export async function checkTVAvailability(
   episode: number = 1
 ): Promise<AvailabilityStatus> {
   try {
-    const { streams, provider } = await getTVStreamsWithFallback(imdbId, season, episode);
+    const { streams, provider, checked } = await getTVStreamsWithFallback(imdbId, season, episode);
 
     if (streams.length === 0) {
       return {
@@ -260,6 +262,7 @@ export async function checkTVAvailability(
         audioCodec: null,
         videoCodec: null,
         hasHDR: false,
+        ...(!checked && { checkFailed: true }),
       };
     }
 
@@ -280,6 +283,7 @@ export async function checkTVAvailability(
       audioCodec: null,
       videoCodec: null,
       hasHDR: false,
+      checkFailed: true,
     };
   }
 }

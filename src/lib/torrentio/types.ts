@@ -36,6 +36,8 @@ export interface AvailabilityStatus {
   audioCodec: string | null; // e.g., "ATMOS", "DTS-HD", "TrueHD"
   videoCodec: string | null; // e.g., "HEVC", "x265", "H.265"
   hasHDR: boolean; // HDR10, HDR10+, Dolby Vision
+  /** Set when no provider could be reached: unavailability is unknown */
+  checkFailed?: boolean;
 }
 
 // Note: ContentWithAvailability is defined in availability.ts
@@ -182,7 +184,9 @@ export const EXCLUDED_SOURCES = [
  * These are checked as substrings in the title
  */
 export const LOW_QUALITY_PATTERNS = [
-  'CAM',
+  // No bare 'CAM': as a substring it matched release names of films like
+  // Camp Rock or The Cameraman, which then never counted as available.
+  // CAM as a word is covered by EXCLUDED_SOURCES (word-boundary match).
   'CAMRIP',
   'HDCAM',
   'TELESYNC',
