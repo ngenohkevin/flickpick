@@ -49,12 +49,11 @@ async function incrementRateLimit(): Promise<void> {
 
   try {
     const key = tasteDiveCacheKeys.rateLimit();
-    const current = await client.incr(key);
-
-    // Set expiry on first request of the window
-    if (current === 1) {
-      await client.expire(key, TASTEDIVE_CONFIG.RATE_LIMIT_WINDOW);
-    }
+    // Create the window with its expiry first, then count: with INCR then
+    // EXPIRE, a failed EXPIRE left a counter that never reset, and TasteDive
+    // stayed "rate limited" for good once it reached the cap
+    await client.set(key, 0, 'EX', TASTEDIVE_CONFIG.RATE_LIMIT_WINDOW, 'NX');
+    await client.incr(key);
   } catch (error) {
     console.error('TasteDive rate limit increment error:', error);
   }

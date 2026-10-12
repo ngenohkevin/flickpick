@@ -26,16 +26,27 @@ export function getRedisClient(): Redis | null {
 
   if (!redis) {
     redis = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      retryStrategy: (times) => Math.min(times * 100, 3000),
+      // The cache is optional, so fail fast while Redis is down: queued
+      // commands waited on reconnects and stalled each request by seconds.
+      // A command that can't run now errors, and callers treat it as a miss.
+      enableOfflineQueue: false,
+      maxRetriesPerRequest: 1,
+      commandTimeout: 1000,
+      connectTimeout: 3000,
+      retryStrategy: (times) => Math.min(times * 200, 5000),
     });
 
+    // Reconnect attempts fail every few seconds during an outage; log the
+    // first and then at most once a minute
+    let lastErrorLog = 0;
     redis.on('error', (error) => {
-      console.error('Redis connection error:', error);
+      if (Date.now() - lastErrorLog < 60_000) return;
+      lastErrorLog = Date.now();
+      console.error('Redis connection error:', error.message);
     });
 
     redis.on('connect', () => {
+      lastErrorLog = 0;
       console.log('Redis connected');
     });
   }
