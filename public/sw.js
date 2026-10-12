@@ -3,10 +3,17 @@
 // Provides offline functionality and caching for PWA
 // ==========================================================================
 
-const CACHE_NAME = 'flickpick-v1';
-const STATIC_CACHE = 'flickpick-static-v1';
-const IMAGE_CACHE = 'flickpick-images-v1';
-const API_CACHE = 'flickpick-api-v1';
+// Bump CACHE_VERSION to drop every cache from earlier versions on activate
+const CACHE_VERSION = 'v2';
+const STATIC_CACHE = `flickpick-static-${CACHE_VERSION}`;
+const IMAGE_CACHE = `flickpick-images-${CACHE_VERSION}`;
+const API_CACHE = `flickpick-api-${CACHE_VERSION}`;
+
+// Size caps. Without them the API cache kept every browse page and search
+// ever fetched, and the static cache every JS chunk from every deploy.
+const MAX_STATIC_ITEMS = 150;
+const MAX_IMAGE_ITEMS = 100;
+const MAX_API_ITEMS = 60;
 
 // Static assets to cache on install
 const STATIC_ASSETS = [
@@ -136,10 +143,7 @@ async function handleImageRequest(request) {
     // Cache successful responses
     if (networkResponse.ok) {
       // Clone the response before caching
-      cache.put(request, networkResponse.clone());
-
-      // Limit image cache size
-      limitCacheSize(IMAGE_CACHE, 100);
+      cache.put(request, networkResponse.clone()).then(() => limitCacheSize(IMAGE_CACHE, MAX_IMAGE_ITEMS));
     }
 
     return networkResponse;
@@ -161,9 +165,9 @@ async function handleApiRequest(request) {
     // Try network first
     const networkResponse = await fetch(request);
 
-    // Cache successful GET responses
+    // Cache successful GET responses (offline fallback only)
     if (networkResponse.ok) {
-      cache.put(request, networkResponse.clone());
+      cache.put(request, networkResponse.clone()).then(() => limitCacheSize(API_CACHE, MAX_API_ITEMS));
     }
 
     return networkResponse;
@@ -278,7 +282,7 @@ async function handleStaticRequest(request) {
 
     // Cache successful responses for static assets
     if (networkResponse.ok && shouldCacheStatic(request.url)) {
-      cache.put(request, networkResponse.clone());
+      cache.put(request, networkResponse.clone()).then(() => limitCacheSize(STATIC_CACHE, MAX_STATIC_ITEMS));
     }
 
     return networkResponse;
@@ -302,11 +306,11 @@ async function limitCacheSize(cacheName, maxItems) {
   const keys = await cache.keys();
 
   if (keys.length > maxItems) {
-    // Delete oldest items (first in array)
+    // Delete oldest items (keys come back in insertion order). The
+    // precached shell (/, /offline, icons) is kept.
+    const evictable = keys.filter((req) => !STATIC_ASSETS.includes(new URL(req.url).pathname));
     const deleteCount = keys.length - maxItems;
-    for (let i = 0; i < deleteCount; i++) {
-      await cache.delete(keys[i]);
-    }
+    await Promise.all(evictable.slice(0, deleteCount).map((req) => cache.delete(req)));
   }
 }
 

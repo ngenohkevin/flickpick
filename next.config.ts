@@ -55,6 +55,17 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        // Browsers and Cloudflare must revalidate the service worker, or a
+        // fixed sw.js reaches installed users hours late
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache',
+          },
+        ],
+      },
     ];
   },
 
