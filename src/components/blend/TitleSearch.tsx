@@ -26,7 +26,8 @@ export interface SelectedTitle {
 
 interface TitleSearchProps {
   onSelect: (title: SelectedTitle) => void;
-  excludeIds?: number[];
+  /** Titles to leave out of results, as "movie:603" / "tv:1396" keys */
+  excludeKeys?: string[];
   placeholder?: string;
   className?: string;
   disabled?: boolean;
@@ -54,7 +55,7 @@ const CONTENT_TYPE_CONFIG: Record<
 
 export function TitleSearch({
   onSelect,
-  excludeIds = [],
+  excludeKeys = [],
   placeholder = 'Search for a movie or TV show...',
   className = '',
   disabled = false,
@@ -72,15 +73,18 @@ export function TitleSearch({
   // Debounce search query
   const debouncedQuery = useDebounce(query, DEBOUNCE_DELAY);
 
-  // Excluded IDs set for faster lookup
-  const excludeSet = new Set(excludeIds);
+  // Excluded titles; movies and TV shows share TMDB's ID space, so the key
+  // includes the media type
+  const excludeSet = new Set(excludeKeys);
 
   // ==========================================================================
   // Effects
   // ==========================================================================
 
-  // Fetch search results
+  // Fetch search results. Each query aborts the previous request, so a slow
+  // response for an earlier query can't replace the current results.
   useEffect(() => {
+    const controller = new AbortController();
     const fetchResults = async () => {
       if (debouncedQuery.trim().length < 2) {
         setResults([]);
@@ -91,25 +95,28 @@ export function TitleSearch({
       setIsLoading(true);
       try {
         const response = await fetch(
-          `/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=10`
+          `/api/search?q=${encodeURIComponent(debouncedQuery)}&limit=10`,
+          { signal: controller.signal }
         );
         if (response.ok) {
           const data = await response.json();
-          // Filter out excluded IDs
+          // Filter out excluded titles
           const filtered = (data.results || []).filter(
-            (r: SearchResult) => !excludeSet.has(r.id)
+            (r: SearchResult) => !excludeSet.has(`${r.media_type}:${r.id}`)
           );
           setResults(filtered);
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error('Search error:', error);
         setResults([]);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
 
     fetchResults();
+    return () => controller.abort();
   }, [debouncedQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close dropdown when clicking outside

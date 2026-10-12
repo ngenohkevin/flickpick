@@ -2,7 +2,14 @@
 // Browse Components
 // ==========================================================================
 
-export { FilterSidebar, defaultFilters, type FilterState } from './FilterSidebar';
+export {
+  FilterSidebar,
+  defaultFilters,
+  ALL_FILTER_SECTIONS,
+  type FilterState,
+  type FilterSectionKey,
+} from './FilterSidebar';
+export { parseFilters, writeFilters, countActiveFilters, pushUrl } from './filter-params';
 export { SortDropdown, type SortOption } from './SortDropdown';
 export { MobileFilterSheet } from './MobileFilterSheet';
 export { BrowsePage } from './BrowsePage';

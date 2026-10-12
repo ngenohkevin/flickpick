@@ -32,11 +32,26 @@ const RUNTIME_OPTIONS = [
   { value: 'long' as const, label: 'Long', description: '> 150 min', minMinutes: 150 },
 ];
 
+export type FilterSectionKey = 'genres' | 'year' | 'rating' | 'runtime' | 'language' | 'provider';
+
+export const ALL_FILTER_SECTIONS: readonly FilterSectionKey[] = [
+  'genres',
+  'year',
+  'rating',
+  'runtime',
+  'language',
+  'provider',
+];
+
 interface FilterSidebarProps {
   filters: FilterState;
   onFilterChange: (filters: FilterState) => void;
   onClearFilters: () => void;
   contentType: 'movie' | 'tv' | 'animation' | 'anime';
+  /** Sections to show; a page hides the filters its API can't apply. Default: all. */
+  sections?: readonly FilterSectionKey[];
+  /** Genre IDs that can never match on this page (left out of the list) */
+  hiddenGenres?: readonly number[];
   className?: string;
   isLoading?: boolean;
 }
@@ -50,6 +65,8 @@ export function FilterSidebar({
   onFilterChange,
   onClearFilters,
   contentType,
+  sections = ALL_FILTER_SECTIONS,
+  hiddenGenres,
   className = '',
   isLoading = false,
 }: FilterSidebarProps) {
@@ -57,6 +74,9 @@ export function FilterSidebar({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['genres', 'year', 'rating'])
   );
+  // Slider position while dragging. Committing on every input event pushed a
+  // URL and fired a request per step; the filter applies on release.
+  const [ratingDraft, setRatingDraft] = useState<number | null>(null);
 
   // Show skeleton while loading
   if (isLoading) {
@@ -128,6 +148,17 @@ export function FilterSidebar({
     }
   };
 
+  const commitRatingDraft = () => {
+    if (ratingDraft === null) return;
+    setRatingDraft(null);
+    if (ratingDraft !== (filters.ratingMin ?? 0)) {
+      handleRatingChange(ratingDraft === 0 ? '' : String(ratingDraft));
+    }
+  };
+
+  const shownRating = ratingDraft ?? filters.ratingMin ?? 0;
+  const show = (section: FilterSectionKey) => sections.includes(section);
+
   const handleLanguageChange = (value: string) => {
     onFilterChange({ ...filters, language: value || null });
     if (value) {
@@ -182,116 +213,128 @@ export function FilterSidebar({
       </div>
 
       {/* Genre Filter */}
-      <FilterSection
-        title="Genres"
-        isExpanded={expandedSections.has('genres')}
-        onToggle={() => toggleSection('genres')}
-        count={filters.genres.length + filters.excludedGenres.length}
-      >
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(genres).map(([id, name]) => {
-            const genreId = parseInt(id, 10);
-            const isIncluded = filters.genres.includes(genreId);
-            const isExcluded = filters.excludedGenres.includes(genreId);
-            return (
-              <button
-                key={id}
-                onClick={() => handleGenreToggle(genreId)}
-                className={cn(
-                  'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                  isIncluded
-                    ? 'bg-accent-primary text-white'
-                    : isExcluded
-                      ? 'bg-red-500/20 text-red-400 line-through'
-                      : 'bg-bg-tertiary text-text-secondary hover:bg-border-default hover:text-text-primary'
-                )}
-              >
-                {name}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-xs text-text-tertiary">
-          Tap once to <span className="text-accent-primary font-medium">include</span>, tap again to <span className="text-red-400 font-medium">exclude</span>
-        </p>
-      </FilterSection>
+      {show('genres') && (
+        <FilterSection
+          title="Genres"
+          isExpanded={expandedSections.has('genres')}
+          onToggle={() => toggleSection('genres')}
+          count={filters.genres.length + filters.excludedGenres.length}
+        >
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(genres)
+              .filter(([id]) => !hiddenGenres?.includes(Number(id)))
+              .map(([id, name]) => {
+              const genreId = parseInt(id, 10);
+              const isIncluded = filters.genres.includes(genreId);
+              const isExcluded = filters.excludedGenres.includes(genreId);
+              return (
+                <button
+                  key={id}
+                  onClick={() => handleGenreToggle(genreId)}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                    isIncluded
+                      ? 'bg-accent-primary text-white'
+                      : isExcluded
+                        ? 'bg-red-500/20 text-red-400 line-through'
+                        : 'bg-bg-tertiary text-text-secondary hover:bg-border-default hover:text-text-primary'
+                  )}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-text-tertiary">
+            Tap once to <span className="text-accent-primary font-medium">include</span>, tap again to <span className="text-red-400 font-medium">exclude</span>
+          </p>
+        </FilterSection>
+      )}
 
       {/* Year Range Filter */}
-      <FilterSection
-        title="Year"
-        isExpanded={expandedSections.has('year')}
-        onToggle={() => toggleSection('year')}
-        count={filters.yearFrom || filters.yearTo ? 1 : 0}
-      >
-        <div className="flex items-center gap-2">
-          <select
-            value={filters.yearFrom ?? ''}
-            onChange={(e) => handleYearChange('from', e.target.value)}
-            className="flex-1 rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
-          >
-            <option value="">From</option>
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-          <span className="text-text-tertiary">-</span>
-          <select
-            value={filters.yearTo ?? ''}
-            onChange={(e) => handleYearChange('to', e.target.value)}
-            className="flex-1 rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
-          >
-            <option value="">To</option>
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-      </FilterSection>
+      {show('year') && (
+        <FilterSection
+          title="Year"
+          isExpanded={expandedSections.has('year')}
+          onToggle={() => toggleSection('year')}
+          count={filters.yearFrom || filters.yearTo ? 1 : 0}
+        >
+          <div className="flex items-center gap-2">
+            <select
+              value={filters.yearFrom ?? ''}
+              onChange={(e) => handleYearChange('from', e.target.value)}
+              className="flex-1 rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            >
+              <option value="">From</option>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+            <span className="text-text-tertiary">-</span>
+            <select
+              value={filters.yearTo ?? ''}
+              onChange={(e) => handleYearChange('to', e.target.value)}
+              className="flex-1 rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            >
+              <option value="">To</option>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
+        </FilterSection>
+      )}
 
       {/* Rating Filter */}
-      <FilterSection
-        title="Minimum Rating"
-        isExpanded={expandedSections.has('rating')}
-        onToggle={() => toggleSection('rating')}
-        count={filters.ratingMin ? 1 : 0}
-      >
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-text-secondary">
-              {filters.ratingMin ? `${filters.ratingMin}+` : 'Any rating'}
-            </span>
-            {filters.ratingMin && (
-              <button
-                onClick={() => handleRatingChange('')}
-                className="text-text-tertiary hover:text-text-primary"
-              >
-                Clear
-              </button>
-            )}
+      {show('rating') && (
+        <FilterSection
+          title="Minimum Rating"
+          isExpanded={expandedSections.has('rating')}
+          onToggle={() => toggleSection('rating')}
+          count={filters.ratingMin ? 1 : 0}
+        >
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-secondary">
+                {shownRating ? `${shownRating}+` : 'Any rating'}
+              </span>
+              {filters.ratingMin && (
+                <button
+                  onClick={() => handleRatingChange('')}
+                  className="text-text-tertiary hover:text-text-primary"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="9"
+              step="0.5"
+              value={shownRating}
+              onChange={(e) => setRatingDraft(Number(e.target.value))}
+              onPointerUp={commitRatingDraft}
+              onKeyUp={commitRatingDraft}
+              onBlur={commitRatingDraft}
+              aria-label="Minimum rating"
+              className="w-full accent-accent-primary"
+            />
+            <div className="flex justify-between text-xs text-text-tertiary">
+              <span>Any</span>
+              <span>5</span>
+              <span>9+</span>
+            </div>
           </div>
-          <input
-            type="range"
-            min="0"
-            max="9"
-            step="0.5"
-            value={filters.ratingMin ?? 0}
-            onChange={(e) => handleRatingChange(e.target.value === '0' ? '' : e.target.value)}
-            className="w-full accent-accent-primary"
-          />
-          <div className="flex justify-between text-xs text-text-tertiary">
-            <span>Any</span>
-            <span>5</span>
-            <span>9+</span>
-          </div>
-        </div>
-      </FilterSection>
+        </FilterSection>
+      )}
 
       {/* Runtime Filter (Movies only) */}
-      {(contentType === 'movie' || contentType === 'animation') && (
+      {show('runtime') && (contentType === 'movie' || contentType === 'animation') && (
         <FilterSection
           title="Runtime"
           isExpanded={expandedSections.has('runtime')}
@@ -322,65 +365,69 @@ export function FilterSidebar({
       )}
 
       {/* Language Filter */}
-      <FilterSection
-        title="Language"
-        isExpanded={expandedSections.has('language')}
-        onToggle={() => toggleSection('language')}
-        count={filters.language ? 1 : 0}
-      >
-        <select
-          value={filters.language ?? ''}
-          onChange={(e) => handleLanguageChange(e.target.value)}
-          className="w-full rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+      {show('language') && (
+        <FilterSection
+          title="Language"
+          isExpanded={expandedSections.has('language')}
+          onToggle={() => toggleSection('language')}
+          count={filters.language ? 1 : 0}
         >
-          <option value="">All Languages</option>
-          {Object.entries(LANGUAGES).map(([code, name]) => (
-            <option key={code} value={code}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </FilterSection>
+          <select
+            value={filters.language ?? ''}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            className="w-full rounded-md border border-border-default bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+          >
+            <option value="">All Languages</option>
+            {Object.entries(LANGUAGES).map(([code, name]) => (
+              <option key={code} value={code}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </FilterSection>
+      )}
 
       {/* Streaming Provider Filter */}
-      <FilterSection
-        title="Streaming Service"
-        isExpanded={expandedSections.has('provider')}
-        onToggle={() => toggleSection('provider')}
-        count={filters.provider ? 1 : 0}
-      >
-        <div className="grid grid-cols-2 gap-2">
-          {STREAMING_PROVIDERS.map((provider) => {
-            const isSelected = filters.provider === String(provider.id);
-            return (
-              <button
-                key={provider.id}
-                onClick={() => handleProviderChange(String(provider.id))}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors',
-                  isSelected
-                    ? 'border-accent-primary bg-accent-primary/10'
-                    : 'border-border-default bg-bg-tertiary hover:border-border-strong'
-                )}
-              >
-                <Image
-                  src={`${TMDB_IMAGE_BASE_URL}/w45${provider.logo}`}
-                  alt={provider.name}
-                  width={24}
-                  height={24}
-                  className="rounded"
-                />
-                <span className={cn(
-                  'text-xs font-medium truncate',
-                  isSelected ? 'text-accent-primary' : 'text-text-secondary'
-                )}>
-                  {provider.name}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </FilterSection>
+      {show('provider') && (
+        <FilterSection
+          title="Streaming Service"
+          isExpanded={expandedSections.has('provider')}
+          onToggle={() => toggleSection('provider')}
+          count={filters.provider ? 1 : 0}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            {STREAMING_PROVIDERS.map((provider) => {
+              const isSelected = filters.provider === String(provider.id);
+              return (
+                <button
+                  key={provider.id}
+                  onClick={() => handleProviderChange(String(provider.id))}
+                  className={cn(
+                    'flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors',
+                    isSelected
+                      ? 'border-accent-primary bg-accent-primary/10'
+                      : 'border-border-default bg-bg-tertiary hover:border-border-strong'
+                  )}
+                >
+                  <Image
+                    src={`${TMDB_IMAGE_BASE_URL}/w45${provider.logo}`}
+                    alt={provider.name}
+                    width={24}
+                    height={24}
+                    className="rounded"
+                  />
+                  <span className={cn(
+                    'text-xs font-medium truncate',
+                    isSelected ? 'text-accent-primary' : 'text-text-secondary'
+                  )}>
+                    {provider.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </FilterSection>
+      )}
 
       {/* Active Filters Summary */}
       {hasActiveFilters && (

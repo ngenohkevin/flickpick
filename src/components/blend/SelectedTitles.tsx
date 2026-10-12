@@ -24,7 +24,7 @@ export interface SelectedTitle {
 
 interface SelectedTitlesProps {
   titles: SelectedTitle[];
-  onRemove: (id: number) => void;
+  onRemove: (title: SelectedTitle) => void;
   maxTitles?: number;
   className?: string;
 }
@@ -85,7 +85,7 @@ export function SelectedTitles({
   return (
     <div className={cn('flex flex-wrap gap-3 justify-center', className)}>
       {titles.map((title) => (
-        <SelectedTitleCard key={title.id} title={title} onRemove={onRemove} />
+        <SelectedTitleCard key={`${title.type}:${title.id}`} title={title} onRemove={onRemove} />
       ))}
       {emptySlots.map((_, i) => (
         <EmptySlot key={`empty-${i}`} index={titles.length + i + 1} />
@@ -100,7 +100,7 @@ export function SelectedTitles({
 
 interface SelectedTitleCardProps {
   title: SelectedTitle;
-  onRemove: (id: number) => void;
+  onRemove: (title: SelectedTitle) => void;
 }
 
 function SelectedTitleCard({ title, onRemove }: SelectedTitleCardProps) {
@@ -142,7 +142,7 @@ function SelectedTitleCard({ title, onRemove }: SelectedTitleCardProps) {
 
       {/* Remove button */}
       <button
-        onClick={() => onRemove(title.id)}
+        onClick={() => onRemove(title)}
         className={cn(
           'flex h-6 w-6 items-center justify-center rounded-full',
           'bg-bg-tertiary text-text-tertiary transition-all duration-200',

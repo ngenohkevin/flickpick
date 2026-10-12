@@ -1,17 +1,24 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Calendar, Filter, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { ContentCard } from '@/components/content/ContentCard';
 import { ContentGrid, InfiniteContentGrid } from '@/components/content';
-import { FilterSidebar, defaultFilters, type FilterState } from '@/components/browse/FilterSidebar';
+import {
+  FilterSidebar,
+  defaultFilters,
+  type FilterSectionKey,
+  type FilterState,
+} from '@/components/browse/FilterSidebar';
+import { parseFilters, writeFilters, countActiveFilters, pushUrl } from '@/components/browse/filter-params';
 import { MobileFilterSheet } from '@/components/browse/MobileFilterSheet';
 import { SortDropdown, type SortOption } from '@/components/browse/SortDropdown';
 import { SkeletonGrid } from '@/components/ui';
 import { useWatchlist, watchlistKey } from '@/stores/watchlist';
-import { cn } from '@/lib/utils';
+import { usePagedList } from '@/lib/hooks';
+import { cn, formatDate } from '@/lib/utils';
 import type { Content, Movie, PaginatedResponse, WatchlistItem } from '@/types';
 
 // ==========================================================================
@@ -43,27 +50,31 @@ const TIME_PERIODS: { value: TimePeriod; label: string; description: string }[] 
 // New Movies Page Content
 // ==========================================================================
 
+const PERIOD_VALUES = TIME_PERIODS.map((p) => p.value);
+const SORT_VALUES: SortOption[] = ['release_date', 'popularity', 'rating', 'title'];
+// The API takes the minimum rating as "rating" here, not "rating_min"
+const FILTER_PARAMS = { ratingParam: 'rating' };
+// Filters /api/new/movies can apply (no year: the period sets the dates)
+const FILTER_SECTIONS: FilterSectionKey[] = ['genres', 'rating', 'runtime', 'language', 'provider'];
+
+const movieKey = (movie: Movie) => String(movie.id);
+
 export function NewMoviesPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Parse initial values from URL
-  const initialPeriod = (searchParams.get('period') as TimePeriod) ?? 'month';
-  const initialSort = (searchParams.get('sort') as SortOption) ?? 'release_date';
-
-  // State
-  const [activePeriod, setActivePeriod] = useState<TimePeriod>(initialPeriod);
-  const [sortBy, setSortBy] = useState<SortOption>(initialSort);
-  const [filters, setFilters] = useState<FilterState>(() => ({
-    genres: searchParams.get('genre') ? searchParams.get('genre')!.split(',').map(Number) : [],
-    excludedGenres: searchParams.get('exclude_genre') ? searchParams.get('exclude_genre')!.split(',').map(Number) : [],
-    yearFrom: null,
-    yearTo: null,
-    ratingMin: searchParams.get('rating') ? parseFloat(searchParams.get('rating')!) : null,
-    language: searchParams.get('language') ?? null,
-    provider: searchParams.get('provider') ?? null,
-    runtime: null,
-  }));
+  // Period, sort and filters come from the URL only, so the "See all" links
+  // and Back/Forward work (they were read once into state and then ignored)
+  const searchKey = searchParams.toString();
+  const { activePeriod, sortBy, filters } = useMemo(() => {
+    const params = new URLSearchParams(searchKey);
+    const period = params.get('period') as TimePeriod | null;
+    const sort = params.get('sort') as SortOption | null;
+    return {
+      activePeriod: period && PERIOD_VALUES.includes(period) ? period : 'month',
+      sortBy: sort && SORT_VALUES.includes(sort) ? sort : 'release_date',
+      filters: parseFilters(params, FILTER_PARAMS),
+    };
+  }, [searchKey]);
 
   // This Week data (always shown at top)
   const [thisWeekMovies, setThisWeekMovies] = useState<Movie[]>([]);
@@ -72,15 +83,6 @@ export function NewMoviesPageContent() {
   // This Month data (shown when not viewing week or month)
   const [thisMonthMovies, setThisMonthMovies] = useState<Movie[]>([]);
   const [isLoadingThisMonth, setIsLoadingThisMonth] = useState(true);
-
-  // Main grid data (based on selected period)
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalResults, setTotalResults] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(null);
 
   // Watchlist
   const watchlist = useWatchlist();
@@ -149,69 +151,17 @@ export function NewMoviesPageContent() {
   // Build API URL for main grid
   const buildApiUrl = useCallback(
     (pageNum: number) => {
-      const params = new URLSearchParams();
+      const params = writeFilters(new URLSearchParams(), filters, FILTER_PARAMS);
       params.set('period', activePeriod);
       params.set('page', String(pageNum));
       params.set('sort', sortBy === 'release_date' ? 'date' : sortBy);
-
-      if (filters.genres.length > 0) {
-        params.set('genre', filters.genres.join(','));
-      }
-      if (filters.excludedGenres.length > 0) {
-        params.set('exclude_genre', filters.excludedGenres.join(','));
-      }
-      if (filters.ratingMin) {
-        params.set('rating', String(filters.ratingMin));
-      }
-      if (filters.language) {
-        params.set('language', filters.language);
-      }
-      if (filters.provider) {
-        params.set('provider', filters.provider);
-      }
-
       return `/api/new/movies?${params.toString()}`;
     },
     [activePeriod, sortBy, filters]
   );
 
-  // Fetch main grid data
-  const fetchMovies = useCallback(
-    async (pageNum: number, append: boolean = false) => {
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsLoading(true);
-      }
-
-      try {
-        const response = await fetch(buildApiUrl(pageNum));
-        if (!response.ok) throw new Error('Failed to fetch');
-        const data: NewMoviesResponse = await response.json();
-
-        if (append) {
-          // Deduplicate items to prevent React key warnings
-          setMovies((prev) => {
-            const existingIds = new Set(prev.map((movie) => movie.id));
-            const newMovies = data.results.filter((movie) => !existingIds.has(movie.id));
-            return [...prev, ...newMovies];
-          });
-        } else {
-          setMovies(data.results);
-        }
-        setPage(data.page);
-        setTotalPages(data.total_pages);
-        setTotalResults(data.total_results);
-        setDateRange(data.date_range);
-      } catch (error) {
-        console.error('Error fetching movies:', error);
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-      }
-    },
-    [buildApiUrl]
-  );
+  const list = usePagedList<Movie, NewMoviesResponse>({ buildUrl: buildApiUrl, getKey: movieKey });
+  const dateRange = list.firstPage?.date_range ?? null;
 
   // ==========================================================================
   // Effects
@@ -223,78 +173,29 @@ export function NewMoviesPageContent() {
     fetchThisMonthMovies();
   }, [fetchThisWeekMovies, fetchThisMonthMovies]);
 
-  // Fetch main grid when filters/period change
-  useEffect(() => {
-    setPage(1);
-    fetchMovies(1, false);
-  }, [fetchMovies]);
-
   // ==========================================================================
   // URL Management
   // ==========================================================================
 
-  const updateUrl = useCallback(
-    (newPeriod: TimePeriod, newSort: SortOption, newFilters: FilterState) => {
-      const params = new URLSearchParams();
-
-      if (newPeriod !== 'month') {
-        params.set('period', newPeriod);
-      }
-      if (newSort !== 'release_date') {
-        params.set('sort', newSort);
-      }
-      if (newFilters.genres.length > 0) {
-        params.set('genre', newFilters.genres.join(','));
-      }
-      if (newFilters.excludedGenres.length > 0) {
-        params.set('exclude_genre', newFilters.excludedGenres.join(','));
-      }
-      if (newFilters.ratingMin) {
-        params.set('rating', String(newFilters.ratingMin));
-      }
-      if (newFilters.language) {
-        params.set('language', newFilters.language);
-      }
-      if (newFilters.provider) {
-        params.set('provider', newFilters.provider);
-      }
-
-      const queryString = params.toString();
-      const newUrl = queryString ? `/new/movies?${queryString}` : '/new/movies';
-      router.push(newUrl, { scroll: false });
-    },
-    [router]
-  );
+  const updateUrl = (newPeriod: TimePeriod, newSort: SortOption, newFilters: FilterState) => {
+    const params = writeFilters(new URLSearchParams(), newFilters, FILTER_PARAMS);
+    if (newPeriod !== 'month') {
+      params.set('period', newPeriod);
+    }
+    if (newSort !== 'release_date') {
+      params.set('sort', newSort);
+    }
+    pushUrl('/new/movies', params);
+  };
 
   // ==========================================================================
   // Handlers
   // ==========================================================================
 
-  const handlePeriodChange = (period: TimePeriod) => {
-    setActivePeriod(period);
-    updateUrl(period, sortBy, filters);
-  };
-
-  const handleSortChange = (sort: SortOption) => {
-    setSortBy(sort);
-    updateUrl(activePeriod, sort, filters);
-  };
-
-  const handleFilterChange = (newFilters: FilterState) => {
-    setFilters(newFilters);
-    updateUrl(activePeriod, sortBy, newFilters);
-  };
-
-  const handleClearFilters = () => {
-    setFilters(defaultFilters);
-    updateUrl(activePeriod, sortBy, defaultFilters);
-  };
-
-  const handleLoadMore = () => {
-    if (page < totalPages && !isLoadingMore) {
-      fetchMovies(page + 1, true);
-    }
-  };
+  const handlePeriodChange = (period: TimePeriod) => updateUrl(period, sortBy, filters);
+  const handleSortChange = (sort: SortOption) => updateUrl(activePeriod, sort, filters);
+  const handleFilterChange = (newFilters: FilterState) => updateUrl(activePeriod, sortBy, newFilters);
+  const handleClearFilters = () => updateUrl(activePeriod, sortBy, defaultFilters);
 
   const handleWatchlistToggle = (content: Content) => {
     const movie = content as Movie;
@@ -307,12 +208,7 @@ export function NewMoviesPageContent() {
     });
   };
 
-  // Calculate active filter count
-  const activeFilterCount =
-    filters.genres.length +
-    (filters.ratingMin ? 1 : 0) +
-    (filters.language ? 1 : 0) +
-    (filters.provider ? 1 : 0);
+  const activeFilterCount = countActiveFilters(filters);
 
   // ==========================================================================
   // Render
@@ -448,19 +344,18 @@ export function NewMoviesPageContent() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <p className="text-sm text-text-tertiary">
-                {isLoading ? (
+                {list.isLoading ? (
                   <span className="inline-block h-4 w-24 animate-pulse rounded bg-bg-tertiary" />
-                ) : (
+                ) : list.error ? null : (
                   <>
                     <span className="font-medium text-text-primary">
-                      {totalResults.toLocaleString()}
+                      {list.totalResults.toLocaleString()}
                     </span>{' '}
                     movies
                     {dateRange && (
                       <span className="hidden sm:inline">
                         {' '}
-                        from {new Date(dateRange.from).toLocaleDateString()} -{' '}
-                        {new Date(dateRange.to).toLocaleDateString()}
+                        from {formatDate(dateRange.from)} - {formatDate(dateRange.to)}
                       </span>
                     )}
                   </>
@@ -483,6 +378,7 @@ export function NewMoviesPageContent() {
                 onFilterChange={handleFilterChange}
                 onClearFilters={handleClearFilters}
                 contentType="movie"
+                sections={FILTER_SECTIONS}
               />
             </div>
           </aside>
@@ -490,36 +386,39 @@ export function NewMoviesPageContent() {
           {/* Content Grid */}
           <main className="flex-1">
             <InfiniteContentGrid
-              items={movies}
+              items={list.items}
               columns={5}
               showTypeBadge={false}
-              isLoading={isLoading}
+              isLoading={list.isLoading}
               loadingCount={20}
-              hasMore={page < totalPages}
-              onLoadMore={handleLoadMore}
-              isLoadingMore={isLoadingMore}
+              hasMore={list.hasMore}
+              onLoadMore={list.loadMore}
+              isLoadingMore={list.isLoadingMore}
+              error={list.error}
+              onRetry={list.retry}
               watchlistIds={watchlistIds}
               onWatchlistToggle={handleWatchlistToggle}
-              currentPage={page}
+              currentPage={list.page}
+              emptyState={
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Calendar className="h-16 w-16 text-text-tertiary" />
+                  <h3 className="mt-4 text-lg font-semibold text-text-primary">
+                    No movies found
+                  </h3>
+                  <p className="mt-2 text-text-secondary">
+                    Try adjusting your filters or selecting a different time period.
+                  </p>
+                  {activeFilterCount > 0 && (
+                    <button
+                      onClick={handleClearFilters}
+                      className="mt-4 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              }
             />
-
-            {!isLoading && movies.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Calendar className="h-16 w-16 text-text-tertiary" />
-                <h3 className="mt-4 text-lg font-semibold text-text-primary">
-                  No movies found
-                </h3>
-                <p className="mt-2 text-text-secondary">
-                  Try adjusting your filters or selecting a different time period.
-                </p>
-                <button
-                  onClick={handleClearFilters}
-                  className="mt-4 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
-                >
-                  Clear filters
-                </button>
-              </div>
-            )}
           </main>
         </div>
       </div>
@@ -531,6 +430,7 @@ export function NewMoviesPageContent() {
         onClearFilters={handleClearFilters}
         contentType="movie"
         activeFilterCount={activeFilterCount}
+        sections={FILTER_SECTIONS}
       />
     </div>
   );

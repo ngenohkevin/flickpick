@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { ContentRow } from '@/components/content';
@@ -33,7 +33,11 @@ export function StreamingTabs({ className }: StreamingTabsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Clicking tabs quickly must not let an older provider's response land last
+  const requestIdRef = useRef(0);
+
   const fetchContent = useCallback(async (providerId: number) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setError(null);
 
@@ -47,13 +51,15 @@ export function StreamingTabs({ className }: StreamingTabsProps) {
       }
 
       const data = await response.json();
+      if (requestId !== requestIdRef.current) return;
       setContent(data.results?.slice(0, 12) ?? []);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Error fetching streaming content:', err);
       setError('Failed to load content');
       setContent([]);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   }, []);
 

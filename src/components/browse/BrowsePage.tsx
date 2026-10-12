@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FilterSidebar, defaultFilters, type FilterState } from './FilterSidebar';
+import { parseFilters, writeFilters, countActiveFilters, pushUrl } from './filter-params';
 import { SortDropdown, type SortOption } from './SortDropdown';
 import { MobileFilterSheet } from './MobileFilterSheet';
 import { InfiniteContentGrid } from '@/components/content';
-import { useWatchlist, watchlistKey } from '@/stores/watchlist';
-import { useScrollRestoration } from '@/lib/hooks';
+import { useWatchlist, watchlistKey, contentWatchlistKey } from '@/stores/watchlist';
+import { useScrollRestoration, usePagedList } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
-import type { Content, ContentType, PaginatedResponse, WatchlistItem } from '@/types';
+import type { Content, ContentType, WatchlistItem } from '@/types';
 
 // ==========================================================================
 // Types
@@ -26,81 +27,33 @@ interface BrowsePageProps {
 // Reusable browse page with filters, sorting, and infinite scroll
 // ==========================================================================
 
+const SORT_OPTIONS: SortOption[] = ['popularity', 'rating', 'release_date', 'title'];
+
+/** Movies and TV shows share TMDB's ID space: dedupe on type + id. */
+const itemKey = (item: Content) => contentWatchlistKey(item);
+
 export function BrowsePage({ contentType, title, description }: BrowsePageProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  const pathname = contentType === 'movie' ? '/movies' : `/${contentType}`;
 
-  // Parse initial filters from URL
-  const parseFiltersFromUrl = useCallback((): FilterState => {
-    const genreParam = searchParams.get('genre');
-    const excludeGenreParam = searchParams.get('exclude_genre');
-    const runtimeParam = searchParams.get('runtime');
-    return {
-      genres: genreParam ? genreParam.split(',').map(Number) : [],
-      excludedGenres: excludeGenreParam ? excludeGenreParam.split(',').map(Number) : [],
-      yearFrom: searchParams.get('year_from') ? parseInt(searchParams.get('year_from')!, 10) : null,
-      yearTo: searchParams.get('year_to') ? parseInt(searchParams.get('year_to')!, 10) : null,
-      ratingMin: searchParams.get('rating_min') ? parseFloat(searchParams.get('rating_min')!) : null,
-      language: searchParams.get('language') ?? null,
-      provider: searchParams.get('provider') ?? null,
-      runtime: runtimeParam as FilterState['runtime'] ?? null,
-    };
-  }, [searchParams]);
-
-  const parseSortFromUrl = useCallback((): SortOption => {
-    return (searchParams.get('sort_by') as SortOption) ?? 'popularity';
-  }, [searchParams]);
-
-  // State
-  const [filters, setFilters] = useState<FilterState>(parseFiltersFromUrl);
-  const [sortBy, setSortBy] = useState<SortOption>(parseSortFromUrl);
-  const [items, setItems] = useState<Content[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalResults, setTotalResults] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Filters and sort come from the URL only, so links, Back/Forward and
+  // shared URLs show the right results. (Reading them once into state made
+  // the page ignore every URL change after the first render.)
+  const searchKey = searchParams.toString();
+  const filters = useMemo(() => parseFilters(new URLSearchParams(searchKey)), [searchKey]);
+  const sortBy = useMemo<SortOption>(() => {
+    const raw = new URLSearchParams(searchKey).get('sort_by') as SortOption | null;
+    return raw && SORT_OPTIONS.includes(raw) ? raw : 'popularity';
+  }, [searchKey]);
 
   // Watchlist
   const watchlist = useWatchlist();
   const watchlistIds = new Set(watchlist.items.map((item: WatchlistItem) => watchlistKey(item.media_type, item.id)));
 
-  // Ref to track if we're restoring pages
-  const isRestoringPagesRef = useRef(false);
-
-  // Build API URL with filters
   const buildApiUrl = useCallback(
     (pageNum: number) => {
-      const params = new URLSearchParams();
-      params.set('page', String(pageNum));
-
-      if (filters.genres.length > 0) {
-        params.set('genre', filters.genres.join(','));
-      }
-      if (filters.excludedGenres.length > 0) {
-        params.set('exclude_genre', filters.excludedGenres.join(','));
-      }
-      if (filters.yearFrom) {
-        params.set('year_from', String(filters.yearFrom));
-      }
-      if (filters.yearTo) {
-        params.set('year_to', String(filters.yearTo));
-      }
-      if (filters.ratingMin) {
-        params.set('rating_min', String(filters.ratingMin));
-      }
-      if (filters.language) {
-        params.set('language', filters.language);
-      }
-      if (filters.provider) {
-        params.set('provider', filters.provider);
-      }
-      if (filters.runtime) {
-        params.set('runtime', filters.runtime);
-      }
+      const params = writeFilters(new URLSearchParams({ page: String(pageNum) }), filters);
       params.set('sort_by', sortBy);
-
       // Map content type to API type
       const apiType = contentType === 'movie' ? 'movies' : contentType;
       return `/api/browse/${apiType}?${params.toString()}`;
@@ -108,166 +61,26 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
     [contentType, filters, sortBy]
   );
 
-  // Update URL with current filters
-  const updateUrl = useCallback(
-    (newFilters: FilterState, newSort: SortOption) => {
-      const params = new URLSearchParams();
+  const list = usePagedList<Content>({ buildUrl: buildApiUrl, getKey: itemKey });
 
-      if (newFilters.genres.length > 0) {
-        params.set('genre', newFilters.genres.join(','));
-      }
-      if (newFilters.excludedGenres.length > 0) {
-        params.set('exclude_genre', newFilters.excludedGenres.join(','));
-      }
-      if (newFilters.yearFrom) {
-        params.set('year_from', String(newFilters.yearFrom));
-      }
-      if (newFilters.yearTo) {
-        params.set('year_to', String(newFilters.yearTo));
-      }
-      if (newFilters.ratingMin) {
-        params.set('rating_min', String(newFilters.ratingMin));
-      }
-      if (newFilters.language) {
-        params.set('language', newFilters.language);
-      }
-      if (newFilters.provider) {
-        params.set('provider', newFilters.provider);
-      }
-      if (newFilters.runtime) {
-        params.set('runtime', newFilters.runtime);
-      }
-      if (newSort !== 'popularity') {
-        params.set('sort_by', newSort);
-      }
-
-      const queryString = params.toString();
-      const pathname = contentType === 'movie' ? '/movies' : `/${contentType}`;
-      const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-
-      startTransition(() => {
-        router.push(newUrl, { scroll: false });
-      });
-    },
-    [contentType, router]
-  );
-
-  // Fetch content
-  const fetchContent = useCallback(
-    async (pageNum: number, append: boolean = false) => {
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsLoading(true);
-      }
-
-      try {
-        const response = await fetch(buildApiUrl(pageNum));
-        if (!response.ok) throw new Error('Failed to fetch');
-
-        const data: PaginatedResponse<Content> = await response.json();
-
-        if (append) {
-          // Deduplicate items to prevent React key warnings
-          setItems((prev) => {
-            const existingIds = new Set(prev.map((item) => item.id));
-            const newItems = data.results.filter((item) => !existingIds.has(item.id));
-            return [...prev, ...newItems];
-          });
-        } else {
-          setItems(data.results);
-        }
-        setPage(data.page);
-        setTotalPages(data.total_pages);
-        setTotalResults(data.total_results);
-      } catch (error) {
-        console.error('Error fetching content:', error);
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-      }
-    },
-    [buildApiUrl]
-  );
-
-  // Restore pages callback for scroll restoration
-  const restorePages = useCallback(
-    async (targetPage: number) => {
-      if (targetPage <= 1) return;
-
-      isRestoringPagesRef.current = true;
-      setIsLoading(true);
-
-      try {
-        // Fetch all pages up to targetPage
-        const allItems: Content[] = [];
-        for (let p = 1; p <= targetPage; p++) {
-          const response = await fetch(buildApiUrl(p));
-          if (!response.ok) break;
-          const data: PaginatedResponse<Content> = await response.json();
-          allItems.push(...data.results);
-          if (p === targetPage) {
-            setTotalPages(data.total_pages);
-            setTotalResults(data.total_results);
-          }
-        }
-
-        // Deduplicate and set items
-        const uniqueItems = allItems.filter(
-          (item, index, arr) => arr.findIndex((i) => i.id === item.id) === index
-        );
-        setItems(uniqueItems);
-        setPage(targetPage);
-      } catch (error) {
-        console.error('Error restoring pages:', error);
-      } finally {
-        setIsLoading(false);
-        isRestoringPagesRef.current = false;
-      }
-    },
-    [buildApiUrl]
-  );
-
-  // Scroll restoration
+  // Scroll restoration: refetches the pages that were loaded before leaving
   useScrollRestoration({
-    loadedPages: page,
-    onRestorePages: restorePages,
-    enabled: !isRestoringPagesRef.current,
+    loadedPages: list.page,
+    onRestorePages: list.restoreTo,
   });
 
-  // Initial fetch and refetch when filters change
-  useEffect(() => {
-    // Skip if we're restoring pages
-    if (isRestoringPagesRef.current) return;
-
-    setPage(1);
-    fetchContent(1, false);
-  }, [fetchContent]);
-
-  // Handle filter change
-  const handleFilterChange = (newFilters: FilterState) => {
-    setFilters(newFilters);
-    updateUrl(newFilters, sortBy);
-  };
-
-  // Handle sort change
-  const handleSortChange = (newSort: SortOption) => {
-    setSortBy(newSort);
-    updateUrl(filters, newSort);
-  };
-
-  // Handle clear filters
-  const handleClearFilters = () => {
-    setFilters(defaultFilters);
-    updateUrl(defaultFilters, sortBy);
-  };
-
-  // Handle load more
-  const handleLoadMore = () => {
-    if (page < totalPages && !isLoadingMore) {
-      fetchContent(page + 1, true);
+  // Update URL (the list refetches when the derived filters change)
+  const updateUrl = (newFilters: FilterState, newSort: SortOption) => {
+    const params = writeFilters(new URLSearchParams(), newFilters);
+    if (newSort !== 'popularity') {
+      params.set('sort_by', newSort);
     }
+    pushUrl(pathname, params);
   };
+
+  const handleFilterChange = (newFilters: FilterState) => updateUrl(newFilters, sortBy);
+  const handleSortChange = (newSort: SortOption) => updateUrl(filters, newSort);
+  const handleClearFilters = () => updateUrl(defaultFilters, sortBy);
 
   // Handle watchlist toggle
   const handleWatchlistToggle = (content: Content) => {
@@ -283,18 +96,11 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
     });
   };
 
-  // Calculate active filter count
-  const activeFilterCount =
-    filters.genres.length +
-    filters.excludedGenres.length +
-    (filters.yearFrom || filters.yearTo ? 1 : 0) +
-    (filters.ratingMin ? 1 : 0) +
-    (filters.provider ? 1 : 0) +
-    (filters.runtime ? 1 : 0);
+  const activeFilterCount = countActiveFilters(filters);
 
   // Scroll-to-hide for page header (syncs with navigation bar)
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const lastScrollY = useRef(0);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -303,18 +109,18 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
 
       if (currentScrollY < scrollThreshold) {
         setIsHeaderHidden(false);
-      } else if (currentScrollY > lastScrollY && currentScrollY > scrollThreshold) {
+      } else if (currentScrollY > lastScrollY.current) {
         setIsHeaderHidden(true);
-      } else if (currentScrollY < lastScrollY) {
+      } else if (currentScrollY < lastScrollY.current) {
         setIsHeaderHidden(false);
       }
 
-      setLastScrollY(currentScrollY);
+      lastScrollY.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-bg-primary">
@@ -332,9 +138,9 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
               {description && (
                 <p className="mt-1 text-sm text-text-secondary sm:text-base">{description}</p>
               )}
-              {!isLoading && (
+              {!list.isLoading && !list.error && (
                 <p className="mt-1 text-xs text-text-tertiary sm:text-sm">
-                  {totalResults.toLocaleString()} results
+                  {list.totalResults.toLocaleString()} results
                 </p>
               )}
             </div>
@@ -368,17 +174,19 @@ export function BrowsePage({ contentType, title, description }: BrowsePageProps)
           {/* Content Grid */}
           <main className="flex-1">
             <InfiniteContentGrid
-              items={items}
+              items={list.items}
               columns={5}
               showTypeBadge={contentType === 'animation' || contentType === 'anime'}
-              isLoading={isLoading}
+              isLoading={list.isLoading}
               loadingCount={20}
-              hasMore={page < totalPages}
-              onLoadMore={handleLoadMore}
-              isLoadingMore={isLoadingMore}
+              hasMore={list.hasMore}
+              onLoadMore={list.loadMore}
+              isLoadingMore={list.isLoadingMore}
+              error={list.error}
+              onRetry={list.retry}
               watchlistIds={watchlistIds}
               onWatchlistToggle={handleWatchlistToggle}
-              currentPage={page}
+              currentPage={list.page}
             />
           </main>
         </div>

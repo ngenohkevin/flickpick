@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   TrendingUp,
   Sparkles,
@@ -13,21 +14,19 @@ import {
   Globe,
 } from 'lucide-react';
 import { InfiniteContentGrid } from '@/components/content';
-import { useWatchlist, watchlistKey } from '@/stores/watchlist';
+import { useWatchlist, watchlistKey, contentWatchlistKey } from '@/stores/watchlist';
+import { usePagedList, useScrollRestoration } from '@/lib/hooks';
+import { pushUrl } from '@/components/browse/filter-params';
 import { trackCategoryView } from '@/lib/analytics';
 import { CURATED_CATEGORIES } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import type { Content, PaginatedResponse, Category, WatchlistItem } from '@/types';
+import type { Content, Category, WatchlistItem } from '@/types';
 
 // ==========================================================================
 // Types
 // ==========================================================================
 
 interface CategoryPageContentProps {
-  category: Category;
-}
-
-interface CategoryResponse extends PaginatedResponse<Content> {
   category: Category;
 }
 
@@ -52,14 +51,20 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
 // Category Page Content Component
 // ==========================================================================
 
+const FILTER_VALUES: ContentFilter[] = ['all', 'movie', 'tv'];
+
+/** Movies and TV shows share TMDB's ID space: dedupe on type + id. */
+const itemKey = (item: Content) => contentWatchlistKey(item);
+
 export function CategoryPageContent({ category }: CategoryPageContentProps) {
-  const [filter, setFilter] = useState<ContentFilter>('all');
-  const [items, setItems] = useState<Content[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalResults, setTotalResults] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // The Movies/TV tab lives in the URL so Back returns to the same tab
+  const searchParams = useSearchParams();
+  const rawFilter = searchParams.get('type') as ContentFilter | null;
+  const filter: ContentFilter = rawFilter && FILTER_VALUES.includes(rawFilter) ? rawFilter : 'all';
+
+  const setFilter = (value: ContentFilter) => {
+    pushUrl(`/category/${category.slug}`, new URLSearchParams(value === 'all' ? {} : { type: value }));
+  };
 
   // Watchlist
   const watchlist = useWatchlist();
@@ -68,48 +73,15 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
   // Get icon for this category
   const Icon = CATEGORY_ICONS[category.slug] || Sparkles;
 
-  // Fetch content
-  const fetchContent = useCallback(
-    async (pageNum: number, append: boolean = false) => {
-      if (append) {
-        setIsLoadingMore(true);
-      } else {
-        setIsLoading(true);
-      }
-
-      try {
-        const params = new URLSearchParams({
-          page: String(pageNum),
-          type: filter,
-        });
-
-        const response = await fetch(`/api/category/${category.slug}?${params}`);
-        if (!response.ok) throw new Error('Failed to fetch');
-
-        const data: CategoryResponse = await response.json();
-
-        if (append) {
-          // Deduplicate items to prevent React key warnings
-          setItems((prev) => {
-            const existingIds = new Set(prev.map((item) => item.id));
-            const newItems = data.results.filter((item) => !existingIds.has(item.id));
-            return [...prev, ...newItems];
-          });
-        } else {
-          setItems(data.results);
-        }
-        setPage(data.page);
-        setTotalPages(data.total_pages);
-        setTotalResults(data.total_results);
-      } catch (error) {
-        console.error('Error fetching category content:', error);
-      } finally {
-        setIsLoading(false);
-        setIsLoadingMore(false);
-      }
-    },
+  const buildUrl = useCallback(
+    (pageNum: number) =>
+      `/api/category/${category.slug}?${new URLSearchParams({ page: String(pageNum), type: filter })}`,
     [category.slug, filter]
   );
+
+  const list = usePagedList<Content>({ buildUrl, getKey: itemKey });
+
+  useScrollRestoration({ loadedPages: list.page, onRestorePages: list.restoreTo });
 
   // Track category view on mount
   const hasTracked = useRef(false);
@@ -119,19 +91,6 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
       hasTracked.current = true;
     }
   }, [category.slug]);
-
-  // Initial fetch and refetch on filter change
-  useEffect(() => {
-    setPage(1);
-    fetchContent(1, false);
-  }, [fetchContent]);
-
-  // Handle load more
-  const handleLoadMore = () => {
-    if (page < totalPages && !isLoadingMore) {
-      fetchContent(page + 1, true);
-    }
-  };
 
   // Handle watchlist toggle
   const handleWatchlistToggle = (content: Content) => {
@@ -172,9 +131,9 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
               <p className="mt-2 max-w-2xl text-text-secondary">
                 {category.description}
               </p>
-              {!isLoading && (
+              {!list.isLoading && !list.error && (
                 <p className="mt-2 text-sm text-text-tertiary">
-                  {totalResults.toLocaleString()} titles
+                  {list.totalResults.toLocaleString()} titles
                 </p>
               )}
             </div>
@@ -227,17 +186,19 @@ export function CategoryPageContent({ category }: CategoryPageContentProps) {
       {/* Content Grid */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <InfiniteContentGrid
-          items={items}
+          items={list.items}
           columns={6}
           showTypeBadge={filter === 'all'}
-          isLoading={isLoading}
+          isLoading={list.isLoading}
           loadingCount={24}
-          hasMore={page < totalPages}
-          onLoadMore={handleLoadMore}
-          isLoadingMore={isLoadingMore}
+          hasMore={list.hasMore}
+          onLoadMore={list.loadMore}
+          isLoadingMore={list.isLoadingMore}
+          error={list.error}
+          onRetry={list.retry}
           watchlistIds={watchlistIds}
           onWatchlistToggle={handleWatchlistToggle}
-          currentPage={page}
+          currentPage={list.page}
         />
       </div>
     </div>

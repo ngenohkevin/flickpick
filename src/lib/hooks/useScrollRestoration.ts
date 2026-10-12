@@ -109,6 +109,9 @@ export function useScrollRestoration({
   const searchParams = useSearchParams();
   const isRestoringRef = useRef(false);
   const hasRestoredRef = useRef(false);
+  // A restore runs once: the effect below re-runs whenever onRestorePages
+  // changes identity, which used to start a second refetch mid-restore.
+  const restoreInFlightRef = useRef(false);
   const storageKey = getStorageKey(pathname, searchParams.toString());
 
   // Save scroll position before navigating away
@@ -183,7 +186,7 @@ export function useScrollRestoration({
 
   // Restore pages and finalize scroll position after paint
   useEffect(() => {
-    if (!enabled || hasRestoredRef.current || !isRestoringRef.current) return;
+    if (!enabled || hasRestoredRef.current || !isRestoringRef.current || restoreInFlightRef.current) return;
 
     const savedState = loadScrollState(storageKey);
     if (!savedState || savedState.scrollY === 0) {
@@ -192,6 +195,7 @@ export function useScrollRestoration({
     }
 
     const restorePages = async () => {
+      restoreInFlightRef.current = true;
       try {
         // Load all pages that were visible before navigation
         if (onRestorePages && savedState.loadedPages > 1) {
@@ -214,6 +218,7 @@ export function useScrollRestoration({
         document.documentElement.style.minHeight = '';
         isRestoringRef.current = false;
         hasRestoredRef.current = true;
+        restoreInFlightRef.current = false;
       }
     };
 

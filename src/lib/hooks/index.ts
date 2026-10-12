@@ -13,3 +13,4 @@ export {
   getTransitionDuration,
 } from './useReducedMotion';
 export { useScrollRestoration } from './useScrollRestoration';
+export { usePagedList, type PagedResponse } from './usePagedList';

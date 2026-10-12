@@ -5,7 +5,7 @@
 // Blend 2-3 titles to find content that combines their essence
 // ==========================================================================
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { AlertCircle, Blend, Sparkles, ArrowRight } from 'lucide-react';
 import {
   TitleSearch,
@@ -93,26 +93,34 @@ export default function BlendPage() {
   // Handlers
   // ==========================================================================
 
+  // Bumped whenever the selection changes, so a blend response for an older
+  // selection is dropped instead of shown under the new titles
+  const blendRequestRef = useRef(0);
+
   const handleAddTitle = useCallback((title: SelectedTitle) => {
+    blendRequestRef.current++;
     setSelectedTitles((prev) => {
       // Don't add if already at max
       if (prev.length >= MAX_TITLES) return prev;
-      // Don't add duplicates
-      if (prev.some((t) => t.id === title.id)) return prev;
+      // Don't add duplicates (a movie and a show can share an ID)
+      if (prev.some((t) => t.id === title.id && t.type === title.type)) return prev;
       return [...prev, title];
     });
-    // Clear results when titles change
+    // Clear results (and any abandoned blend) when titles change
     setResults([]);
     setHasSearched(false);
     setError(null);
+    setIsLoading(false);
   }, []);
 
-  const handleRemoveTitle = useCallback((id: number) => {
-    setSelectedTitles((prev) => prev.filter((t) => t.id !== id));
-    // Clear results when titles change
+  const handleRemoveTitle = useCallback((title: SelectedTitle) => {
+    blendRequestRef.current++; // a blend still in flight is for the old titles
+    setSelectedTitles((prev) => prev.filter((t) => !(t.id === title.id && t.type === title.type)));
+    // Clear results (and any abandoned blend) when titles change
     setResults([]);
     setHasSearched(false);
     setError(null);
+    setIsLoading(false);
   }, []);
 
   const handleBlend = useCallback(async () => {
@@ -121,6 +129,7 @@ export default function BlendPage() {
       return;
     }
 
+    const requestId = ++blendRequestRef.current;
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
@@ -140,6 +149,7 @@ export default function BlendPage() {
       });
 
       const data = await response.json();
+      if (requestId !== blendRequestRef.current) return;
 
       if (!response.ok) {
         const errorData = data as BlendError;
@@ -156,11 +166,12 @@ export default function BlendPage() {
         successData.results.length
       );
     } catch (err) {
+      if (requestId !== blendRequestRef.current) return;
       console.error('Blend error:', err);
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setResults([]);
     } finally {
-      setIsLoading(false);
+      if (requestId === blendRequestRef.current) setIsLoading(false);
     }
   }, [selectedTitles]);
 
@@ -195,7 +206,7 @@ export default function BlendPage() {
 
   const canBlend = selectedTitles.length >= MIN_TITLES;
   const showResults = hasSearched && (results.length > 0 || isLoading);
-  const excludeIds = selectedTitles.map((t) => t.id);
+  const excludeKeys = selectedTitles.map((t) => `${t.type}:${t.id}`);
 
   // Filter results by content type and streaming provider
   const filteredResults = useMemo(() => {
@@ -269,9 +280,12 @@ export default function BlendPage() {
                 {selectedTitles.length > 0 && (
                   <button
                     onClick={() => {
+                      blendRequestRef.current++;
                       setSelectedTitles([]);
                       setResults([]);
                       setHasSearched(false);
+                      setError(null);
+                      setIsLoading(false);
                     }}
                     className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
                   >
@@ -291,7 +305,7 @@ export default function BlendPage() {
               <div className="mb-6">
                 <TitleSearch
                   onSelect={handleAddTitle}
-                  excludeIds={excludeIds}
+                  excludeKeys={excludeKeys}
                   placeholder={
                     selectedTitles.length === 0
                       ? 'Search for the first title...'

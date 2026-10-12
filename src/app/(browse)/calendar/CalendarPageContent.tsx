@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { pushUrl } from '@/components/browse/filter-params';
 import { Calendar, CalendarFilters, ReleaseModal, type CalendarTypeFilter } from '@/components/calendar';
 import { useScrollRestoration } from '@/lib/hooks';
 import type { CalendarDay as CalendarDayType, CalendarRelease, CalendarResponse } from '@/types';
@@ -16,96 +17,87 @@ function getCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+const TYPE_FILTERS: CalendarTypeFilter[] = ['all', 'movie', 'tv'];
+
+function isValidMonth(value: string | null): value is string {
+  const match = value ? /^(\d{4})-(\d{2})$/.exec(value) : null;
+  return !!match && Number(match[2]) >= 1 && Number(match[2]) <= 12;
+}
+
 export function CalendarPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Parse state from URL (with fallbacks)
-  const monthFromUrl = searchParams.get('month') || getCurrentMonth();
-  const typeFromUrl = (searchParams.get('type') as CalendarTypeFilter) || 'all';
+  // Month and type come from the URL only. Mirroring them into state, with an
+  // effect syncing state back from the URL, raced the URL update: each month
+  // change flickered back to the old month and fetched three times.
+  const monthParam = searchParams.get('month');
+  const typeParam = searchParams.get('type') as CalendarTypeFilter | null;
+  const month = isValidMonth(monthParam) ? monthParam : getCurrentMonth();
+  const typeFilter: CalendarTypeFilter = typeParam && TYPE_FILTERS.includes(typeParam) ? typeParam : 'all';
 
-  // State
-  const [month, setMonth] = useState(monthFromUrl);
-  const [typeFilter, setTypeFilter] = useState<CalendarTypeFilter>(typeFromUrl);
-  const [releases, setReleases] = useState<CalendarRelease[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Fetch state, tagged with the query it belongs to
+  const queryKey = `${month}|${typeFilter}`;
+  const [result, setResult] = useState<{ key: string; releases: CalendarRelease[]; error: string | null } | null>(
+    null
+  );
+  const [reloadCount, setReloadCount] = useState(0);
   const [selectedDay, setSelectedDay] = useState<CalendarDayType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Scroll restoration
   useScrollRestoration();
 
-  // Sync state from URL params (when user navigates back)
+  // Fetch calendar data when month or filter changes; a response for a month
+  // the user has already left is aborted
   useEffect(() => {
-    const newMonth = searchParams.get('month') || getCurrentMonth();
-    const newType = (searchParams.get('type') as CalendarTypeFilter) || 'all';
+    const controller = new AbortController();
+    const params = new URLSearchParams({ month, type: typeFilter });
 
-    if (newMonth !== month) setMonth(newMonth);
-    if (newType !== typeFilter) setTypeFilter(newType);
-  }, [searchParams, month, typeFilter]);
-
-  // Fetch calendar data
-  const fetchCalendarData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams({
-        month,
-        type: typeFilter,
+    fetch(`/api/calendar?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Failed to fetch calendar data');
+        const data: CalendarResponse = await response.json();
+        setResult({ key: queryKey, releases: data.releases, error: null });
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        setResult({
+          key: queryKey,
+          releases: [],
+          error: err instanceof Error ? err.message : 'An error occurred',
+        });
       });
 
-      const response = await fetch(`/api/calendar?${params.toString()}`);
+    return () => controller.abort();
+  }, [month, typeFilter, queryKey, reloadCount]);
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch calendar data');
-      }
+  const current = result?.key === queryKey ? result : null;
+  const isLoading = !current;
+  const error = current?.error ?? null;
+  const releases = current?.releases ?? [];
 
-      const data: CalendarResponse = await response.json();
-      setReleases(data.releases);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setReleases([]);
-    } finally {
-      setIsLoading(false);
+  const retry = () => {
+    setResult(null);
+    setReloadCount((n) => n + 1);
+  };
+
+  // Update URL with current state (the fetch follows the URL)
+  const updateUrl = (newMonth: string, newType: CalendarTypeFilter) => {
+    const params = new URLSearchParams();
+    // Always include month if not current month
+    if (newMonth !== getCurrentMonth()) {
+      params.set('month', newMonth);
     }
-  }, [month, typeFilter]);
-
-  // Fetch data when month or filter changes
-  useEffect(() => {
-    fetchCalendarData();
-  }, [fetchCalendarData]);
-
-  // Update URL with current state
-  const updateUrl = useCallback(
-    (newMonth: string, newType: CalendarTypeFilter) => {
-      const params = new URLSearchParams();
-      // Always include month if not current month
-      if (newMonth !== getCurrentMonth()) {
-        params.set('month', newMonth);
-      }
-      // Include type filter if not 'all'
-      if (newType !== 'all') {
-        params.set('type', newType);
-      }
-      const queryString = params.toString();
-      const newUrl = queryString ? `/calendar?${queryString}` : '/calendar';
-      router.push(newUrl, { scroll: false });
-    },
-    [router]
-  );
+    // Include type filter if not 'all'
+    if (newType !== 'all') {
+      params.set('type', newType);
+    }
+    pushUrl('/calendar', params);
+  };
 
   // Event handlers
-  const handleMonthChange = (newMonth: string) => {
-    setMonth(newMonth);
-    updateUrl(newMonth, typeFilter);
-  };
-
-  const handleFilterChange = (filter: CalendarTypeFilter) => {
-    setTypeFilter(filter);
-    updateUrl(month, filter);
-  };
+  const handleMonthChange = (newMonth: string) => updateUrl(newMonth, typeFilter);
+  const handleFilterChange = (filter: CalendarTypeFilter) => updateUrl(month, filter);
 
   const handleDayClick = (day: CalendarDayType) => {
     setSelectedDay(day);
@@ -178,7 +170,7 @@ export function CalendarPageContent() {
           <div className="rounded-lg border border-error/20 bg-error/10 p-6 text-center">
             <p className="text-error">{error}</p>
             <button
-              onClick={fetchCalendarData}
+              onClick={retry}
               className="mt-4 rounded-md bg-error px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-error/90"
             >
               Try Again

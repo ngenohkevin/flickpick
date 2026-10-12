@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { X, SlidersHorizontal } from 'lucide-react';
-import { FilterSidebar, type FilterState } from './FilterSidebar';
+import { FilterSidebar, type FilterSectionKey, type FilterState } from './FilterSidebar';
 import { cn } from '@/lib/utils';
 
 // ==========================================================================
@@ -15,6 +15,10 @@ interface MobileFilterSheetProps {
   onClearFilters: () => void;
   contentType: 'movie' | 'tv' | 'animation' | 'anime';
   activeFilterCount: number;
+  /** Filter sections to show (default: all) */
+  sections?: readonly FilterSectionKey[];
+  /** Genre IDs left out of the genre list */
+  hiddenGenres?: readonly number[];
 }
 
 // ==========================================================================
@@ -28,6 +32,8 @@ export function MobileFilterSheet({
   onClearFilters,
   contentType,
   activeFilterCount,
+  sections,
+  hiddenGenres,
 }: MobileFilterSheetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [dragY, setDragY] = useState(0);
@@ -190,6 +196,8 @@ export function MobileFilterSheet({
             onFilterChange={onFilterChange}
             onClearFilters={onClearFilters}
             contentType={contentType}
+            sections={sections}
+            hiddenGenres={hiddenGenres}
           />
         </div>
 

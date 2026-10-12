@@ -1,14 +1,21 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Tv, LayoutGrid, List, Filter, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { TVShowCard, CompactTVShowCard } from '@/components/tv';
 import { SkeletonGrid } from '@/components/ui';
-import { FilterSidebar, defaultFilters, type FilterState } from '@/components/browse/FilterSidebar';
+import {
+  FilterSidebar,
+  defaultFilters,
+  type FilterSectionKey,
+  type FilterState,
+} from '@/components/browse/FilterSidebar';
+import { parseFilters, writeFilters, countActiveFilters, pushUrl } from '@/components/browse/filter-params';
 import { MobileFilterSheet } from '@/components/browse/MobileFilterSheet';
 import { useWatchlist, watchlistKey } from '@/stores/watchlist';
+import { usePagedList } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import type { TVShow, EpisodeStatus, PaginatedResponse, WatchlistItem } from '@/types';
 
@@ -51,34 +58,34 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 // New Shows Page Content
 // ==========================================================================
 
+const STATUS_VALUES = STATUS_TABS.map((t) => t.value);
+const SORT_VALUES = SORT_OPTIONS.map((o) => o.value);
+// The API takes the minimum rating as "rating" here, not "rating_min"
+const FILTER_PARAMS = { ratingParam: 'rating' };
+// Filters /api/new/shows can apply to its pool of airing shows
+const FILTER_SECTIONS: FilterSectionKey[] = ['genres', 'rating', 'language'];
+// The API leaves News, Soap and Talk out of its pool, so these never match
+const HIDDEN_GENRES = [10763, 10766, 10767];
+
+const showKey = (show: TVShowWithEpisodeStatus) => String(show.id);
+
 export function NewShowsPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Parse initial values from URL
-  const initialStatus = (searchParams.get('status') as ShowStatus) ?? 'all';
-  const initialSort = (searchParams.get('sort') as SortOption) ?? 'next_episode';
-  const initialView = (searchParams.get('view') as ViewMode) ?? 'card';
-
-  // State
-  const [activeStatus, setActiveStatus] = useState<ShowStatus>(initialStatus);
-  const [sortBy, setSortBy] = useState<SortOption>(initialSort);
-  const [viewMode, setViewMode] = useState<ViewMode>(initialView);
-  const [filters, setFilters] = useState<FilterState>(() => ({
-    genres: searchParams.get('genre') ? searchParams.get('genre')!.split(',').map(Number) : [],
-    excludedGenres: searchParams.get('exclude_genre') ? searchParams.get('exclude_genre')!.split(',').map(Number) : [],
-    yearFrom: null,
-    yearTo: null,
-    ratingMin: searchParams.get('rating') ? parseFloat(searchParams.get('rating')!) : null,
-    language: null,
-    provider: null,
-    runtime: null,
-  }));
-
-  // Data state
-  const [shows, setShows] = useState<TVShowWithEpisodeStatus[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Status, sort, view and filters come from the URL only (Back/Forward and
+  // shared links work; they used to be read once into state)
+  const searchKey = searchParams.toString();
+  const { activeStatus, sortBy, viewMode, filters } = useMemo(() => {
+    const params = new URLSearchParams(searchKey);
+    const status = params.get('status') as ShowStatus | null;
+    const sort = params.get('sort') as SortOption | null;
+    return {
+      activeStatus: status && STATUS_VALUES.includes(status) ? status : 'all',
+      sortBy: sort && SORT_VALUES.includes(sort) ? sort : 'next_episode',
+      viewMode: (params.get('view') === 'list' ? 'list' : 'card') as ViewMode,
+      filters: parseFilters(params, FILTER_PARAMS),
+    };
+  }, [searchKey]);
 
   // Watchlist
   const watchlist = useWatchlist();
@@ -114,108 +121,53 @@ export function NewShowsPageContent() {
   // Data Fetching
   // ==========================================================================
 
-  const buildApiUrl = useCallback(() => {
-    const params = new URLSearchParams();
-    params.set('status', activeStatus);
-    params.set('sort', sortBy);
+  const buildApiUrl = useCallback(
+    (pageNum: number) => {
+      const params = writeFilters(new URLSearchParams(), filters, FILTER_PARAMS);
+      params.set('status', activeStatus);
+      params.set('sort', sortBy);
+      params.set('page', String(pageNum));
+      if (activeStatus === 'upcoming') {
+        params.set('hasNewEpisodes', 'true');
+      }
+      return `/api/new/shows?${params.toString()}`;
+    },
+    [activeStatus, sortBy, filters]
+  );
 
-    if (filters.genres.length > 0) {
-      params.set('genre', filters.genres.join(','));
-    }
-    if (filters.excludedGenres.length > 0) {
-      params.set('exclude_genre', filters.excludedGenres.join(','));
-    }
-    if (activeStatus === 'upcoming') {
-      params.set('hasNewEpisodes', 'true');
-    }
-
-    return `/api/new/shows?${params.toString()}`;
-  }, [activeStatus, sortBy, filters]);
-
-  const fetchShows = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(buildApiUrl());
-      if (!response.ok) throw new Error('Failed to fetch shows');
-      const data: NewShowsResponse = await response.json();
-      setShows(data.results);
-    } catch (err) {
-      console.error('Error fetching shows:', err);
-      setError('Failed to load shows. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [buildApiUrl]);
-
-  // Fetch on mount and when filters change
-  useEffect(() => {
-    fetchShows();
-  }, [fetchShows]);
+  const list = usePagedList<TVShowWithEpisodeStatus, NewShowsResponse>({
+    buildUrl: buildApiUrl,
+    getKey: showKey,
+  });
+  const shows = list.items;
 
   // ==========================================================================
   // URL Management
   // ==========================================================================
 
-  const updateUrl = useCallback(
-    (newStatus: ShowStatus, newSort: SortOption, newView: ViewMode, newFilters: FilterState) => {
-      const params = new URLSearchParams();
-
-      if (newStatus !== 'all') {
-        params.set('status', newStatus);
-      }
-      if (newSort !== 'next_episode') {
-        params.set('sort', newSort);
-      }
-      if (newView !== 'card') {
-        params.set('view', newView);
-      }
-      if (newFilters.genres.length > 0) {
-        params.set('genre', newFilters.genres.join(','));
-      }
-      if (newFilters.excludedGenres.length > 0) {
-        params.set('exclude_genre', newFilters.excludedGenres.join(','));
-      }
-      if (newFilters.ratingMin) {
-        params.set('rating', String(newFilters.ratingMin));
-      }
-
-      const queryString = params.toString();
-      const newUrl = queryString ? `/new/shows?${queryString}` : '/new/shows';
-      router.push(newUrl, { scroll: false });
-    },
-    [router]
-  );
+  const updateUrl = (newStatus: ShowStatus, newSort: SortOption, newView: ViewMode, newFilters: FilterState) => {
+    const params = writeFilters(new URLSearchParams(), newFilters, FILTER_PARAMS);
+    if (newStatus !== 'all') {
+      params.set('status', newStatus);
+    }
+    if (newSort !== 'next_episode') {
+      params.set('sort', newSort);
+    }
+    if (newView !== 'card') {
+      params.set('view', newView);
+    }
+    pushUrl('/new/shows', params);
+  };
 
   // ==========================================================================
   // Handlers
   // ==========================================================================
 
-  const handleStatusChange = (status: ShowStatus) => {
-    setActiveStatus(status);
-    updateUrl(status, sortBy, viewMode, filters);
-  };
-
-  const handleSortChange = (sort: SortOption) => {
-    setSortBy(sort);
-    updateUrl(activeStatus, sort, viewMode, filters);
-  };
-
-  const handleViewChange = (view: ViewMode) => {
-    setViewMode(view);
-    updateUrl(activeStatus, sortBy, view, filters);
-  };
-
-  const handleFilterChange = (newFilters: FilterState) => {
-    setFilters(newFilters);
-    updateUrl(activeStatus, sortBy, viewMode, newFilters);
-  };
-
-  const handleClearFilters = () => {
-    setFilters(defaultFilters);
-    updateUrl(activeStatus, sortBy, viewMode, defaultFilters);
-  };
+  const handleStatusChange = (status: ShowStatus) => updateUrl(status, sortBy, viewMode, filters);
+  const handleSortChange = (sort: SortOption) => updateUrl(activeStatus, sort, viewMode, filters);
+  const handleViewChange = (view: ViewMode) => updateUrl(activeStatus, sortBy, view, filters);
+  const handleFilterChange = (newFilters: FilterState) => updateUrl(activeStatus, sortBy, viewMode, newFilters);
+  const handleClearFilters = () => updateUrl(activeStatus, sortBy, viewMode, defaultFilters);
 
   const handleWatchlistToggle = (show: TVShowWithEpisodeStatus) => {
     watchlist.toggleItem({
@@ -227,12 +179,7 @@ export function NewShowsPageContent() {
     });
   };
 
-  // Calculate active filter count
-  const activeFilterCount =
-    filters.genres.length +
-    (filters.ratingMin ? 1 : 0) +
-    (filters.language ? 1 : 0) +
-    (filters.provider ? 1 : 0);
+  const activeFilterCount = countActiveFilters(filters);
 
   // ==========================================================================
   // Render
@@ -288,12 +235,12 @@ export function NewShowsPageContent() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <p className="text-sm text-text-tertiary">
-                {isLoading ? (
+                {list.isLoading ? (
                   <span className="inline-block h-4 w-24 animate-pulse rounded bg-bg-tertiary" />
-                ) : (
+                ) : list.error === 'initial' ? null : (
                   <>
                     <span className="font-medium text-text-primary">
-                      {shows.length}
+                      {list.totalResults}
                     </span>{' '}
                     shows
                   </>
@@ -358,23 +305,25 @@ export function NewShowsPageContent() {
                 onFilterChange={handleFilterChange}
                 onClearFilters={handleClearFilters}
                 contentType="tv"
+                sections={FILTER_SECTIONS}
+                hiddenGenres={HIDDEN_GENRES}
               />
             </div>
           </aside>
 
           {/* Content */}
           <main className="flex-1">
-            {isLoading ? (
+            {list.isLoading ? (
               <SkeletonGrid count={12} columns={viewMode === 'list' ? 1 : 4} />
-            ) : error ? (
+            ) : list.error === 'initial' ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Tv className="h-16 w-16 text-text-tertiary" />
                 <h3 className="mt-4 text-lg font-semibold text-text-primary">
                   Something went wrong
                 </h3>
-                <p className="mt-2 text-text-secondary">{error}</p>
+                <p className="mt-2 text-text-secondary">Failed to load shows. Please try again.</p>
                 <button
-                  onClick={fetchShows}
+                  onClick={list.retry}
                   className="mt-4 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
                 >
                   Try again
@@ -389,12 +338,14 @@ export function NewShowsPageContent() {
                 <p className="mt-2 text-text-secondary">
                   Try adjusting your filters or selecting a different status.
                 </p>
-                <button
-                  onClick={handleClearFilters}
-                  className="mt-4 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
-                >
-                  Clear filters
-                </button>
+                {activeFilterCount > 0 && (
+                  <button
+                    onClick={handleClearFilters}
+                    className="mt-4 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+                  >
+                    Clear filters
+                  </button>
+                )}
               </div>
             ) : viewMode === 'card' ? (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -420,6 +371,22 @@ export function NewShowsPageContent() {
                 ))}
               </div>
             )}
+
+            {/* More pages (the API pages through its pool of airing shows) */}
+            {!list.isLoading && shows.length > 0 && (list.hasMore || list.error === 'more') && (
+              <div className="mt-8 flex flex-col items-center gap-3">
+                {list.error === 'more' && (
+                  <p className="text-sm text-text-secondary">Couldn&apos;t load more shows.</p>
+                )}
+                <button
+                  onClick={list.error === 'more' ? list.retry : list.loadMore}
+                  disabled={list.isLoadingMore}
+                  className="rounded-md border border-border-default bg-bg-tertiary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-border-default disabled:opacity-60"
+                >
+                  {list.isLoadingMore ? 'Loading…' : list.error === 'more' ? 'Try again' : 'Load more'}
+                </button>
+              </div>
+            )}
           </main>
         </div>
       </div>
@@ -431,6 +398,8 @@ export function NewShowsPageContent() {
         onClearFilters={handleClearFilters}
         contentType="tv"
         activeFilterCount={activeFilterCount}
+        sections={FILTER_SECTIONS}
+        hiddenGenres={HIDDEN_GENRES}
       />
     </div>
   );

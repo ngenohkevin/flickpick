@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { ContentCard } from './ContentCard';
 import { SkeletonGrid } from '@/components/ui';
 import { DisplayAdSlot } from '@/components/ads';
@@ -27,6 +27,8 @@ interface ContentGridProps {
   className?: string;
   /** Enable display ads in the grid (default: false - opt-in only) */
   showAds?: boolean;
+  /** Shown instead of the default "No content found" message */
+  emptyState?: ReactNode;
 }
 
 export function ContentGrid({
@@ -41,6 +43,7 @@ export function ContentGrid({
   onWatchlistToggle,
   className = '',
   showAds = false,
+  emptyState,
 }: ContentGridProps) {
   // Column class mapping for responsive design
   const columnClasses = {
@@ -60,6 +63,7 @@ export function ContentGrid({
   }
 
   if (items.length === 0) {
+    if (emptyState) return <>{emptyState}</>;
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <p className="text-lg font-medium text-text-primary">No content found</p>
@@ -73,7 +77,8 @@ export function ContentGrid({
   return (
     <div className={`grid gap-4 sm:gap-6 ${columnClasses[columns]} ${className}`}>
       {items.map((item, index) => (
-        <Fragment key={item.id}>
+        // Movies and TV shows share TMDB's ID space, so key on type + id
+        <Fragment key={contentWatchlistKey(item)}>
           <ContentCard
             content={item}
             priority={index < 6} // Prioritize first row for LCP
@@ -117,6 +122,13 @@ interface InfiniteContentGridProps extends ContentGridProps {
   currentPage?: number;
   /** Enable display ads in the grid (default: false - opt-in only) */
   showAds?: boolean;
+  /**
+   * A request failed: 'initial' (nothing loaded) or 'more' (a later page).
+   * Shows a Retry button instead of "No content found", and stops infinite
+   * scroll from re-requesting the failed page in a loop.
+   */
+  error?: 'initial' | 'more' | null;
+  onRetry?: () => void;
 }
 
 export function InfiniteContentGrid({
@@ -139,6 +151,9 @@ export function InfiniteContentGrid({
   maxAutoLoadPages = 3,
   currentPage = 1,
   showAds = false,
+  emptyState,
+  error = null,
+  onRetry,
 }: InfiniteContentGridProps) {
   // Determine if we should auto-load or show manual button
   // After maxAutoLoadPages, switch to manual "Load More" to allow footer access
@@ -149,9 +164,28 @@ export function InfiniteContentGrid({
     onLoadMore: onLoadMore ?? (() => {}),
     hasMore,
     isLoading: isLoading || isLoadingMore,
-    enabled: shouldAutoLoad && !!onLoadMore,
+    enabled: shouldAutoLoad && !!onLoadMore && !error,
     rootMargin: '600px', // Start loading 600px before reaching the end
   });
+
+  if (error === 'initial' && !isLoading) {
+    return (
+      <div className={className}>
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <p className="text-lg font-medium text-text-primary">Couldn&apos;t load titles</p>
+          <p className="mt-2 text-text-secondary">Something went wrong on our side. Please try again.</p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="mt-4 rounded-md bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={className}>
@@ -166,7 +200,23 @@ export function InfiniteContentGrid({
         watchlistIds={watchlistIds}
         onWatchlistToggle={onWatchlistToggle}
         showAds={showAds}
+        emptyState={emptyState}
       />
+
+      {/* A later page failed: offer a retry instead of looping */}
+      {error === 'more' && !isLoadingMore && (
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <p className="text-sm text-text-secondary">Couldn&apos;t load more titles.</p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="rounded-md border border-border-default bg-bg-tertiary px-6 py-3 font-medium text-text-primary transition-colors hover:bg-border-default"
+            >
+              Try again
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Loading indicator - shows when loading more content */}
       {isLoadingMore && !isLoading && (
@@ -179,7 +229,7 @@ export function InfiniteContentGrid({
       )}
 
       {/* Manual Load More button (when infinite scroll is disabled or after max auto-load pages) */}
-      {!shouldAutoLoad && hasMore && !isLoading && !isLoadingMore && (
+      {!shouldAutoLoad && hasMore && !isLoading && !isLoadingMore && !error && (
         <div className="mt-8 flex justify-center">
           <button
             onClick={onLoadMore}
@@ -198,7 +248,7 @@ export function InfiniteContentGrid({
       )}
 
       {/* Sentinel element for intersection observer */}
-      {shouldAutoLoad && hasMore && !isLoading && (
+      {shouldAutoLoad && hasMore && !isLoading && !error && (
         <div
           ref={sentinelRef}
           className="h-1 w-full"
