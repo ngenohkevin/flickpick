@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { hasPhrase, parseUserIntent } from '@/lib/ai/intent-parser';
-import { toTVGenres } from '@/lib/ai/providers/tmdb';
+import { toTVGenres } from '@/lib/tmdb/genres';
 import { normalizePrompt, getPromptCacheKey } from '@/lib/redis';
 
 describe('hasPhrase', () => {

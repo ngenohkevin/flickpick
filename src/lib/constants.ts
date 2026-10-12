@@ -406,6 +406,9 @@ export const CACHE_TTL = {
   JUST_RELEASED: 1800, // 30 minutes (final results)
 } as const;
 
+/** Votes a title needs before a rating sort ranks it (keeps 10/10-from-one-vote titles off the top). */
+export const RATING_SORT_MIN_VOTES = 500;
+
 // ==========================================================================
 // Rate Limiting
 // ==========================================================================

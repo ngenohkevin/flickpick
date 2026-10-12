@@ -4,7 +4,9 @@
 // ==========================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { type TMDBResponse } from '@/lib/tmdb/client';
+import { tmdbFetch, type TMDBResponse } from '@/lib/tmdb/client';
+import { TMDB_MAX_PAGE } from '@/lib/tmdb/genres';
+import { parseEnum, parsePage } from '@/lib/params';
 import {
   discoverMovies,
   discoverTVShows,
@@ -43,16 +45,20 @@ type CategoryFetcher = (
 const categoryFetchers: Record<string, CategoryFetcher> = {
   trending: async (page, type) => {
     if (type === 'movie') {
-      return getTrendingMovies('week');
+      return getTrendingMovies('week', page);
     } else if (type === 'tv') {
-      return getTrendingTVShows('week');
+      return getTrendingTVShows('week', page);
     }
-    // Merge both for 'all'
-    const [movies, tv] = await Promise.all([
-      getTrendingMovies('week'),
-      getTrendingTVShows('week'),
-    ]);
-    return mergeResults(movies, tv, page);
+    // TMDB's mixed trending list is already ranked across movies and TV;
+    // it also contains people, which are dropped.
+    const all = await tmdbFetch<TMDBResponse<(TMDBMovie | TMDBTVShow) & { media_type?: string }>>(
+      '/trending/all/week',
+      { page }
+    );
+    return {
+      ...all,
+      results: (all.results ?? []).filter((item) => item.media_type === 'movie' || item.media_type === 'tv'),
+    };
   },
 
   'new-releases': async (page, type) => {
@@ -87,7 +93,7 @@ const categoryFetchers: Record<string, CategoryFetcher> = {
       discoverMovies(movieParams),
       discoverTVShows(tvParams),
     ]);
-    return mergeResults(movies, tv, page);
+    return mergeResults(movies, tv, page, 'date');
   },
 
   'top-rated': async (page, type) => {
@@ -105,7 +111,8 @@ const categoryFetchers: Record<string, CategoryFetcher> = {
     return mergeResults(
       movies as TMDBResponse<TMDBMovie>,
       tv as TMDBResponse<TMDBTVShow>,
-      page
+      page,
+      'rating'
     );
   },
 
@@ -124,7 +131,8 @@ const categoryFetchers: Record<string, CategoryFetcher> = {
     return mergeResults(
       movies as TMDBResponse<TMDBMovie>,
       tv as TMDBResponse<TMDBTVShow>,
-      page
+      page,
+      'rating'
     );
   },
 
@@ -157,7 +165,7 @@ const categoryFetchers: Record<string, CategoryFetcher> = {
       discoverMovies(movieParams),
       discoverTVShows(tvParams),
     ]);
-    return mergeResults(movies, tv, page);
+    return mergeResults(movies, tv, page, 'rating');
   },
 
   classics: async (page, _type) => {
@@ -207,10 +215,18 @@ const categoryFetchers: Record<string, CategoryFetcher> = {
 // Helper Functions
 // ==========================================================================
 
+type MergeOrder = 'popularity' | 'rating' | 'date';
+
+/**
+ * Merges one movie page and one TV page. Both halves are kept: trimming the
+ * merged list to 20 dropped the other 20 for good, since page N+1 fetches the
+ * next movie and TV pages.
+ */
 function mergeResults(
   movies: TMDBResponse<TMDBMovie>,
   tv: TMDBResponse<TMDBTVShow>,
-  page: number
+  page: number,
+  order: MergeOrder = 'popularity'
 ): TMDBResponse<TMDBMovie | TMDBTVShow> {
   const movieResults = (movies.results ?? []).map((m) => ({
     ...m,
@@ -220,16 +236,19 @@ function mergeResults(
     ...t,
     media_type: 'tv' as const,
   }));
+  const dateOf = (item: { release_date?: string; first_air_date?: string }) =>
+    new Date(item.release_date ?? item.first_air_date ?? '').getTime() || 0;
 
-  // Interleave and sort by popularity
-  const merged = [...movieResults, ...tvResults].sort(
-    (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
-  );
+  const merged = [...movieResults, ...tvResults].sort((a, b) => {
+    if (order === 'rating') return (b.vote_average ?? 0) - (a.vote_average ?? 0);
+    if (order === 'date') return dateOf(b) - dateOf(a);
+    return (b.popularity ?? 0) - (a.popularity ?? 0);
+  });
 
   return {
     page,
-    results: merged.slice(0, 20),
-    total_pages: Math.max(movies.total_pages ?? 1, tv.total_pages ?? 1),
+    results: merged,
+    total_pages: Math.max(movies.total_pages ?? 0, tv.total_pages ?? 0),
     total_results: (movies.total_results ?? 0) + (tv.total_results ?? 0),
   };
 }
@@ -265,8 +284,8 @@ export async function GET(
     }
 
     // Parse query parameters
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const type = (searchParams.get('type') ?? 'all') as 'movie' | 'tv' | 'all';
+    const page = parsePage(searchParams.get('page'));
+    const type = parseEnum(searchParams.get('type'), ['all', 'movie', 'tv'] as const, 'all');
 
     // Fetch content
     const response = await fetcher(page, type);
@@ -286,7 +305,7 @@ export async function GET(
       category,
       results: results as Content[],
       page: response.page ?? 1,
-      total_pages: response.total_pages ?? 1,
+      total_pages: Math.min(TMDB_MAX_PAGE, response.total_pages ?? 1),
       total_results: response.total_results ?? 0,
     };
 

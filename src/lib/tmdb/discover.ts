@@ -7,6 +7,7 @@ import { tmdbFetch, type TMDBResponse } from './client';
 import type { TMDBMovie } from './movies';
 import type { TMDBTVShow } from './tv';
 import { ANIMATION_GENRE_ID } from '@/lib/constants';
+import { toTVGenre } from './genres';
 
 // ==========================================================================
 // Types
@@ -120,22 +121,50 @@ export async function discoverMovies(
 }
 
 /**
+ * with_genres for an animation query: Animation AND every extra genre.
+ *
+ * TMDB can't express "Animation AND (Action OR Comedy)" — "16,28|35" is read
+ * as 16 AND 28 and the rest is silently dropped — so extra genres narrow the
+ * results (AND) instead of widening them.
+ */
+function animationGenres(extra: number[] = []): string {
+  return [...new Set([ANIMATION_GENRE_ID, ...extra])].join(',');
+}
+
+/**
+ * Same as animationGenres, for /discover/tv: movie genre IDs are mapped to
+ * TMDB's TV genres. Returns null when a genre has no TV equivalent (e.g.
+ * Horror), since no series can match it.
+ */
+function animationTVGenres(extraMovieGenres: number[] = []): string | null {
+  const tv: number[] = [];
+  for (const id of extraMovieGenres) {
+    const mapped = toTVGenre(id);
+    if (mapped == null) return null;
+    tv.push(mapped);
+  }
+  return animationGenres(tv);
+}
+
+const emptyResponse = <T>(page = 1): TMDBResponse<T> => ({
+  page,
+  results: [],
+  total_pages: 0,
+  total_results: 0,
+});
+
+/**
  * Discover animation movies (Western animation)
  * @param params - Discovery params
- * @param additionalGenres - Optional additional genre IDs to filter by (combined with animation genre)
+ * @param extraGenres - Movie genre IDs that results must also have
  */
 export async function discoverAnimationMovies(
   params: Omit<DiscoverMovieParams, 'with_genres'> = {},
-  additionalGenres?: string
+  extraGenres?: number[]
 ): Promise<TMDBResponse<TMDBMovie>> {
-  // Combine animation genre with any additional genre filters
-  const genreFilter = additionalGenres
-    ? `${ANIMATION_GENRE_ID},${additionalGenres}`
-    : String(ANIMATION_GENRE_ID);
-
   const response = await discoverMovies({
     ...params,
-    with_genres: genreFilter,
+    with_genres: animationGenres(extraGenres),
   });
 
   // Filter out Japanese animation (that's anime)
@@ -150,20 +179,15 @@ export async function discoverAnimationMovies(
 /**
  * Discover anime movies (Japanese animation)
  * @param params - Discovery params
- * @param additionalGenres - Optional additional genre IDs to filter by (combined with animation genre)
+ * @param extraGenres - Movie genre IDs that results must also have
  */
 export async function discoverAnimeMovies(
   params: Omit<DiscoverMovieParams, 'with_genres' | 'with_origin_country'> = {},
-  additionalGenres?: string
+  extraGenres?: number[]
 ): Promise<TMDBResponse<TMDBMovie>> {
-  // Combine animation genre with any additional genre filters
-  const genreFilter = additionalGenres
-    ? `${ANIMATION_GENRE_ID},${additionalGenres}`
-    : String(ANIMATION_GENRE_ID);
-
   return discoverMovies({
     ...params,
-    with_genres: genreFilter,
+    with_genres: animationGenres(extraGenres),
     with_original_language: 'ja',
   });
 }
@@ -189,20 +213,18 @@ export async function discoverTVShows(
 /**
  * Discover animation TV shows (Western animation)
  * @param params - Discovery params
- * @param additionalGenres - Optional additional genre IDs to filter by (combined with animation genre)
+ * @param extraGenres - Movie genre IDs that results must also have (mapped to TV genres)
  */
 export async function discoverAnimationTVShows(
   params: Omit<DiscoverTVParams, 'with_genres'> = {},
-  additionalGenres?: string
+  extraGenres?: number[]
 ): Promise<TMDBResponse<TMDBTVShow>> {
-  // Combine animation genre with any additional genre filters
-  const genreFilter = additionalGenres
-    ? `${ANIMATION_GENRE_ID},${additionalGenres}`
-    : String(ANIMATION_GENRE_ID);
+  const withGenres = animationTVGenres(extraGenres);
+  if (withGenres === null) return emptyResponse(params.page);
 
   const response = await discoverTVShows({
     ...params,
-    with_genres: genreFilter,
+    with_genres: withGenres,
   });
 
   // Filter out Japanese animation
@@ -218,20 +240,18 @@ export async function discoverAnimationTVShows(
 /**
  * Discover anime TV shows (Japanese animation)
  * @param params - Discovery params
- * @param additionalGenres - Optional additional genre IDs to filter by (combined with animation genre)
+ * @param extraGenres - Movie genre IDs that results must also have (mapped to TV genres)
  */
 export async function discoverAnimeTVShows(
   params: Omit<DiscoverTVParams, 'with_genres' | 'with_origin_country'> = {},
-  additionalGenres?: string
+  extraGenres?: number[]
 ): Promise<TMDBResponse<TMDBTVShow>> {
-  // Combine animation genre with any additional genre filters
-  const genreFilter = additionalGenres
-    ? `${ANIMATION_GENRE_ID},${additionalGenres}`
-    : String(ANIMATION_GENRE_ID);
+  const withGenres = animationTVGenres(extraGenres);
+  if (withGenres === null) return emptyResponse(params.page);
 
   return discoverTVShows({
     ...params,
-    with_genres: genreFilter,
+    with_genres: withGenres,
     with_origin_country: 'JP',
   });
 }

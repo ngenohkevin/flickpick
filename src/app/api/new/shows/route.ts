@@ -13,6 +13,9 @@ import {
   toEpisode,
   type TMDBTVShow,
 } from '@/lib/tmdb/tv';
+import { getCached } from '@/lib/redis';
+import { mapLimit } from '@/lib/async';
+import { parseEnum, parseIdList, parsePage } from '@/lib/params';
 import type { TVShow, EpisodeStatus, PaginatedResponse } from '@/types';
 
 // ==========================================================================
@@ -21,6 +24,26 @@ import type { TVShow, EpisodeStatus, PaginatedResponse } from '@/types';
 
 type ShowStatus = 'all' | 'airing' | 'complete' | 'returning' | 'upcoming';
 type SortOption = 'next_episode' | 'updated' | 'rating' | 'popularity';
+const STATUSES: ShowStatus[] = ['all', 'airing', 'complete', 'returning', 'upcoming'];
+const SORTS: SortOption[] = ['next_episode', 'updated', 'rating', 'popularity'];
+
+// ==========================================================================
+// Show pool
+// Every show needs two extra TMDB calls (details + current season) for its
+// episode status, so the pool is built once and cached; filters, sorting and
+// pages are applied to the cached pool. Building it per request (and only
+// for the first 20 shows) was ~40 TMDB calls a hit and dropped the rest.
+// ==========================================================================
+
+const POOL_CACHE_KEY = 'new-shows:pool:v2';
+const POOL_TTL = 3600; // 1 hour: episode counts change at most daily
+const ON_THE_AIR_PAGES = 5;
+const POOL_SIZE = 60;
+const DETAIL_CONCURRENCY = 6;
+const PAGE_SIZE = 20;
+// Daily talk, news and soap programmes are always "on the air" and top the
+// popularity list, crowding out the series people actually track
+const EXCLUDED_GENRES = new Set([10763, 10766, 10767]); // News, Soap, Talk
 
 interface TVShowWithEpisodeStatus extends TVShow {
   episode_status: EpisodeStatus;
@@ -137,6 +160,84 @@ function sortShows(
   });
 }
 
+async function withEpisodeStatus(show: TMDBTVShow): Promise<TVShowWithEpisodeStatus> {
+  try {
+    // Details carry next/last episode and the season list
+    const details = await getTVShowDetails(show.id);
+    const episodeStatus = await getEpisodeStatusForShow(details);
+    const currentSeason =
+      details.seasons?.filter((s) => s.season_number > 0).slice(-1)[0]?.season_number ?? 1;
+
+    return {
+      ...toTVShow(details),
+      // /tv/{id} returns `genres` objects, not the list's `genre_ids`; the
+      // genre filters run on genre_ids
+      genre_ids: show.genre_ids ?? details.genres?.map((g) => g.id),
+      episode_status: episodeStatus,
+      current_season: currentSeason,
+    };
+  } catch {
+    // Basic show with an estimated status if details fail
+    return {
+      ...toTVShow(show),
+      episode_status: {
+        total: show.number_of_episodes ?? 0,
+        released: show.number_of_episodes ?? 0,
+        upcoming: 0,
+        nextEpisode: null,
+        lastEpisode: null,
+        isComplete: false,
+        isAiring: true,
+      },
+      current_season: show.number_of_seasons ?? 1,
+    };
+  }
+}
+
+async function buildPool(): Promise<TVShowWithEpisodeStatus[]> {
+  const pages = await Promise.all([
+    ...Array.from({ length: ON_THE_AIR_PAGES }, (_, i) => getOnTheAirTVShows(i + 1).catch(() => null)),
+    getAiringTodayTVShows(1).catch(() => null),
+  ]);
+  if (pages.every((p) => p === null)) {
+    throw new Error('TMDB on-the-air lists unavailable');
+  }
+
+  const unique = new Map<number, TMDBTVShow>();
+  for (const page of pages) {
+    for (const show of page?.results ?? []) {
+      if (!unique.has(show.id)) unique.set(show.id, show);
+    }
+  }
+
+  const candidates = [...unique.values()]
+    .filter((show) => !show.genre_ids?.some((id) => EXCLUDED_GENRES.has(id)))
+    .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
+    .slice(0, POOL_SIZE);
+
+  return mapLimit(candidates, DETAIL_CONCURRENCY, withEpisodeStatus);
+}
+
+// In-process copy (skips a Redis read + parse per request, and keeps the
+// route cheap if Redis is down); concurrent cold requests share one build
+let poolMemo: { expires: number; pool: TVShowWithEpisodeStatus[] } | null = null;
+let poolBuild: Promise<TVShowWithEpisodeStatus[]> | null = null;
+
+async function getPool(): Promise<TVShowWithEpisodeStatus[]> {
+  if (poolMemo && poolMemo.expires > Date.now()) return poolMemo.pool;
+  poolBuild ??= getCached(POOL_CACHE_KEY, buildPool, POOL_TTL)
+    .then((pool) => {
+      // Redis may hand back a copy that is nearly expired; the memo is
+      // short so the two never drift far apart
+      poolMemo = { expires: Date.now() + 10 * 60 * 1000, pool };
+      return pool;
+    })
+    .finally(() => {
+      poolBuild = null;
+    });
+  return poolBuild;
+}
+
 // ==========================================================================
 // Route Handler
 // ==========================================================================
@@ -146,92 +247,35 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Parse query parameters
-    const status = (searchParams.get('status') ?? 'all') as ShowStatus;
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const genresRaw = searchParams.get('genre') ?? undefined;
-    const excludeGenresRaw = searchParams.get('exclude_genre') ?? undefined;
-    const network = searchParams.get('network') ?? undefined;
-    const sortBy = (searchParams.get('sort') ?? 'next_episode') as SortOption;
+    const status = parseEnum(searchParams.get('status'), STATUSES, 'all');
+    const sortBy = parseEnum(searchParams.get('sort'), SORTS, 'next_episode');
+    const page = parsePage(searchParams.get('page'));
+    const genreIds = parseIdList(searchParams.get('genre'));
+    const excludeGenreIds = parseIdList(searchParams.get('exclude_genre'));
+    const ratingParam = parseFloat(searchParams.get('rating') ?? '');
+    const ratingMin = ratingParam > 0 && ratingParam <= 10 ? ratingParam : null;
+    const language = searchParams.get('language')?.match(/^[a-z]{2}$/)?.[0] ?? null;
     const hasNewEpisodes = searchParams.get('hasNewEpisodes') === 'true';
 
-    // Fetch shows from TMDB
-    // We fetch from both "on the air" and "airing today" to get comprehensive list
-    const [onTheAir, airingToday] = await Promise.all([
-      getOnTheAirTVShows(page),
-      getAiringTodayTVShows(page),
-    ]);
+    let shows = await getPool();
 
-    // Combine and deduplicate
-    const allShows = [...(onTheAir.results ?? []), ...(airingToday.results ?? [])];
-    const uniqueShowsMap = new Map<number, TMDBTVShow>();
-    allShows.forEach((show) => {
-      if (!uniqueShowsMap.has(show.id)) {
-        uniqueShowsMap.set(show.id, show);
-      }
-    });
-
-    let shows = Array.from(uniqueShowsMap.values());
-
-    // Apply genre include filter (OR logic: show matches ANY selected genre)
-    if (genresRaw) {
-      const genreIds = genresRaw.split(',').map(Number);
-      shows = shows.filter((show) =>
-        show.genre_ids?.some((id) => genreIds.includes(id))
-      );
+    // Genre include filter (OR logic: show matches ANY selected genre)
+    if (genreIds.length > 0) {
+      shows = shows.filter((show) => show.genre_ids?.some((id) => genreIds.includes(id)));
     }
-
-    // Apply genre exclude filter (exclude shows with ANY excluded genre)
-    if (excludeGenresRaw) {
-      const excludeGenreIds = excludeGenresRaw.split(',').map(Number);
-      shows = shows.filter((show) =>
-        !show.genre_ids?.some((id) => excludeGenreIds.includes(id))
-      );
+    // Genre exclude filter (exclude shows with ANY excluded genre)
+    if (excludeGenreIds.length > 0) {
+      shows = shows.filter((show) => !show.genre_ids?.some((id) => excludeGenreIds.includes(id)));
     }
-
-    // Fetch detailed info including episode status for each show
-    // We limit to first 20 to avoid too many API calls
-    const showsToProcess = shows.slice(0, 20);
-
-    const showsWithStatus = await Promise.all(
-      showsToProcess.map(async (show) => {
-        try {
-          // Get more details including next/last episode
-          const details = await getTVShowDetails(show.id);
-          const episodeStatus = await getEpisodeStatusForShow(details);
-
-          const tvShow = toTVShow(details);
-
-          // Get current season number
-          const currentSeason =
-            details.seasons?.filter((s) => s.season_number > 0).slice(-1)[0]?.season_number ?? 1;
-
-          return {
-            ...tvShow,
-            episode_status: episodeStatus,
-            current_season: currentSeason,
-          } as TVShowWithEpisodeStatus;
-        } catch {
-          // Return basic show with estimated status if details fail
-          const basicShow = toTVShow(show);
-          return {
-            ...basicShow,
-            episode_status: {
-              total: show.number_of_episodes ?? 0,
-              released: show.number_of_episodes ?? 0,
-              upcoming: 0,
-              nextEpisode: null,
-              lastEpisode: null,
-              isComplete: false,
-              isAiring: true,
-            },
-            current_season: show.number_of_seasons ?? 1,
-          } as TVShowWithEpisodeStatus;
-        }
-      })
-    );
+    if (ratingMin !== null) {
+      shows = shows.filter((show) => (show.vote_average ?? 0) >= ratingMin);
+    }
+    if (language) {
+      shows = shows.filter((show) => show.original_language === language);
+    }
 
     // Filter by status
-    let filteredShows = filterByStatus(showsWithStatus, status);
+    let filteredShows = filterByStatus(shows, status);
 
     // Filter by hasNewEpisodes (episodes this week)
     if (hasNewEpisodes) {
@@ -255,13 +299,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Sort shows
     const sortedShows = sortShows(filteredShows, sortBy);
+    const totalPages = Math.max(1, Math.ceil(sortedShows.length / PAGE_SIZE));
 
     const response: NewShowsResponse = {
-      results: sortedShows,
+      results: sortedShows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
       page,
-      total_pages: Math.ceil(uniqueShowsMap.size / 20),
+      total_pages: totalPages,
       total_results: sortedShows.length,
       status_filter: status,
     };

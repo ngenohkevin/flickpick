@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { discoverMovies, type MovieSortBy } from '@/lib/tmdb/discover';
+import { parseEnum, parseIdList, parsePage } from '@/lib/params';
+import { TMDB_MAX_PAGE } from '@/lib/tmdb/genres';
 import type { PaginatedResponse, Movie } from '@/types';
 
 // ==========================================================================
@@ -12,7 +14,16 @@ import type { PaginatedResponse, Movie } from '@/types';
 // ==========================================================================
 
 type TimePeriod = 'week' | 'month' | '3months' | 'year';
-type SortOption = 'date' | 'rating' | 'popularity';
+// 'title' is the browse dropdown's "Most Voted" option
+type SortOption = 'date' | 'rating' | 'popularity' | 'title';
+const SORT_OPTIONS: SortOption[] = ['date', 'rating', 'popularity', 'title'];
+const PERIODS: TimePeriod[] = ['week', 'month', '3months', 'year'];
+
+const RUNTIME_FILTERS: Record<string, { 'with_runtime.gte'?: number; 'with_runtime.lte'?: number }> = {
+  short: { 'with_runtime.lte': 90 },
+  medium: { 'with_runtime.gte': 90, 'with_runtime.lte': 150 },
+  long: { 'with_runtime.gte': 150 },
+};
 
 interface NewMoviesResponse extends PaginatedResponse<Movie> {
   period: TimePeriod;
@@ -62,28 +73,30 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Parse query parameters
-    const period = (searchParams.get('period') ?? 'month') as TimePeriod;
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const genresRaw = searchParams.get('genre') ?? undefined;
-    const excludeGenresRaw = searchParams.get('exclude_genre') ?? undefined;
-    const ratingMin = searchParams.get('rating') ?? undefined;
-    const language = searchParams.get('language') ?? undefined;
-    const provider = searchParams.get('provider') ?? undefined;
-    const watchRegion = searchParams.get('watch_region') ?? 'US';
-    const sortBy = (searchParams.get('sort') ?? 'date') as SortOption;
-
-    // Convert comma-separated genre IDs to pipe-separated (OR logic) for TMDB
-    const genres = genresRaw?.replace(/,/g, '|') || undefined;
-    const excludeGenres = excludeGenresRaw?.replace(/,/g, '|') || undefined;
-
-    // Validate period
-    const validPeriods: TimePeriod[] = ['week', 'month', '3months', 'year'];
-    if (!validPeriods.includes(period)) {
+    const periodParam = searchParams.get('period') ?? 'month';
+    if (!PERIODS.includes(periodParam as TimePeriod)) {
       return NextResponse.json(
         { error: 'Invalid time period', code: 'INVALID_INPUT' },
         { status: 400 }
       );
     }
+    const period = periodParam as TimePeriod;
+    const page = parsePage(searchParams.get('page'));
+    const genreIds = parseIdList(searchParams.get('genre'));
+    const excludeGenreIds = parseIdList(searchParams.get('exclude_genre'));
+    const ratingParam = parseFloat(searchParams.get('rating') ?? '');
+    const ratingMin = ratingParam > 0 && ratingParam <= 10 ? ratingParam : undefined;
+    const language = searchParams.get('language')?.match(/^[a-z]{2}$/)?.[0];
+    const provider = searchParams.get('provider')?.match(/^\d+$/)?.[0];
+    const watchRegion = searchParams.get('watch_region')?.match(/^[A-Z]{2}$/)?.[0] ?? 'US';
+    // The page sends 'release_date' as 'date'; accept both
+    const sortRaw = searchParams.get('sort');
+    const sortBy = parseEnum(sortRaw === 'release_date' ? 'date' : sortRaw, SORT_OPTIONS, 'date');
+    const runtime = RUNTIME_FILTERS[searchParams.get('runtime') ?? ''] ?? {};
+
+    // Pipe = OR (match ANY selected genre)
+    const genres = genreIds.length > 0 ? genreIds.join('|') : undefined;
+    const excludeGenres = excludeGenreIds.length > 0 ? excludeGenreIds.join('|') : undefined;
 
     // Calculate date range
     const { from, to } = getDateRange(period);
@@ -95,6 +108,7 @@ export async function GET(request: NextRequest) {
       date: 'primary_release_date.desc',
       rating: 'vote_average.desc',
       popularity: 'popularity.desc',
+      title: 'vote_count.desc',
     };
 
     // Build discover params
@@ -106,9 +120,10 @@ export async function GET(request: NextRequest) {
       'vote_count.gte': sortBy === 'rating' ? 50 : 10, // Require more votes when sorting by rating
       ...(genres && { with_genres: genres }),
       ...(excludeGenres && { without_genres: excludeGenres }),
-      ...(ratingMin && { 'vote_average.gte': parseFloat(ratingMin) }),
+      ...(ratingMin && { 'vote_average.gte': ratingMin }),
       ...(language && { with_original_language: language }),
       ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
+      ...runtime,
     });
 
     // Add media_type to results
@@ -120,7 +135,7 @@ export async function GET(request: NextRequest) {
     const newMoviesResponse: NewMoviesResponse = {
       results: results as Movie[],
       page: response.page ?? 1,
-      total_pages: response.total_pages ?? 1,
+      total_pages: Math.min(TMDB_MAX_PAGE, response.total_pages ?? 1),
       total_results: response.total_results ?? 0,
       period,
       date_range: {

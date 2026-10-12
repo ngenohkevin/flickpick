@@ -5,7 +5,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { discoverMovies, discoverTVShows } from '@/lib/tmdb/discover';
-import { MOVIE_GENRES, TV_GENRES, GENRE_SLUGS } from '@/lib/constants';
+import { MOVIE_GENRES, TV_GENRES, GENRE_SLUGS, RATING_SORT_MIN_VOTES } from '@/lib/constants';
+import { parseEnum, parsePage } from '@/lib/params';
+import { TMDB_MAX_PAGE } from '@/lib/tmdb/genres';
 import type { PaginatedResponse, Content, Genre } from '@/types';
 
 // ==========================================================================
@@ -21,6 +23,8 @@ interface GenreResponse extends PaginatedResponse<Content> {
   genre: Genre;
   type: 'movie' | 'tv';
 }
+
+const SORT_OPTIONS = ['popularity', 'rating', 'release_date', 'title'] as const;
 
 // ==========================================================================
 // Route Handler
@@ -70,41 +74,51 @@ export async function GET(
     }
 
     // Parse query parameters
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const sortBy = searchParams.get('sort_by') ?? 'popularity';
-    const yearFrom = searchParams.get('year_from') ?? undefined;
-    const yearTo = searchParams.get('year_to') ?? undefined;
-    const ratingMin = searchParams.get('rating_min') ?? undefined;
+    const page = parsePage(searchParams.get('page'));
+    const sortBy = parseEnum(searchParams.get('sort_by'), SORT_OPTIONS, 'popularity');
+    const yearFrom = searchParams.get('year_from')?.match(/^\d{4}$/)?.[0];
+    const yearTo = searchParams.get('year_to')?.match(/^\d{4}$/)?.[0];
+    const ratingParam = parseFloat(searchParams.get('rating_min') ?? '');
+    const ratingMin = ratingParam > 0 && ratingParam <= 10 ? ratingParam : undefined;
 
-    // Build sort parameter
-    const sortMapping = {
-      popularity: type === 'movie' ? 'popularity.desc' : 'popularity.desc',
-      rating: type === 'movie' ? 'vote_average.desc' : 'vote_average.desc',
-      release_date: type === 'movie' ? 'primary_release_date.desc' : 'first_air_date.desc',
-    } as const;
-
-    const sort = sortMapping[sortBy as keyof typeof sortMapping] ?? sortMapping.popularity;
+    // A rating filter needs 50 votes; a rating sort needs more, or the list
+    // opens with obscure titles rated 10 by a single voter.
+    const minVotes = Math.max(ratingMin ? 50 : 0, sortBy === 'rating' ? RATING_SORT_MIN_VOTES : 0);
+    const common = {
+      page,
+      with_genres: String(genreId),
+      ...(ratingMin && { 'vote_average.gte': ratingMin }),
+      ...(minVotes > 0 && { 'vote_count.gte': minVotes }),
+    };
 
     // Fetch content
     let response;
 
     if (type === 'movie') {
+      const movieSort = {
+        popularity: 'popularity.desc',
+        rating: 'vote_average.desc',
+        release_date: 'primary_release_date.desc',
+        title: 'vote_count.desc', // the dropdown's "Most Voted"
+      } as const;
       response = await discoverMovies({
-        page,
-        with_genres: String(genreId),
-        sort_by: sort as 'popularity.desc' | 'vote_average.desc' | 'primary_release_date.desc',
+        ...common,
+        sort_by: movieSort[sortBy],
         ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
         ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
-        ...(ratingMin && { 'vote_average.gte': parseFloat(ratingMin), 'vote_count.gte': 50 }),
       });
     } else {
+      const tvSort = {
+        popularity: 'popularity.desc',
+        rating: 'vote_average.desc',
+        release_date: 'first_air_date.desc',
+        title: 'vote_count.desc',
+      } as const;
       response = await discoverTVShows({
-        page,
-        with_genres: String(genreId),
-        sort_by: sort as 'popularity.desc' | 'vote_average.desc' | 'first_air_date.desc',
+        ...common,
+        sort_by: tvSort[sortBy],
         ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
         ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
-        ...(ratingMin && { 'vote_average.gte': parseFloat(ratingMin), 'vote_count.gte': 50 }),
       });
     }
 
@@ -119,7 +133,7 @@ export async function GET(
       type,
       results: results as Content[],
       page: response.page ?? 1,
-      total_pages: response.total_pages ?? 1,
+      total_pages: Math.min(TMDB_MAX_PAGE, response.total_pages ?? 1),
       total_results: response.total_results ?? 0,
     };
 

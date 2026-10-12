@@ -14,6 +14,12 @@ import {
   type MovieSortBy,
   type TVSortBy,
 } from '@/lib/tmdb/discover';
+import type { TMDBResponse } from '@/lib/tmdb/client';
+import type { TMDBMovie } from '@/lib/tmdb/movies';
+import type { TMDBTVShow } from '@/lib/tmdb/tv';
+import { TMDB_MAX_PAGE, toTVGenres } from '@/lib/tmdb/genres';
+import { parseEnum, parseIdList, parsePage } from '@/lib/params';
+import { RATING_SORT_MIN_VOTES } from '@/lib/constants';
 import type { ContentType, PaginatedResponse, Content } from '@/types';
 
 // ==========================================================================
@@ -25,6 +31,42 @@ interface BrowseParams {
 }
 
 type SortOption = 'popularity' | 'rating' | 'release_date' | 'title';
+const SORT_OPTIONS: SortOption[] = ['popularity', 'rating', 'release_date', 'title'];
+const RUNTIMES = ['any', 'short', 'medium', 'long'] as const;
+
+
+/**
+ * Merges one movie page and one TV page into a single page.
+ *
+ * Both halves are kept. Trimming the merged list to 20 dropped the other 20
+ * for good, since page N+1 fetches the next movie and TV pages.
+ */
+function mergeMoviesAndTV(
+  movies: TMDBResponse<TMDBMovie>,
+  tv: TMDBResponse<TMDBTVShow>,
+  sortBy: SortOption,
+  page: number
+) {
+  const dateOf = (item: { release_date?: string; first_air_date?: string }) =>
+    new Date(item.release_date ?? item.first_air_date ?? '').getTime() || 0;
+
+  const results = [
+    ...(movies.results ?? []).map((m) => ({ ...m, media_type: 'movie' as const })),
+    ...(tv.results ?? []).map((t) => ({ ...t, media_type: 'tv' as const })),
+  ].sort((a, b) => {
+    if (sortBy === 'rating') return (b.vote_average ?? 0) - (a.vote_average ?? 0);
+    if (sortBy === 'release_date') return dateOf(b) - dateOf(a);
+    if (sortBy === 'title') return (b.vote_count ?? 0) - (a.vote_count ?? 0);
+    return (b.popularity ?? 0) - (a.popularity ?? 0);
+  });
+
+  return {
+    page,
+    results,
+    total_pages: Math.min(TMDB_MAX_PAGE, Math.max(movies.total_pages ?? 0, tv.total_pages ?? 0)),
+    total_results: (movies.total_results ?? 0) + (tv.total_results ?? 0),
+  };
+}
 
 // ==========================================================================
 // Route Handler
@@ -58,22 +100,23 @@ export async function GET(
     }
 
     // Parse query parameters
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const genresRaw = searchParams.get('genre') ?? undefined; // comma-separated genre IDs
-    const excludeGenresRaw = searchParams.get('exclude_genre') ?? undefined;
-    const yearFrom = searchParams.get('year_from') ?? undefined;
-    const yearTo = searchParams.get('year_to') ?? undefined;
-    const ratingMin = searchParams.get('rating_min') ?? undefined;
-    const language = searchParams.get('language') ?? undefined; // ISO 639-1 language code
-    const provider = searchParams.get('provider') ?? undefined;
-    const watchRegion = searchParams.get('watch_region') ?? 'US';
-    const sortBy = (searchParams.get('sort_by') ?? 'popularity') as SortOption;
-    const runtime = searchParams.get('runtime') ?? undefined;
+    const page = parsePage(searchParams.get('page'));
+    const genreIds = parseIdList(searchParams.get('genre'));
+    const excludeGenreIds = parseIdList(searchParams.get('exclude_genre'));
+    const yearFrom = searchParams.get('year_from')?.match(/^\d{4}$/)?.[0];
+    const yearTo = searchParams.get('year_to')?.match(/^\d{4}$/)?.[0];
+    const ratingParam = parseFloat(searchParams.get('rating_min') ?? '');
+    const ratingMin = ratingParam > 0 && ratingParam <= 10 ? ratingParam : undefined;
+    const language = searchParams.get('language')?.match(/^[a-z]{2}$/)?.[0]; // ISO 639-1 language code
+    const provider = searchParams.get('provider')?.match(/^\d+$/)?.[0];
+    const watchRegion = searchParams.get('watch_region')?.match(/^[A-Z]{2}$/)?.[0] ?? 'US';
+    const sortBy = parseEnum(searchParams.get('sort_by'), SORT_OPTIONS, 'popularity');
+    const runtime = parseEnum(searchParams.get('runtime'), RUNTIMES, 'any');
 
-    // Convert comma-separated genre IDs to pipe-separated (OR logic) for TMDB
     // Comma = AND (must match ALL), Pipe = OR (match ANY) — OR is the expected UX
-    const genres = genresRaw?.replace(/,/g, '|') || undefined;
-    const excludeGenres = excludeGenresRaw?.replace(/,/g, '|') || undefined;
+    const genres = genreIds.length > 0 ? genreIds.join('|') : undefined;
+    const excludeGenres = excludeGenreIds.length > 0 ? excludeGenreIds.join('|') : undefined;
+    const tvExcludeGenres = excludeGenreIds.length > 0 ? toTVGenres(excludeGenreIds).join('|') || undefined : undefined;
 
     // Runtime filter mapping (in minutes)
     const runtimeFilters: Record<string, { gte?: number; lte?: number }> = {
@@ -90,22 +133,24 @@ export async function GET(
       title: { movie: 'vote_count.desc', tv: 'vote_count.desc' }, // TMDB doesn't have title sort, use vote_count as proxy
     };
 
-    // Determine if we're dealing with movies or TV
-    const isMovieType = contentType === 'movie' || contentType === 'animation' || contentType === 'anime';
-
     // Get runtime filter values if specified
-    const runtimeFilter = runtime && runtimeFilters[runtime] ? runtimeFilters[runtime] : null;
+    const runtimeFilter = runtimeFilters[runtime] ?? null;
 
     // Build common filter params
-    // Note: For animation/anime, genres are passed separately to combine with animation genre
+    // Vote floor: a rating filter needs 50 votes; sorting by rating needs more,
+    // or the top of the list is obscure titles rated 10 by a single voter.
+    const minVotes = Math.max(ratingMin ? 50 : 0, sortBy === 'rating' ? RATING_SORT_MIN_VOTES : 0);
     const baseParams = {
       page,
-      ...(ratingMin && { 'vote_average.gte': parseFloat(ratingMin) }),
-      ...(ratingMin && { 'vote_count.gte': 50 }), // Require minimum votes when filtering by rating
+      ...(ratingMin && { 'vote_average.gte': ratingMin }),
+      ...(minVotes > 0 && { 'vote_count.gte': minVotes }),
       ...(language && { with_original_language: language }),
       ...(provider && { with_watch_providers: provider, watch_region: watchRegion }),
-      ...(excludeGenres && { without_genres: excludeGenres }),
     };
+    // Genre IDs as sent (movie IDs on movie/animation/anime pages, TV IDs on the TV page)
+    const unmappedBase = { ...baseParams, ...(excludeGenres && { without_genres: excludeGenres }) };
+    // Animation/anime TV half: the sidebar listed movie genres, so map them
+    const mappedTVBase = { ...baseParams, ...(tvExcludeGenres && { without_genres: tvExcludeGenres }) };
 
     // Movie-specific params (runtime only works for movies)
     const movieRuntimeParams = runtimeFilter
@@ -115,128 +160,48 @@ export async function GET(
         }
       : {};
 
-    // For movie/tv types, include genres in baseParams
-    const baseParamsWithGenres = {
-      ...baseParams,
-      ...(genres && { with_genres: genres }),
+    const movieDates = {
+      ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
+      ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
+    };
+    const tvDates = {
+      ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
+      ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
     };
 
     let response;
 
     if (contentType === 'movie') {
       response = await discoverMovies({
-        ...baseParamsWithGenres,
+        ...unmappedBase,
         ...movieRuntimeParams,
+        ...movieDates,
+        ...(genres && { with_genres: genres }),
         sort_by: sortMapping[sortBy].movie,
-        ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
-        ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
       });
     } else if (contentType === 'tv') {
+      // The TV page's sidebar lists TV genres, so IDs pass through unchanged
       response = await discoverTVShows({
-        ...baseParamsWithGenres,
+        ...unmappedBase,
+        ...tvDates,
+        ...(genres && { with_genres: genres }),
         sort_by: sortMapping[sortBy].tv,
-        ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
-        ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
       });
-    } else if (contentType === 'animation') {
-      // Animation: Split between movies and TV, then merge
-      // Pass user-selected genres as second parameter to combine with animation genre
-      if (isMovieType) {
-        const [movieResponse, tvResponse] = await Promise.all([
-          discoverAnimationMovies(
-            {
-              ...baseParams,
-              ...movieRuntimeParams,
-              sort_by: sortMapping[sortBy].movie,
-              ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
-              ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
-            },
-            genres
-          ),
-          discoverAnimationTVShows(
-            {
-              ...baseParams,
-              sort_by: sortMapping[sortBy].tv,
-              ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
-              ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
-            },
-            genres
-          ),
-        ]);
+    } else {
+      // Animation/anime: one movie page + one TV page, merged. The sidebar
+      // lists movie genres; the TV query maps them to TV genre IDs.
+      const discoverMovie = contentType === 'animation' ? discoverAnimationMovies : discoverAnimeMovies;
+      const discoverTV = contentType === 'animation' ? discoverAnimationTVShows : discoverAnimeTVShows;
 
-        // Merge and sort results
-        const mergedResults = [
-          ...(movieResponse.results ?? []).map((m) => ({ ...m, media_type: 'movie' as const })),
-          ...(tvResponse.results ?? []).map((t) => ({ ...t, media_type: 'tv' as const })),
-        ].sort((a, b) => {
-          if (sortBy === 'rating') return (b.vote_average ?? 0) - (a.vote_average ?? 0);
-          if (sortBy === 'release_date') {
-            const dateA = 'release_date' in a ? a.release_date : 'first_air_date' in a ? a.first_air_date : '';
-            const dateB = 'release_date' in b ? b.release_date : 'first_air_date' in b ? b.first_air_date : '';
-            return new Date(dateB ?? '').getTime() - new Date(dateA ?? '').getTime();
-          }
-          return (b.popularity ?? 0) - (a.popularity ?? 0);
-        });
-
-        response = {
-          page,
-          results: mergedResults.slice(0, 20),
-          total_pages: Math.max(movieResponse.total_pages ?? 1, tvResponse.total_pages ?? 1),
-          total_results: (movieResponse.total_results ?? 0) + (tvResponse.total_results ?? 0),
-        };
-      }
-    } else if (contentType === 'anime') {
-      // Anime: Same approach - merge movies and TV
-      // Pass user-selected genres as second parameter to combine with animation genre
       const [movieResponse, tvResponse] = await Promise.all([
-        discoverAnimeMovies(
-          {
-            ...baseParams,
-            ...movieRuntimeParams,
-            sort_by: sortMapping[sortBy].movie,
-            ...(yearFrom && { 'primary_release_date.gte': `${yearFrom}-01-01` }),
-            ...(yearTo && { 'primary_release_date.lte': `${yearTo}-12-31` }),
-          },
-          genres
+        discoverMovie(
+          { ...unmappedBase, ...movieRuntimeParams, ...movieDates, sort_by: sortMapping[sortBy].movie },
+          genreIds
         ),
-        discoverAnimeTVShows(
-          {
-            ...baseParams,
-            sort_by: sortMapping[sortBy].tv,
-            ...(yearFrom && { 'first_air_date.gte': `${yearFrom}-01-01` }),
-            ...(yearTo && { 'first_air_date.lte': `${yearTo}-12-31` }),
-          },
-          genres
-        ),
+        discoverTV({ ...mappedTVBase, ...tvDates, sort_by: sortMapping[sortBy].tv }, genreIds),
       ]);
 
-      // Merge and sort results
-      const mergedResults = [
-        ...(movieResponse.results ?? []).map((m) => ({ ...m, media_type: 'movie' as const })),
-        ...(tvResponse.results ?? []).map((t) => ({ ...t, media_type: 'tv' as const })),
-      ].sort((a, b) => {
-        if (sortBy === 'rating') return (b.vote_average ?? 0) - (a.vote_average ?? 0);
-        if (sortBy === 'release_date') {
-          const dateA = 'release_date' in a ? a.release_date : 'first_air_date' in a ? a.first_air_date : '';
-          const dateB = 'release_date' in b ? b.release_date : 'first_air_date' in b ? b.first_air_date : '';
-          return new Date(dateB ?? '').getTime() - new Date(dateA ?? '').getTime();
-        }
-        return (b.popularity ?? 0) - (a.popularity ?? 0);
-      });
-
-      response = {
-        page,
-        results: mergedResults.slice(0, 20),
-        total_pages: Math.max(movieResponse.total_pages ?? 1, tvResponse.total_pages ?? 1),
-        total_results: (movieResponse.total_results ?? 0) + (tvResponse.total_results ?? 0),
-      };
-    }
-
-    if (!response) {
-      return NextResponse.json(
-        { error: 'Failed to fetch content', code: 'TMDB_ERROR' },
-        { status: 500 }
-      );
+      response = mergeMoviesAndTV(movieResponse, tvResponse, sortBy, page);
     }
 
     // Add media_type to results if not present (for movie/tv types)
@@ -248,7 +213,7 @@ export async function GET(
     const browseResponse: PaginatedResponse<Content> = {
       results: results as Content[],
       page: response.page ?? 1,
-      total_pages: response.total_pages ?? 1,
+      total_pages: Math.min(TMDB_MAX_PAGE, response.total_pages ?? 1),
       total_results: response.total_results ?? 0,
     };
 
