@@ -361,6 +361,19 @@ async function enrichRecommendations(
   return resultsWithProviders;
 }
 
+/**
+ * Drop results whose title the user named in the prompt (as whole words,
+ * so "Up" isn't removed for "pick me up"; titles under 3 letters are kept).
+ */
+export function withoutNamedTitles<T extends { title: string }>(results: T[], prompt: string): T[] {
+  const words = (value: string) => value.toLowerCase().replace(/&/g, 'and').split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const promptText = ` ${words(prompt).join(' ')} `;
+  return results.filter((r) => {
+    const title = words(r.title).join(' ');
+    return title.replace(/ /g, '').length < 3 || !promptText.includes(` ${title} `);
+  });
+}
+
 // ==========================================================================
 // Main Discovery Function
 // ==========================================================================
@@ -426,8 +439,13 @@ export async function getRecommendations(
 
       console.log(`[AI] Got ${rawRecommendations.length} raw recommendations from ${provider.name}`);
 
-      // Enrich with TMDB data (with its own error handling)
-      const enrichedResults = await enrichRecommendations(rawRecommendations, excludeIds);
+      // Enrich with TMDB data (with its own error handling). Models ignore
+      // the "don't repeat titles the user named" rule ("thrillers like The
+      // Martian" returned The Martian), so enforce it here.
+      const enrichedResults = withoutNamedTitles(
+        await enrichRecommendations(rawRecommendations, excludeIds),
+        prompt
+      );
 
       if (enrichedResults.length === 0) {
         console.warn(`[AI] No recommendations could be matched in TMDB, trying next provider...`);

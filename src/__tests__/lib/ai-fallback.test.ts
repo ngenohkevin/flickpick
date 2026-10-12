@@ -64,3 +64,13 @@ describe('pickBestMatch', () => {
     expect(pickBestMatch([{ title: 'The Bureau', original: 'Le Bureau des Légendes', year: 2015, votes: 600 }], 'Le Bureau des Légendes', undefined, 0)).toBe(0);
   });
 });
+
+describe('withoutNamedTitles', () => {
+  it('drops titles the user named, as whole words only', async () => {
+    const { withoutNamedTitles } = await import('@/lib/ai');
+    const results = [{ title: 'The Martian' }, { title: 'Gravity' }, { title: 'All Is Lost' }, { title: 'Up' }, { title: 'Primer' }];
+    const kept = withoutNamedTitles(results, 'tense survival thrillers like The Martian and Gravity, something to pick me up');
+    expect(kept.map((r) => r.title)).toEqual(['All Is Lost', 'Up', 'Primer']);
+    expect(withoutNamedTitles([{ title: 'Primer' }], 'movies like Coherence and Primer')).toEqual([]);
+  });
+});
