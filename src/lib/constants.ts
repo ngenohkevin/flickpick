@@ -109,6 +109,18 @@ export const GENRE_SLUGS: Record<string, number> = {
   talk: 10767,
 };
 
+/** News, Reality, Soap, Talk */
+const DAILY_PROGRAMME_GENRES = new Set([10763, 10764, 10766, 10767]);
+
+/**
+ * Daily or unscripted TV (news, soaps, talk and game/reality shows). They are
+ * always "on the air" and top the popularity lists, so new-episode lists
+ * leave them out: the homepage row led with Binnelanders and Jeopardy!.
+ */
+export function isDailyProgramme(genreIds: readonly number[] | undefined): boolean {
+  return genreIds?.some((id) => DAILY_PROGRAMME_GENRES.has(id)) ?? false;
+}
+
 /**
  * URL slug for a TMDB genre ID ("science-fiction" for 878), or null.
  * Building slugs from genre names produced 404s ("science fiction",

@@ -14,6 +14,7 @@ import {
   type TMDBTVShow,
 } from '@/lib/tmdb/tv';
 import { getCached } from '@/lib/redis';
+import { isDailyProgramme } from '@/lib/constants';
 import { mapLimit } from '@/lib/async';
 import { parseEnum, parseIdList, parsePage } from '@/lib/params';
 import type { TVShow, EpisodeStatus, PaginatedResponse } from '@/types';
@@ -35,15 +36,13 @@ const SORTS: SortOption[] = ['next_episode', 'updated', 'rating', 'popularity'];
 // for the first 20 shows) was ~40 TMDB calls a hit and dropped the rest.
 // ==========================================================================
 
-const POOL_CACHE_KEY = 'new-shows:pool:v2';
+// v3: reality shows are excluded too (isDailyProgramme)
+const POOL_CACHE_KEY = 'new-shows:pool:v3';
 const POOL_TTL = 3600; // 1 hour: episode counts change at most daily
 const ON_THE_AIR_PAGES = 5;
 const POOL_SIZE = 60;
 const DETAIL_CONCURRENCY = 6;
 const PAGE_SIZE = 20;
-// Daily talk, news and soap programmes are always "on the air" and top the
-// popularity list, crowding out the series people actually track
-const EXCLUDED_GENRES = new Set([10763, 10766, 10767]); // News, Soap, Talk
 
 interface TVShowWithEpisodeStatus extends TVShow {
   episode_status: EpisodeStatus;
@@ -211,7 +210,7 @@ async function buildPool(): Promise<TVShowWithEpisodeStatus[]> {
   }
 
   const candidates = [...unique.values()]
-    .filter((show) => !show.genre_ids?.some((id) => EXCLUDED_GENRES.has(id)))
+    .filter((show) => !isDailyProgramme(show.genre_ids))
     .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0))
     .slice(0, POOL_SIZE);
 

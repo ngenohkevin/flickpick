@@ -683,3 +683,15 @@ describe('formatAirDateLabel', () => {
     expect(formatAirDateLabel('soon', now)).toBe('');
   });
 });
+
+describe('isDailyProgramme', () => {
+  it('flags news, soap, talk and reality shows, not series', async () => {
+    const { isDailyProgramme } = await import('@/lib/constants');
+    expect(isDailyProgramme([10766])).toBe(true); // Binnelanders (soap)
+    expect(isDailyProgramme([35, 10767])).toBe(true); // The Graham Norton Show (talk)
+    expect(isDailyProgramme([10764, 10751])).toBe(true); // Jeopardy! (reality)
+    expect(isDailyProgramme([10763, 35])).toBe(true); // The Daily Show (news)
+    expect(isDailyProgramme([80, 18, 10759])).toBe(false); // NCIS
+    expect(isDailyProgramme(undefined)).toBe(false);
+  });
+});

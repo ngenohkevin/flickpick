@@ -24,7 +24,7 @@ import {
 import { JustReleasedTVRow } from '@/components/content/JustReleasedTVRow';
 import { CategoryGrid } from '@/components/browse';
 import { SkeletonRow } from '@/components/ui';
-import { GENRE_PILLS } from '@/lib/constants';
+import { GENRE_PILLS, isDailyProgramme } from '@/lib/constants';
 import type { Content, Movie, TVShow } from '@/types';
 import { SITE_URL } from '@/lib/site';
 
@@ -146,7 +146,7 @@ async function getJustReleasedTVShows(): Promise<JustReleasedTVShow[]> {
 
   // Filter and sort by popularity - get more candidates
   const candidateShows = Array.from(uniqueShowsMap.values())
-    .filter((show) => show.vote_average >= 5.5 && show.vote_count >= 30)
+    .filter((show) => show.vote_average >= 5.5 && show.vote_count >= 30 && !isDailyProgramme(show.genre_ids))
     .sort((a, b) => b.popularity - a.popularity)
     .slice(0, 50); // More candidates
 
