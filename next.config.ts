@@ -56,6 +56,23 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Pages and their RSC payloads: browsers must check back every time.
+        // Next's ISR header (s-maxage=3600, stale-while-revalidate=~1 year)
+        // is meant for CDNs, but browsers apply the stale-while-revalidate
+        // too and kept showing a homepage from days earlier, whose
+        // relative dates then failed hydration. Next only writes its own
+        // Cache-Control when none is set, so this one wins; ISR on the
+        // server is unchanged. The old domain's 301 keeps its default.
+        source: '/:path((?!_next/|api/|.*\\.\\w+$).*)',
+        missing: [{ type: 'host', value: '(www\\.)?flickpick\\.site' }],
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache',
+          },
+        ],
+      },
+      {
         // Browsers and Cloudflare must revalidate the service worker, or a
         // fixed sw.js reaches installed users hours late
         source: '/sw.js',

@@ -4,7 +4,8 @@
 // ==========================================================================
 
 // Bump CACHE_VERSION to drop every cache from earlier versions on activate
-const CACHE_VERSION = 'v2';
+// v3: the v2 offline copy of / could be a days-old page from the HTTP cache
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `flickpick-static-${CACHE_VERSION}`;
 const IMAGE_CACHE = `flickpick-images-${CACHE_VERSION}`;
 const API_CACHE = `flickpick-api-${CACHE_VERSION}`;
@@ -34,7 +35,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      // From the network, not a stored copy that may be days old
+      return cache.addAll(STATIC_ASSETS.map((url) => new Request(url, { cache: 'reload' })));
     })
   );
 
@@ -99,6 +101,8 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(handleApiRequest(request));
   } else if (isNavigationRequest(request)) {
     event.respondWith(handleNavigationRequest(request));
+  } else if (isRscRequest(request, url)) {
+    event.respondWith(fetch(request, { cache: 'no-cache' }));
   } else {
     event.respondWith(handleStaticRequest(request));
   }
@@ -121,6 +125,11 @@ function isApiRequest(url) {
 
 function isNavigationRequest(request) {
   return request.mode === 'navigate';
+}
+
+// Next's client-side navigations fetch the page as an RSC payload
+function isRscRequest(request, url) {
+  return request.headers.get('RSC') === '1' || url.searchParams.has('_rsc');
 }
 
 // ==========================================================================
@@ -196,8 +205,10 @@ async function handleApiRequest(request) {
 
 async function handleNavigationRequest(request) {
   try {
-    // Try network first
-    const networkResponse = await fetch(request);
+    // Network first, past the HTTP cache: pages used to carry a year-long
+    // stale-while-revalidate, and the browser kept serving its stored copy
+    // (the homepage was 5 days old) without ever refreshing it
+    const networkResponse = await fetch(request, { cache: 'no-cache' });
     return networkResponse;
   } catch (error) {
     // Try cache
