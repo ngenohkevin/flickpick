@@ -5,7 +5,7 @@ import { Heart } from 'lucide-react';
 import { useToast } from './Toast';
 import { cn } from '@/lib/utils';
 import { useWatchlist } from '@/stores/watchlist';
-import type { ContentType } from '@/types';
+import type { ContentType, WatchlistItem } from '@/types';
 
 // ==========================================================================
 // Watchlist Button Component
@@ -25,6 +25,35 @@ interface WatchlistButtonProps {
 
 const noopSubscribe = () => () => {};
 
+/**
+ * Saved state and toggle for one title, shared by every watchlist heart.
+ * `onToggle` lets a page that tracks the watchlist itself do the toggling;
+ * otherwise the store is updated here. (The cards' hearts used to show a
+ * "coming soon" toast and ignore the handler their page passed.)
+ */
+export function useWatchlistToggle(item: Omit<WatchlistItem, 'added_at'>, onToggle?: () => void) {
+  const { addToast } = useToast();
+  const toggleItem = useWatchlist((state) => state.toggleItem);
+  const inStore = useWatchlist((state) => state.isInWatchlist(item.id, item.media_type));
+  // The watchlist lives in localStorage; render the unsaved state on the
+  // server and the first client pass so hydration matches, then the real one.
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const saved = isClient && inStore;
+
+  const toggle = () => {
+    if (onToggle) onToggle();
+    else toggleItem(item);
+    addToast({
+      type: 'success',
+      title: saved ? 'Removed from watchlist' : 'Added to watchlist',
+      message: item.title,
+      duration: 2500,
+    });
+  };
+
+  return { saved, toggle };
+}
+
 export function WatchlistButton({
   id,
   title,
@@ -34,30 +63,18 @@ export function WatchlistButton({
   variant = 'default',
   className,
 }: WatchlistButtonProps) {
-  const { addToast } = useToast();
   const [isAnimating, setIsAnimating] = useState(false);
-  const toggleItem = useWatchlist((state) => state.toggleItem);
-  const inStore = useWatchlist((state) => state.isInWatchlist(id, mediaType));
-  // The watchlist lives in localStorage; render the unsaved state on the
-  // server and the first client pass so hydration matches, then the real one.
-  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false);
-  const saved = isClient && inStore;
+  const { saved, toggle } = useWatchlistToggle({
+    id,
+    title,
+    media_type: mediaType,
+    content_type: contentType ?? mediaType,
+    poster_path: posterPath,
+  });
 
   const handleClick = () => {
     setIsAnimating(true);
-    toggleItem({
-      id,
-      title,
-      media_type: mediaType,
-      content_type: contentType ?? mediaType,
-      poster_path: posterPath,
-    });
-    addToast({
-      type: 'success',
-      title: saved ? 'Removed from watchlist' : 'Added to watchlist',
-      message: title,
-      duration: 2500,
-    });
+    toggle();
     setTimeout(() => setIsAnimating(false), 300);
   };
 

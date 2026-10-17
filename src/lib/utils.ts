@@ -246,6 +246,23 @@ export function isWithinHours(dateString: string | undefined, hours: number): bo
 }
 
 /**
+ * "Today", "Yesterday", "3 days ago", or "Oct 13" for a date-only air date
+ * (YYYY-MM-DD), counted in calendar days of the viewer's local date.
+ * Depends on the clock, so render it only on the client.
+ */
+export function formatAirDateLabel(dateString: string, now: Date = new Date()): string {
+  const aired = Date.parse(dateString.slice(0, 10)); // UTC midnight
+  if (Number.isNaN(aired)) return '';
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((today - aired) / 86_400_000);
+
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days > 1 && days < 7) return `${days} days ago`;
+  return new Date(aired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+/**
  * Get relative time string (e.g., "3 days ago", "in 2 weeks")
  */
 export function formatRelativeTime(dateString: string | undefined): string {

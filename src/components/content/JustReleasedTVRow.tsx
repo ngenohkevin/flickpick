@@ -1,15 +1,18 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Tv, Plus, Heart, Calendar, Sparkles, CheckCircle2 } from 'lucide-react';
 import { ContentPoster } from './ContentPoster';
 import { ContentRating } from './ContentRating';
-import { Tooltip, useToast } from '@/components/ui';
-import { cn } from '@/lib/utils';
+import { Tooltip } from '@/components/ui';
+import { useWatchlistToggle } from '@/components/ui/WatchlistButton';
+import { cn, formatAirDateLabel, formatDate, getContentType } from '@/lib/utils';
 import type { TVShow } from '@/types';
 import { watchlistKey } from '@/stores/watchlist';
+
+const noopSubscribe = () => () => {};
 
 // ==========================================================================
 // Just Released TV Row Component
@@ -183,24 +186,26 @@ interface JustReleasedTVCardProps {
 function JustReleasedTVCard({
   show,
   priority = false,
-  isInWatchlist = false,
+  isInWatchlist,
   onWatchlistToggle,
   className = '',
 }: JustReleasedTVCardProps) {
   const router = useRouter();
-  const { addToast } = useToast();
   const detailUrl = `/tv/${show.id}`;
   const similarUrl = `/similar/tv/${show.id}`;
+  const watchlist = useWatchlistToggle(
+    { id: show.id, title: show.name, media_type: 'tv', content_type: getContentType(show), poster_path: show.poster_path },
+    onWatchlistToggle && (() => onWatchlistToggle(show))
+  );
+  const saved = isInWatchlist ?? watchlist.saved;
+  // The page is rendered up to an hour before it is shown, so "2 days ago"
+  // can be stale; the server and hydration pass show the date instead
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false);
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    addToast({
-      type: 'info',
-      title: 'Coming Soon',
-      message: 'Watchlist feature is coming soon!',
-      duration: 3000,
-    });
+    watchlist.toggle();
   };
 
   const handleSimilarClick = (e: React.MouseEvent) => {
@@ -215,19 +220,6 @@ function JustReleasedTVCard({
   const episodeLabel = latestEpisode
     ? `S${latestEpisode.season}E${latestEpisode.episode}`
     : null;
-
-  // Format air date
-  const formatAirDate = (dateStr: string | null | undefined) => {
-    if (!dateStr) return null;
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
 
   // Calculate progress percentage
   const progressPercent = seasonProgress
@@ -271,18 +263,18 @@ function JustReleasedTVCard({
             </Tooltip>
 
             {/* Watchlist Button */}
-            <Tooltip content={isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'} position="top">
+            <Tooltip content={saved ? 'In Watchlist' : 'Add to Watchlist'} position="top">
               <button
                 onClick={handleWatchlistClick}
                 className={cn(
                   'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-                  isInWatchlist
+                  saved
                     ? 'bg-accent-primary text-white'
                     : 'bg-white/20 text-white hover:bg-white/30'
                 )}
-                aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                aria-label={saved ? 'Remove from watchlist' : 'Add to watchlist'}
               >
-                <Heart className={cn('h-5 w-5', isInWatchlist && 'fill-current')} />
+                <Heart className={cn('h-5 w-5', saved && 'fill-current')} />
               </button>
             </Tooltip>
           </div>
@@ -349,7 +341,9 @@ function JustReleasedTVCard({
             <div className="mt-1">
               <p className="flex items-center gap-1 text-[10px] text-text-tertiary">
                 <Calendar className="h-2.5 w-2.5" />
-                {formatAirDate(latestEpisode.airDate)}
+                {isClient
+                  ? formatAirDateLabel(latestEpisode.airDate)
+                  : formatDate(latestEpisode.airDate, { month: 'short', day: 'numeric' })}
               </p>
             </div>
           )}

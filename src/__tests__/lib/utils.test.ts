@@ -659,3 +659,27 @@ describe('date-only strings are not shifted by the viewer time zone', () => {
     expect(formatDate('2026-10-15', { month: 'long', day: 'numeric' })).toBe('October 15');
   });
 });
+
+describe('formatAirDateLabel', () => {
+  // Local evening of Oct 17: the calendar date, not 24-hour blocks, decides
+  const now = new Date(2026, 9, 17, 22, 30);
+
+  it('counts calendar days from the viewer\'s date', async () => {
+    const { formatAirDateLabel } = await import('@/lib/utils');
+    expect(formatAirDateLabel('2026-10-17', now)).toBe('Today');
+    expect(formatAirDateLabel('2026-10-16', now)).toBe('Yesterday');
+    expect(formatAirDateLabel('2026-10-13', now)).toBe('4 days ago');
+    expect(formatAirDateLabel('2026-10-11', now)).toBe('6 days ago');
+  });
+
+  it('shows the date for a week or more ago, and for future dates', async () => {
+    const { formatAirDateLabel } = await import('@/lib/utils');
+    expect(formatAirDateLabel('2026-10-10', now)).toBe('Oct 10');
+    expect(formatAirDateLabel('2026-10-20', now)).toBe('Oct 20');
+  });
+
+  it('returns an empty string for a bad date', async () => {
+    const { formatAirDateLabel } = await import('@/lib/utils');
+    expect(formatAirDateLabel('soon', now)).toBe('');
+  });
+});

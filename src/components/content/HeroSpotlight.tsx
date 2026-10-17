@@ -5,7 +5,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Play, Info, Plus, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
-import { ContentTypeBadge, Tooltip, useToast } from '@/components/ui';
+import { ContentTypeBadge, Tooltip } from '@/components/ui';
+import { useWatchlistToggle } from '@/components/ui/WatchlistButton';
 import { ContentRating } from './ContentRating';
 import {
   getBackdropUrl,
@@ -16,7 +17,7 @@ import {
   cn,
   isMovie,
 } from '@/lib/utils';
-import type { Content } from '@/types';
+import type { Content, WatchlistItem } from '@/types';
 import { watchlistKey } from '@/stores/watchlist';
 
 // ==========================================================================
@@ -44,7 +45,6 @@ export function HeroSpotlight({
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const { addToast } = useToast(); // Must be called before any conditional returns
 
   const itemCount = items.length;
   const currentItem = items[currentIndex];
@@ -88,16 +88,6 @@ export function HeroSpotlight({
   const detailUrl = isTV ? `/tv/${currentItem.id}` : `/movie/${currentItem.id}`;
   const similarUrl = isTV ? `/similar/tv/${currentItem.id}` : `/similar/movie/${currentItem.id}`;
   const isInWatchlist = watchlistIds?.has(watchlistKey(isTV ? 'tv' : 'movie', currentItem.id));
-
-  const handleWatchlistClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    addToast({
-      type: 'info',
-      title: 'Coming Soon',
-      message: 'Watchlist feature is coming soon!',
-      duration: 3000,
-    });
-  };
 
   const handleSimilarClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -221,18 +211,17 @@ export function HeroSpotlight({
               </Tooltip>
 
               {/* Watchlist Button */}
-              <Tooltip content={isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'} position="top">
-                <button
-                  onClick={handleWatchlistClick}
-                  className={cn(
-                    'inline-flex items-center justify-center rounded-full border border-border-default bg-bg-secondary p-2 text-text-primary shadow-lg transition-all hover:scale-105 hover:bg-bg-tertiary sm:p-3',
-                    isInWatchlist && 'border-accent-primary bg-accent-primary text-white'
-                  )}
-                  aria-label={isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
-                >
-                  <Heart className={cn('h-4 w-4 sm:h-6 sm:w-6', isInWatchlist && 'fill-current')} />
-                </button>
-              </Tooltip>
+              <HeroWatchlistButton
+                item={{
+                  id: currentItem.id,
+                  title,
+                  media_type: isTV ? 'tv' : 'movie',
+                  content_type: contentType,
+                  poster_path: currentItem.poster_path,
+                }}
+                isInWatchlist={isInWatchlist}
+                onToggle={onWatchlistToggle && (() => onWatchlistToggle(currentItem))}
+              />
             </div>
           </div>
         </div>
@@ -284,5 +273,37 @@ export function HeroSpotlight({
         </span>
       </div>
     </section>
+  );
+}
+
+// The hero returns early with no items, so the hook lives in its own component
+function HeroWatchlistButton({
+  item,
+  isInWatchlist,
+  onToggle,
+}: {
+  item: Omit<WatchlistItem, 'added_at'>;
+  isInWatchlist?: boolean;
+  onToggle?: () => void;
+}) {
+  const watchlist = useWatchlistToggle(item, onToggle);
+  const saved = isInWatchlist ?? watchlist.saved;
+
+  return (
+    <Tooltip content={saved ? 'In Watchlist' : 'Add to Watchlist'} position="top">
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          watchlist.toggle();
+        }}
+        className={cn(
+          'inline-flex items-center justify-center rounded-full border border-border-default bg-bg-secondary p-2 text-text-primary shadow-lg transition-all hover:scale-105 hover:bg-bg-tertiary sm:p-3',
+          saved && 'border-accent-primary bg-accent-primary text-white'
+        )}
+        aria-label={saved ? 'Remove from Watchlist' : 'Add to Watchlist'}
+      >
+        <Heart className={cn('h-4 w-4 sm:h-6 sm:w-6', saved && 'fill-current')} />
+      </button>
+    </Tooltip>
   );
 }

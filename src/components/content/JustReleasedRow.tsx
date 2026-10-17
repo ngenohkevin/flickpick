@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, Zap, Plus, Heart } from 'lucide-react';
 import { ContentPoster } from './ContentPoster';
 import { ContentRating } from './ContentRating';
-import { Tooltip, useToast } from '@/components/ui';
+import { Tooltip } from '@/components/ui';
+import { useWatchlistToggle } from '@/components/ui/WatchlistButton';
 import {
   extractYear,
   cn,
+  getContentType,
 } from '@/lib/utils';
 import type { MovieWithAvailability } from '@/lib/torrentio';
 import { watchlistKey } from '@/stores/watchlist';
@@ -168,29 +170,24 @@ interface JustReleasedCardProps {
 function JustReleasedCard({
   movie,
   priority = false,
-  isInWatchlist = false,
+  isInWatchlist,
   onWatchlistToggle,
   className = '',
 }: JustReleasedCardProps) {
   const router = useRouter();
-  const { addToast } = useToast();
   const year = extractYear(movie.release_date);
   const detailUrl = `/movie/${movie.id}`;
   const similarUrl = `/similar/movie/${movie.id}`;
+  const watchlist = useWatchlistToggle(
+    { id: movie.id, title: movie.title, media_type: 'movie', content_type: getContentType(movie), poster_path: movie.poster_path },
+    onWatchlistToggle && (() => onWatchlistToggle(movie))
+  );
+  const saved = isInWatchlist ?? watchlist.saved;
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (onWatchlistToggle) {
-      onWatchlistToggle(movie);
-      return;
-    }
-    addToast({
-      type: 'info',
-      title: 'Coming Soon',
-      message: 'Watchlist feature is coming soon!',
-      duration: 3000,
-    });
+    watchlist.toggle();
   };
 
   const handleSimilarClick = (e: React.MouseEvent) => {
@@ -244,18 +241,18 @@ function JustReleasedCard({
             </Tooltip>
 
             {/* Watchlist Button */}
-            <Tooltip content={isInWatchlist ? 'In Watchlist' : 'Add to Watchlist'} position="top">
+            <Tooltip content={saved ? 'In Watchlist' : 'Add to Watchlist'} position="top">
               <button
                 onClick={handleWatchlistClick}
                 className={cn(
                   'flex h-10 w-10 items-center justify-center rounded-full transition-colors',
-                  isInWatchlist
+                  saved
                     ? 'bg-accent-primary text-white'
                     : 'bg-white/20 text-white hover:bg-white/30'
                 )}
-                aria-label={isInWatchlist ? 'Remove from watchlist' : 'Add to watchlist'}
+                aria-label={saved ? 'Remove from watchlist' : 'Add to watchlist'}
               >
-                <Heart className={cn('h-5 w-5', isInWatchlist && 'fill-current')} />
+                <Heart className={cn('h-5 w-5', saved && 'fill-current')} />
               </button>
             </Tooltip>
           </div>
