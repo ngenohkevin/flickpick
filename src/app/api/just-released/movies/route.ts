@@ -32,6 +32,11 @@ interface CachedResult {
 const LIMIT = 20;
 const CANDIDATE_PAGES = 3; // up to 60 candidates, most popular first
 const WINDOW_DAYS = 120;
+/**
+ * Oldest first release (usually theatrical) a candidate may have: the window
+ * plus the longest usual gap between cinema and home release
+ */
+const MAX_AGE_DAYS = 240;
 /** Fewer verified titles than this never replaces a fuller list */
 const MIN_GOOD = 6;
 const FRESH_TTL = CACHE_TTL.JUST_RELEASED; // 30 min
@@ -54,6 +59,12 @@ function isoDaysAgo(days: number): string {
  * Films with a digital or physical release in the window, most popular
  * first. (The theatrical date let films only in cinemas in, and pushed out
  * big titles whose digital release came more than 90 days after.)
+ *
+ * The first-release bound keeps out older films whose release in the window
+ * is a later one: a 4K reissue (The Godfather), a new streaming home
+ * (Interstellar) or another country's release (Avatar: Fire and Ash, F1).
+ * TMDB matches a release in any country, so those made up a third of the
+ * candidates.
  */
 async function getCandidates(): Promise<Movie[]> {
   const pages = await Promise.all(
@@ -64,6 +75,7 @@ async function getCandidates(): Promise<Movie[]> {
         with_release_type: '4|5',
         'release_date.gte': isoDaysAgo(WINDOW_DAYS),
         'release_date.lte': isoDaysAgo(0),
+        'primary_release_date.gte': isoDaysAgo(MAX_AGE_DAYS),
         'vote_count.gte': 50,
         'vote_average.gte': 5.5,
       }).catch(() => null)

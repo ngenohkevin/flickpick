@@ -193,9 +193,10 @@ export const cacheKeys = {
   torrentioMovie: (imdbId: string) => `torrentio:movie:v2:${imdbId}`,
   torrentioTV: (imdbId: string, season: number, episode: number) =>
     `torrentio:tv:${imdbId}:${season}:${episode}`,
-  justReleasedMovies: () => `just-released:movies:v2`,
+  // v3: candidates must have been first released within MAX_AGE_DAYS
+  justReleasedMovies: () => `just-released:movies:v3`,
   /** Last verified list, kept for days: served while a refresh runs or fails */
-  justReleasedLastGood: () => `just-released:movies:v2:last-good`,
+  justReleasedLastGood: () => `just-released:movies:v3:last-good`,
 
   search: (query: string, page: number) => `search:${query}:${page}`,
   trending: (type: string, window: string, page: number) =>
